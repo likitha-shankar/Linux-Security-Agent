@@ -1308,10 +1308,25 @@
                 const riskClass = p.risk >= 50 ? 'high-risk' : p.risk >= 30 ? 'anomaly' : '';
                 const riskColor = p.risk >= 50 ? 'risk-high' : p.risk >= 30 ? 'risk-medium' : 'risk-low';
                 
+                // Determine display name - prefer real name, fallback to PID
+                let displayName = p.name;
+                let showPid = false;
+                if (!p.name || p.name === 'unknown' || p.name.startsWith('pid_')) {
+                    // If name is generic, show PID prominently
+                    displayName = `PID ${p.pid}`;
+                    showPid = false; // Already showing PID
+                } else {
+                    // Show real name with PID below
+                    showPid = true;
+                }
+                
                 return `
                     <div class="process-item ${riskClass}">
                         <div class="process-header">
-                            <div class="process-name">${escapeHtml(p.name)}</div>
+                            <div style="flex: 1;">
+                                <div class="process-name" style="font-weight: 600; font-size: 0.95em;">${escapeHtml(displayName)}</div>
+                                ${showPid ? `<div class="process-pid" style="margin-top: 4px; font-size: 0.8em; color: #718096;">PID: ${p.pid}</div>` : ''}
+                            </div>
                             <div class="process-scores">
                                 <div class="score">
                                     <span class="score-label">Risk:</span>
@@ -1323,6 +1338,7 @@
                                 </div>
                             </div>
                         </div>
+                        ${p.syscalls > 0 ? `<div style="font-size: 0.75em; color: #a0aec0; margin-top: 6px;">${p.syscalls.toLocaleString()} syscalls</div>` : ''}
                         <div class="process-pid">PID: ${p.pid}</div>
                     </div>
                 `;
