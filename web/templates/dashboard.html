@@ -727,7 +727,7 @@
             syscalls: 0
         };
         
-        let processes = new Map();
+        let processes = new Map(); // pid -> {name, risk, anomaly, syscalls, lastSeen}
         let autoScroll = true;
         let currentLogMode = 'live'; // 'live' or 'file'
         let logFileWatcher = null;
@@ -737,6 +737,12 @@
         // Store detailed detection information
         let highRiskList = []; // Array of {pid, name, risk, anomaly, syscalls, timestamp, details}
         let attackList = []; // Array of {type, pid, name, details, timestamp}
+        // Track total syscalls (sum from all processes)
+        let totalSyscallsCount = 0;
+        // Track recent attacks (for current count - last 5 minutes)
+        let recentAttacks = []; // Array of {timestamp, ...}
+        const ATTACK_WINDOW_MS = 5 * 60 * 1000; // 5 minutes
+        const PROCESS_TIMEOUT_MS = 60 * 1000; // Process considered inactive after 60 seconds
         let activityData = {
             labels: [],
             anomalies: [],
@@ -856,44 +862,101 @@
             }
         }
         
+        // Calculate current counts from processes Map
+        function calculateCurrentStats() {
+            const now = Date.now();
+            const riskThreshold = 30.0;
+            const anomalyThreshold = 60.0;
+            
+            // Count active processes (seen in last 60 seconds)
+            let activeProcesses = 0;
+            let currentHighRisk = 0;
+            let currentAnomalies = 0;
+            let totalSyscalls = 0;
+            
+            processes.forEach((proc, pid) => {
+                // Check if process is still active (seen recently)
+                const lastSeen = proc.lastSeen || 0;
+                if (now - lastSeen < PROCESS_TIMEOUT_MS) {
+                    activeProcesses++;
+                    
+                    // Count high risk processes
+                    if (proc.risk >= riskThreshold) {
+                        currentHighRisk++;
+                    }
+                    
+                    // Count anomaly processes
+                    if (proc.anomaly >= anomalyThreshold) {
+                        currentAnomalies++;
+                    }
+                    
+                    // Sum syscalls
+                    if (proc.syscalls) {
+                        totalSyscalls += proc.syscalls;
+                    }
+                }
+            });
+            
+            // Count recent attacks (last 5 minutes)
+            const recentAttackCount = recentAttacks.filter(attack => 
+                now - attack.timestamp < ATTACK_WINDOW_MS
+            ).length;
+            
+            // Update stats
+            stats.processes = activeProcesses;
+            stats.highRisk = currentHighRisk;
+            stats.anomalies = currentAnomalies;
+            stats.attacks = recentAttackCount;
+            stats.syscalls = totalSyscalls;
+            
+            // Update UI
+            document.getElementById('statProcesses').textContent = stats.processes;
+            document.getElementById('statHighRisk').textContent = stats.highRisk;
+            document.getElementById('statAnomalies').textContent = stats.anomalies;
+            document.getElementById('statAttacks').textContent = stats.attacks;
+            document.getElementById('statSyscalls').textContent = stats.syscalls.toLocaleString();
+        }
+        
         function updateStats(data) {
             if (!data) return;
             
-            // Update based on log type (only for explicit alert types)
-            if (data.type === 'attack') {
-                stats.attacks++;
-                document.getElementById('statAttacks').textContent = stats.attacks;
-                updateChart('attack');
-            }
-            
             if (data.message) {
                 const msg = data.message;
+                const now = Date.now();
                 
                 // Parse syscalls from SCORE UPDATE
                 if (msg.includes('SCORE UPDATE')) {
-                    // Extract syscall count from message
+                    const pidMatch = msg.match(/PID=(\d+)/);
                     const syscallMatch = msg.match(/Syscalls=(\d+)/);
-                    if (syscallMatch) {
-                        const count = parseInt(syscallMatch[1]);
-                        if (count > stats.syscalls) {
-                            stats.syscalls = count;
-                            document.getElementById('statSyscalls').textContent = stats.syscalls.toLocaleString();
+                    const totalSyscallsMatch = msg.match(/TotalSyscalls=(\d+)/);
+                    
+                    if (pidMatch) {
+                        const pid = pidMatch[1];
+                        const proc = processes.get(pid) || { pid, name: 'unknown', risk: 0, anomaly: 0, syscalls: 0 };
+                        
+                        if (syscallMatch) {
+                            proc.syscalls = parseInt(syscallMatch[1]);
+                        } else if (totalSyscallsMatch) {
+                            proc.syscalls = parseInt(totalSyscallsMatch[1]);
                         }
+                        proc.lastSeen = now;
+                        processes.set(pid, proc);
                     }
+                    
+                    // Recalculate stats
+                    calculateCurrentStats();
                 }
                 
-                // Parse HIGH RISK DETECTED - only count unique detections
+                // Parse HIGH RISK DETECTED - add to high-risk list
                 if ((msg.includes('HIGH RISK DETECTED') || msg.includes('🔴 HIGH RISK')) && !msg.includes('SCORE UPDATE')) {
                     const pidMatch = msg.match(/PID=(\d+)/);
                     if (pidMatch) {
                         const pid = pidMatch[1];
-                        const timestamp = Math.floor(Date.now() / 1000); // Use second-level precision
+                        const timestamp = Math.floor(Date.now() / 1000);
                         const detectionKey = `highrisk:${pid}:${timestamp}`;
                         
                         if (!highRiskDetections.has(detectionKey)) {
                             highRiskDetections.add(detectionKey);
-                            stats.highRisk++;
-                            document.getElementById('statHighRisk').textContent = stats.highRisk;
                             updateChart('highRisk');
                             
                             // Extract details for high-risk list
@@ -910,7 +973,6 @@
                                 if (!foundName.startsWith('pid_')) {
                                     processName = foundName;
                                 } else {
-                                    // Try to find comm= or exe= in the log
                                     const commMatch = msg.match(/comm[=:]([^\s,]+)/) || msg.match(/comm="([^"]+)"/);
                                     const exeMatch = msg.match(/exe[=:]([^\s,]+)/) || msg.match(/exe="([^"]+)"/);
                                     if (commMatch && !commMatch[1].startsWith('pid_')) {
@@ -919,7 +981,7 @@
                                         const exePath = exeMatch[1];
                                         processName = exePath.split('/').pop() || exePath;
                                     } else {
-                                        processName = foundName; // Fallback
+                                        processName = foundName;
                                     }
                                 }
                             }
@@ -935,14 +997,24 @@
                                 details: msg.substring(0, 200)
                             };
                             
-                            highRiskList.unshift(highRiskEntry); // Add to beginning
-                            if (highRiskList.length > 20) highRiskList.pop(); // Keep last 20
+                            highRiskList.unshift(highRiskEntry);
+                            if (highRiskList.length > 20) highRiskList.pop();
                             renderHighRiskList();
+                            
+                            // Update process risk score
+                            const proc = processes.get(pid) || { pid, name: processName, risk: 0, anomaly: 0, syscalls: 0 };
+                            proc.risk = highRiskEntry.risk;
+                            proc.anomaly = highRiskEntry.anomaly;
+                            proc.lastSeen = now;
+                            processes.set(pid, proc);
+                            
+                            // Recalculate stats
+                            calculateCurrentStats();
                         }
                     }
                 }
                 
-                // Parse ATTACK DETECTED (port scanning, C2 beaconing, etc.)
+                // Parse ATTACK DETECTED
                 if (msg.includes('ATTACK') || msg.includes('PORT_SCANNING') || msg.includes('C2_BEACONING') || 
                     msg.includes('CONNECTION PATTERN DETECTED')) {
                     const pidMatch = msg.match(/PID=(\d+)/);
@@ -957,14 +1029,13 @@
                         attackType = 'Suspicious Connection';
                     }
                     
-                    // Get better process name (avoid pid_XXXXX)
+                    // Get better process name
                     let attackProcessName = 'unknown';
                     if (processMatch) {
                         const foundName = processMatch[1];
                         if (!foundName.startsWith('pid_')) {
                             attackProcessName = foundName;
                         } else {
-                            // Try to find comm= or exe= in the log
                             const commMatch = msg.match(/comm[=:]([^\s,]+)/) || msg.match(/comm="([^"]+)"/);
                             const exeMatch = msg.match(/exe[=:]([^\s,]+)/) || msg.match(/exe="([^"]+)"/);
                             if (commMatch && !commMatch[1].startsWith('pid_')) {
@@ -973,7 +1044,7 @@
                                 const exePath = exeMatch[1];
                                 attackProcessName = exePath.split('/').pop() || exePath;
                             } else {
-                                attackProcessName = foundName; // Fallback
+                                attackProcessName = foundName;
                             }
                         }
                     }
@@ -986,13 +1057,24 @@
                         timestamp: new Date().toLocaleTimeString()
                     };
                     
-                    attackList.unshift(attackEntry); // Add to beginning
-                    if (attackList.length > 20) attackList.pop(); // Keep last 20
+                    // Add to recent attacks (for current count)
+                    recentAttacks.push({
+                        timestamp: now,
+                        ...attackEntry
+                    });
+                    // Remove old attacks
+                    recentAttacks = recentAttacks.filter(attack => now - attack.timestamp < ATTACK_WINDOW_MS);
+                    
+                    attackList.unshift(attackEntry);
+                    if (attackList.length > 20) attackList.pop();
                     renderAttackList();
+                    updateChart('attack');
+                    
+                    // Recalculate stats
+                    calculateCurrentStats();
                 }
                 
-                // Parse ANOMALY DETECTED - only count unique detections (not score updates)
-                // Must be the actual detection log, not just mentions of anomaly scores
+                // Parse ANOMALY DETECTED
                 if ((msg.includes('ANOMALY DETECTED') || msg.includes('⚠️  ANOMALY DETECTED')) && 
                     !msg.includes('SCORE UPDATE') && 
                     !msg.includes('AnomalyScore=') && 
@@ -1000,26 +1082,25 @@
                     const pidMatch = msg.match(/PID=(\d+)/);
                     if (pidMatch) {
                         const pid = pidMatch[1];
-                        const timestamp = Math.floor(Date.now() / 1000); // Use second-level precision
+                        const timestamp = Math.floor(Date.now() / 1000);
                         const detectionKey = `anomaly:${pid}:${timestamp}`;
                         
                         if (!anomalyDetections.has(detectionKey)) {
                             anomalyDetections.add(detectionKey);
-                            stats.anomalies++;
-                            document.getElementById('statAnomalies').textContent = stats.anomalies;
                             updateChart('anomaly');
+                            
+                            // Update process anomaly score
+                            const anomalyMatch = msg.match(/AnomalyScore[=:](\d+\.?\d*)/);
+                            if (anomalyMatch) {
+                                const proc = processes.get(pid) || { pid, name: 'unknown', risk: 0, anomaly: 0, syscalls: 0 };
+                                proc.anomaly = parseFloat(anomalyMatch[1]);
+                                proc.lastSeen = now;
+                                processes.set(pid, proc);
+                                
+                                // Recalculate stats
+                                calculateCurrentStats();
+                            }
                         }
-                    }
-                }
-                
-                // Parse process info from log
-                const pidMatch = msg.match(/PID=(\d+)/);
-                if (pidMatch) {
-                    const pid = pidMatch[1];
-                    if (!processes.has(pid)) {
-                        processes.set(pid, { pid, name: 'unknown', risk: 0, anomaly: 0 });
-                        stats.processes++;
-                        document.getElementById('statProcesses').textContent = stats.processes;
                     }
                 }
             }
@@ -1125,8 +1206,20 @@
                 process.anomaly = parseFloat(anomalyMatch[1]);
             }
             
+            // Parse syscall count
+            const syscallMatch = msg.match(/Syscalls=(\d+)/) || msg.match(/TotalSyscalls=(\d+)/);
+            if (syscallMatch) {
+                process.syscalls = parseInt(syscallMatch[1]);
+            }
+            
+            // Update last seen timestamp
+            process.lastSeen = Date.now();
+            
             processes.set(pid, process);
             renderProcessList();
+            
+            // Recalculate current stats after updating process
+            calculateCurrentStats();
         }
         
         function renderHighRiskList() {
@@ -1357,6 +1450,21 @@
         setInterval(checkStatus, 5000);
         loadLogFiles(); // Load available log files on page load
         setInterval(loadLogFiles, 30000); // Refresh log list every 30 seconds
+        
+        // Periodically recalculate current stats and clean up inactive processes
+        setInterval(() => {
+            const now = Date.now();
+            // Remove processes that haven't been seen in last 60 seconds
+            processes.forEach((proc, pid) => {
+                if (proc.lastSeen && (now - proc.lastSeen > PROCESS_TIMEOUT_MS)) {
+                    processes.delete(pid);
+                }
+            });
+            // Clean up old attacks
+            recentAttacks = recentAttacks.filter(attack => now - attack.timestamp < ATTACK_WINDOW_MS);
+            // Recalculate stats
+            calculateCurrentStats();
+        }, 10000); // Every 10 seconds
     </script>
 </body>
 </html>
