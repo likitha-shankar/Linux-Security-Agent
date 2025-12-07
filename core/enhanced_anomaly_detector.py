@@ -83,8 +83,9 @@ class EnhancedAnomalyDetector:
             n_jobs=-1
         )
         
+        # Lower nu (0.05 = 5%) to reduce false positives on normal processes
         self.one_class_svm = OneClassSVM(
-            nu=self.config.get('nu', 0.1),
+            nu=self.config.get('nu', 0.05),
             kernel='rbf',
             gamma='scale',
             tol=1e-3
