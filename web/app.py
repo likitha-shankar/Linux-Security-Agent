@@ -91,13 +91,8 @@ init_db()
 
 @app.route('/')
 def index():
-    """Landing page"""
-    return render_template('index.html')
-
-@app.route('/monitor')
-def monitor():
-    """Monitoring dashboard"""
-    return render_template('monitor.html')
+    """Main dashboard (single page)"""
+    return render_template('dashboard.html')
 
 @app.route('/api/status')
 def api_status():
