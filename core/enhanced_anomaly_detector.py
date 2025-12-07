@@ -450,6 +450,20 @@ class EnhancedAnomalyDetector:
             self._save_ngram()
         except Exception as e:
             print(f"❌ N-gram training failed: {e}")
+        
+        # Final summary
+        total_time = time.time() - training_start_time
+        print(f"\n" + "="*70)
+        print(f"✅ TRAINING COMPLETE!")
+        print(f"="*70)
+        print(f"📊 Final Summary:")
+        print(f"   - Training samples: {len(training_data)}")
+        print(f"   - Feature dimensions: {features.shape[1]} → {features_pca.shape[1]} (PCA)")
+        print(f"   - Models trained: Isolation Forest ✅, One-Class SVM ✅, DBSCAN ✅")
+        print(f"   - Total training time: {total_time:.2f} seconds ({total_time/60:.1f} minutes)")
+        print(f"   - Models location: {self.model_dir}")
+        print(f"   - Models fitted: {self.is_fitted}")
+        print(f"   - Models trained: {self.models_trained}")
         print("🎉 All models trained and saved successfully")
     
     def _save_ngram(self) -> None:
@@ -777,18 +791,6 @@ class EnhancedAnomalyDetector:
             print(f"   ✅ Models saved successfully")
             print(f"   📁 Location: {self.model_dir}")
             print(f"   ⏱️  Time: {time.time() - save_start:.2f} seconds")
-            
-            # Show total training time
-            total_time = time.time() - training_start_time
-            print(f"\n" + "="*70)
-            print(f"✅ TRAINING COMPLETE!")
-            print(f"="*70)
-            print(f"📊 Summary:")
-            print(f"   - Total samples: {len(training_data)}")
-            print(f"   - Feature dimensions: {features.shape[1]} → {features_pca.shape[1]} (PCA)")
-            print(f"   - Models trained: Isolation Forest ✅, One-Class SVM ✅, DBSCAN ✅")
-            print(f"   - Total time: {total_time:.2f} seconds ({total_time/60:.1f} minutes)")
-            print(f"   - Models saved to: {self.model_dir}")
         except Exception as e:
             print(f"❌ Error saving models: {e}")
     
