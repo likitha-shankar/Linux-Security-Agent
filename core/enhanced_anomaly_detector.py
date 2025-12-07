@@ -391,16 +391,24 @@ class EnhancedAnomalyDetector:
         print(f"\n[2/6] 🔧 Scaling features (StandardScaler)...")
         step_start = time.time()
         features_scaled = self.scaler.fit_transform(features)
+        step_time = time.time() - step_start
         print(f"   ✅ Features scaled (mean=0, std=1)")
-        print(f"   ⏱️  Time: {time.time() - step_start:.2f} seconds")
+        if step_time < 0.01:
+            print(f"   ⏱️  Time: {step_time*1000:.1f} ms")
+        else:
+            print(f"   ⏱️  Time: {step_time:.2f} seconds")
         
         # Apply PCA for dimensionality reduction
         print(f"\n[3/6] 📉 Applying PCA dimensionality reduction...")
         step_start = time.time()
         features_pca = self.pca.fit_transform(features_scaled)
+        step_time = time.time() - step_start
         print(f"   ✅ PCA applied: {features.shape[1]}D → {features_pca.shape[1]}D")
         print(f"   📊 Explained variance: {self.pca.explained_variance_ratio_.sum():.1%}")
-        print(f"   ⏱️  Time: {time.time() - step_start:.2f} seconds")
+        if step_time < 0.01:
+            print(f"   ⏱️  Time: {step_time*1000:.1f} ms")
+        else:
+            print(f"   ⏱️  Time: {step_time:.2f} seconds")
         
         # Train Isolation Forest
         print(f"\n[4/6] 🌲 Training Isolation Forest (200 trees)...")
@@ -408,9 +416,13 @@ class EnhancedAnomalyDetector:
         try:
             self.isolation_forest.fit(features_pca)
             self.models_trained['isolation_forest'] = True
+            step_time = time.time() - step_start
             print(f"   ✅ Isolation Forest trained successfully")
             print(f"   📦 Model size: ~{self.isolation_forest.n_estimators} trees")
-            print(f"   ⏱️  Time: {time.time() - step_start:.2f} seconds")
+            if step_time < 0.01:
+                print(f"   ⏱️  Time: {step_time*1000:.1f} ms")
+            else:
+                print(f"   ⏱️  Time: {step_time:.2f} seconds")
         except Exception as e:
             print(f"   ❌ Isolation Forest training failed: {e}")
         
@@ -420,9 +432,13 @@ class EnhancedAnomalyDetector:
         try:
             self.one_class_svm.fit(features_pca)
             self.models_trained['one_class_svm'] = True
+            step_time = time.time() - step_start
             print(f"   ✅ One-Class SVM trained successfully")
             print(f"   📦 Nu parameter: {self.one_class_svm.nu}")
-            print(f"   ⏱️  Time: {time.time() - step_start:.2f} seconds")
+            if step_time < 0.01:
+                print(f"   ⏱️  Time: {step_time*1000:.1f} ms")
+            else:
+                print(f"   ⏱️  Time: {step_time:.2f} seconds")
         except Exception as e:
             print(f"   ❌ One-Class SVM training failed: {e}")
         
@@ -434,9 +450,13 @@ class EnhancedAnomalyDetector:
             self.models_trained['dbscan'] = True
             n_clusters = len(set(self.dbscan.labels_)) - (1 if -1 in self.dbscan.labels_ else 0)
             n_noise = list(self.dbscan.labels_).count(-1)
+            step_time = time.time() - step_start
             print(f"   ✅ DBSCAN trained successfully")
             print(f"   📊 Clusters found: {n_clusters}, Noise points: {n_noise}")
-            print(f"   ⏱️  Time: {time.time() - step_start:.2f} seconds")
+            if step_time < 0.01:
+                print(f"   ⏱️  Time: {step_time*1000:.1f} ms")
+            else:
+                print(f"   ⏱️  Time: {step_time:.2f} seconds")
         except Exception as e:
             print(f"   ❌ DBSCAN training failed: {e}")
         
@@ -790,7 +810,11 @@ class EnhancedAnomalyDetector:
             save_start = time.time()
             print(f"   ✅ Models saved successfully")
             print(f"   📁 Location: {self.model_dir}")
-            print(f"   ⏱️  Time: {time.time() - save_start:.2f} seconds")
+            save_time = time.time() - save_start
+            if save_time < 0.01:
+                print(f"   ⏱️  Time: {save_time*1000:.1f} ms")
+            else:
+                print(f"   ⏱️  Time: {save_time:.2f} seconds")
         except Exception as e:
             print(f"❌ Error saving models: {e}")
     
