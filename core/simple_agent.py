@@ -916,6 +916,10 @@ def main():
     parser.add_argument('--config', type=str, help='Config file path')
     parser.add_argument('--headless', action='store_true',
                        help='Run without dashboard (for automation)')
+    parser.add_argument('--with-attacks', action='store_true',
+                       help='Run attack simulations automatically (for testing)')
+    parser.add_argument('--without-attacks', action='store_true',
+                       help='Run without any attack simulations (normal monitoring only)')
     
     args = parser.parse_args()
     
