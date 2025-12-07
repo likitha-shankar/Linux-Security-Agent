@@ -658,6 +658,17 @@ class SimpleSecurityAgent:
                     )
                     
                     if should_log:
+                        # Get process name, try to improve if it's pid_XXXXX
+                        comm = proc.get('name', 'unknown')
+                        if comm.startswith('pid_'):
+                            try:
+                                p = psutil.Process(pid)
+                                better_name = p.name()
+                                if better_name and not better_name.startswith('pid_'):
+                                    comm = better_name
+                                    proc['name'] = better_name  # Update stored name
+                            except (psutil.NoSuchProcess, psutil.AccessDenied):
+                                pass
                         logger.info(f"📊 SCORE UPDATE: PID={pid} Process={comm} Risk={risk_score:.1f} Anomaly={anomaly_score:.1f} "
                                   f"Syscalls={len(syscall_list)} TotalSyscalls={proc.get('total_syscalls', 0)} "
                                   f"ConnectionBonus={connection_risk_bonus:.1f}")
@@ -680,6 +691,16 @@ class SimpleSecurityAgent:
                     if current_time - last_alert >= self.alert_cooldown_seconds:
                         # LOG HIGH-RISK DETECTION with full details
                         comm = proc.get('name', 'unknown')
+                        # Try to get better process name if current one is pid_XXXXX
+                        if comm.startswith('pid_'):
+                            try:
+                                p = psutil.Process(pid)
+                                better_name = p.name()
+                                if better_name and not better_name.startswith('pid_'):
+                                    comm = better_name
+                                    proc['name'] = better_name  # Update stored name
+                            except (psutil.NoSuchProcess, psutil.AccessDenied):
+                                pass
                         logger.warning(f"🔴 HIGH RISK DETECTED: PID={pid} Process={comm} Risk={risk_score:.1f} Anomaly={anomaly_score:.1f}")
                         logger.warning(f"   Threshold: {threshold:.1f} | Base Risk: {base_risk_score:.1f} | "
                                      f"Connection Bonus: {connection_risk_bonus:.1f} | Total Syscalls: {proc.get('total_syscalls', 0)}")
@@ -712,6 +733,17 @@ class SimpleSecurityAgent:
                                              'execve', 'clone', 'fork', 'chmod', 'chown', 'unlink', 'rename']
                         detected_risky = [sc for sc, count in top_syscalls if sc in high_risk_syscalls]
                         
+                        # Try to get better process name if current one is pid_XXXXX
+                        comm = proc.get('name', 'unknown')
+                        if comm.startswith('pid_'):
+                            try:
+                                p = psutil.Process(pid)
+                                better_name = p.name()
+                                if better_name and not better_name.startswith('pid_'):
+                                    comm = better_name
+                                    proc['name'] = better_name  # Update stored name
+                            except (psutil.NoSuchProcess, psutil.AccessDenied):
+                                pass
                         # Enhanced anomaly logging with specific details
                         logger.warning(f"⚠️  ANOMALY DETECTED: PID={pid} Process={comm} AnomalyScore={anomaly_score:.1f}")
                         logger.warning(f"   ┌─ What's Anomalous:")
