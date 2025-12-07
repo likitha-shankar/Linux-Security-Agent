@@ -751,6 +751,8 @@
         let recentAttacks = []; // Array of {timestamp, ...}
         const ATTACK_WINDOW_MS = 5 * 60 * 1000; // 5 minutes
         const PROCESS_TIMEOUT_MS = 60 * 1000; // Process considered inactive after 60 seconds
+        // Track previous agent status to detect when it starts
+        let previousAgentStatus = false; // false = stopped, true = running
         let activityData = {
             labels: [],
             anomalies: [],
@@ -1401,6 +1403,17 @@
                 const response = await fetch('/api/status');
                 const data = await response.json();
                 
+                const currentStatus = data.running;
+                
+                // Detect when agent transitions from stopped to running (started manually or via web)
+                if (currentStatus && !previousAgentStatus) {
+                    // Agent just started - reset all values
+                    console.log('Agent started - resetting dashboard values');
+                    resetDashboardValues();
+                }
+                
+                previousAgentStatus = currentStatus;
+                
                 if (data.running) {
                     statusDot.classList.add('active');
                     statusText.textContent = 'Agent Running';
@@ -1415,6 +1428,47 @@
             } catch (error) {
                 console.error('Error checking status:', error);
             }
+        }
+        
+        // Reset only the values/stats (not the entire dashboard UI)
+        function resetDashboardValues() {
+            // Clear all state
+            processes.clear();
+            highRiskList = [];
+            attackList = [];
+            recentAttacks = [];
+            anomalyDetections.clear();
+            highRiskDetections.clear();
+            totalSyscallsCount = 0;
+            
+            // Reset stats
+            stats.processes = 0;
+            stats.highRisk = 0;
+            stats.anomalies = 0;
+            stats.attacks = 0;
+            stats.syscalls = 0;
+            
+            // Update UI
+            document.getElementById('statProcesses').textContent = '0';
+            document.getElementById('statHighRisk').textContent = '0';
+            document.getElementById('statAnomalies').textContent = '0';
+            document.getElementById('statAttacks').textContent = '0';
+            document.getElementById('statSyscalls').textContent = '0';
+            
+            // Clear lists
+            document.getElementById('highRiskList').innerHTML = '<div class="empty-state"><div class="empty-state-icon">🛡️</div><div class="empty-state-text">No high-risk processes yet</div></div>';
+            document.getElementById('attackList').innerHTML = '<div class="empty-state"><div class="empty-state-icon">✅</div><div class="empty-state-text">No attacks detected yet</div></div>';
+            document.getElementById('processList').innerHTML = '<div class="empty-state"><div class="empty-state-icon">📭</div><div class="empty-state-text">No processes detected yet</div></div>';
+            
+            // Reset chart
+            activityData.labels = [];
+            activityData.anomalies = [];
+            activityData.attacks = [];
+            activityData.highRisk = [];
+            activityChart.update('none');
+            
+            // Add log message
+            addLog('🔄 Dashboard values reset - starting fresh monitoring session', 'info');
         }
         
         async function startAgent() {
@@ -1434,6 +1488,8 @@
                 const data = await response.json();
                 
                 if (response.ok) {
+                    // Reset values when agent starts via web
+                    resetDashboardValues();
                     addLog(`✅ Agent started successfully (PID: ${data.pid})`, 'info');
                     // Update status after a moment
                     setTimeout(checkStatus, 2000);
