@@ -165,10 +165,12 @@ class SimpleSecurityAgent:
         
         # Default system processes to exclude (known safe system daemons)
         default_excluded = ['fluent-bit', 'containerd', 'otelopscol', 'multipathd', 
-                           'google_osconfig_agent', 'systemd', 'systemd-logind', 
+                           'google_osconfig_agent', 'google_guest_agent', 'systemd', 'systemd-logind', 
                            'systemd-networkd', 'systemd-resolved', 'snapd', 'sudo',
                            'sshd', 'bash', 'sh', 'dash', 'zsh', 'python3', 'python',
-                           'systemd-journald', 'systemd-udevd', 'dbus-daemon', 'NetworkManager']
+                           'systemd-journald', 'systemd-udevd', 'dbus-daemon', 'NetworkManager',
+                           'dockerd', 'packagekitd', 'packagekit', 'gdm', 'gnome-shell',
+                           'pulseaudio', 'avahi-daemon', 'cron', 'rsyslog']
         
         # Merge config and defaults
         excluded_processes = self.config.get('excluded_processes', [])
@@ -557,15 +559,18 @@ class SimpleSecurityAgent:
                 risk_score = base_risk_score + connection_risk_bonus
                 proc['risk_score'] = risk_score
                 
-                # DEBUG: Log all scores periodically
-                if len(syscall_list) >= 20 and len(syscall_list) % 20 == 0:
+                # DEBUG: Log all scores periodically (less frequently to reduce spam)
+                # Only log every 100 syscalls, and only if risk or anomaly is significant
+                if len(syscall_list) >= 100 and len(syscall_list) % 100 == 0:
                     comm = proc.get('name', 'unknown')
-                    logger.info(f"📊 SCORE UPDATE: PID={pid} Process={comm} Risk={risk_score:.1f} Anomaly={anomaly_score:.1f} "
-                              f"Syscalls={len(syscall_list)} TotalSyscalls={proc.get('total_syscalls', 0)} "
-                              f"ConnectionBonus={connection_risk_bonus:.1f}")
-                    logger.debug(f"   Process info: CPU={process_info.get('cpu_percent', 0):.1f}% "
-                               f"Memory={process_info.get('memory_percent', 0):.1f}% "
-                               f"Threads={process_info.get('num_threads', 0)}")
+                    # Only log if risk > 15 or anomaly > 20 (filter out normal processes)
+                    if risk_score > 15 or anomaly_score > 20:
+                        logger.info(f"📊 SCORE UPDATE: PID={pid} Process={comm} Risk={risk_score:.1f} Anomaly={anomaly_score:.1f} "
+                                  f"Syscalls={len(syscall_list)} TotalSyscalls={proc.get('total_syscalls', 0)} "
+                                  f"ConnectionBonus={connection_risk_bonus:.1f}")
+                        logger.debug(f"   Process info: CPU={process_info.get('cpu_percent', 0):.1f}% "
+                                   f"Memory={process_info.get('memory_percent', 0):.1f}% "
+                                   f"Threads={process_info.get('num_threads', 0)}")
                 
                 # Update high risk count and LOG detections (with rate limiting)
                 threshold = self.config.get('risk_threshold', 30.0)
