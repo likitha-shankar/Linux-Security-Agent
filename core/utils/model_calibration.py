@@ -151,7 +151,7 @@ class ModelCalibrator:
                 ci_lower = max(0.0, mean_score - margin)
                 ci_upper = min(100.0, mean_score + margin)
                 return (ci_lower, ci_upper)
-            except:
+            except (ValueError, ZeroDivisionError, IndexError):
                 pass
         
         # Fallback to heuristic

@@ -322,7 +322,7 @@ class SimpleSecurityAgent:
                             exe = p.exe()
                             if exe:
                                 process_name = os.path.basename(exe)
-                        except:
+                        except (psutil.NoSuchProcess, psutil.AccessDenied, OSError):
                             pass
                     # If still empty, try cmdline()
                     if not process_name or process_name.startswith('pid_') or len(process_name) == 0:
@@ -330,7 +330,7 @@ class SimpleSecurityAgent:
                             cmdline = p.cmdline()
                             if cmdline and len(cmdline) > 0:
                                 process_name = os.path.basename(cmdline[0]) if cmdline[0] else process_name
-                        except:
+                        except (psutil.NoSuchProcess, psutil.AccessDenied, OSError):
                             pass
                 except (psutil.NoSuchProcess, psutil.AccessDenied):
                     process_name = event.comm or f'pid_{event.pid}'
@@ -416,7 +416,7 @@ class SimpleSecurityAgent:
                                         exe = p.exe()
                                         if exe:
                                             self.processes[pid]['name'] = os.path.basename(exe)
-                                    except:
+                                    except (psutil.NoSuchProcess, psutil.AccessDenied, OSError):
                                         pass
                                 # If still empty, try cmdline()
                                 if self.processes[pid]['name'].startswith('pid_') or len(self.processes[pid]['name']) == 0:
@@ -424,7 +424,7 @@ class SimpleSecurityAgent:
                                         cmdline = p.cmdline()
                                         if cmdline and len(cmdline) > 0 and cmdline[0]:
                                             self.processes[pid]['name'] = os.path.basename(cmdline[0])
-                                    except:
+                                    except (psutil.NoSuchProcess, psutil.AccessDenied, OSError):
                                         pass
                             except (psutil.NoSuchProcess, psutil.AccessDenied):
                                 pass
