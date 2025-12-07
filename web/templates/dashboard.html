@@ -824,7 +824,21 @@
         socket.on('log', (data) => {
             // Only process live logs if in live mode
             if (currentLogMode === 'live') {
-                addLog(data.message, data.type);
+                // Skip displaying SCORE UPDATE logs in terminal (reduce spam)
+                // But still process them for statistics
+                if (data.type !== 'score' || data.message.includes('Risk=') && data.message.includes('Anomaly=')) {
+                    // Only show score updates if they're significant (high risk/anomaly)
+                    const riskMatch = data.message.match(/Risk=(\d+\.?\d*)/);
+                    const anomalyMatch = data.message.match(/Anomaly=(\d+\.?\d*)/);
+                    if (riskMatch && parseFloat(riskMatch[1]) > 30) {
+                        addLog(data.message, data.type);
+                    } else if (anomalyMatch && parseFloat(anomalyMatch[1]) > 40) {
+                        addLog(data.message, data.type);
+                    } else if (data.type !== 'score') {
+                        addLog(data.message, data.type);
+                    }
+                    // Always process for stats (even if not displayed)
+                }
                 updateStats(data);
                 updateProcessList(data);
             }
