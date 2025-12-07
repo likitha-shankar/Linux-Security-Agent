@@ -328,9 +328,10 @@ class EnhancedAnomalyDetector:
         print(f"\n📊 Training Data: {len(training_data)} samples")
         
         # Extract features from training data with progress
-        print(f"\n[1/6] 📊 Extracting 50-dimensional features...")
         import time
-        start_time = time.time()
+        training_start_time = time.time()  # Track total training time
+        print(f"\n[1/6] 📊 Extracting 50-dimensional features...")
+        step_start_time = time.time()
         
         features_list = []
         for i, (syscalls, process_info) in enumerate(training_data):
@@ -778,7 +779,7 @@ class EnhancedAnomalyDetector:
             print(f"   ⏱️  Time: {time.time() - save_start:.2f} seconds")
             
             # Show total training time
-            total_time = time.time() - start_time
+            total_time = time.time() - training_start_time
             print(f"\n" + "="*70)
             print(f"✅ TRAINING COMPLETE!")
             print(f"="*70)
