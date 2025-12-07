@@ -819,12 +819,12 @@ class SimpleSecurityAgent:
                     
                     # Format anomaly score with color coding
                     anomaly = proc['anomaly_score']
-                    if anomaly >= 40:
+                    if anomaly >= 50:  # Only high scores are red
                         anomaly_style = "red"
-                    elif anomaly >= 30:
+                    elif anomaly >= 40:  # Medium-high scores are yellow
                         anomaly_style = "yellow"
                     else:
-                        anomaly_style = "green"
+                        anomaly_style = "green"  # Everything below 40 is normal (green)
                     
                     # Format syscall count with commas for readability
                     total_syscalls = proc.get('total_syscalls', len(proc['syscalls']))
