@@ -1404,12 +1404,88 @@
                 if (data.running) {
                     statusDot.classList.add('active');
                     statusText.textContent = 'Agent Running';
+                    document.getElementById('startAgentBtn').style.display = 'none';
+                    document.getElementById('stopAgentBtn').style.display = 'inline-block';
                 } else {
                     statusDot.classList.remove('active');
                     statusText.textContent = 'Agent Stopped';
+                    document.getElementById('startAgentBtn').style.display = 'inline-block';
+                    document.getElementById('stopAgentBtn').style.display = 'none';
                 }
             } catch (error) {
                 console.error('Error checking status:', error);
+            }
+        }
+        
+        async function startAgent() {
+            const btn = document.getElementById('startAgentBtn');
+            const originalText = btn.innerHTML;
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Starting...';
+            
+            try {
+                const response = await fetch('/api/agent/start', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    addLog(`✅ Agent started successfully (PID: ${data.pid})`, 'info');
+                    // Update status after a moment
+                    setTimeout(checkStatus, 2000);
+                } else {
+                    addLog(`❌ Failed to start agent: ${data.error}`, 'error');
+                    alert(`Failed to start agent:\n${data.error}\n\nMake sure:\n- You have sudo permissions\n- eBPF is supported on this system`);
+                }
+            } catch (error) {
+                addLog(`❌ Error starting agent: ${error.message}`, 'error');
+                alert(`Error starting agent: ${error.message}`);
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = originalText;
+            }
+        }
+        
+        async function stopAgent() {
+            const btn = document.getElementById('stopAgentBtn');
+            const originalText = btn.innerHTML;
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Stopping...';
+            
+            if (!confirm('Are you sure you want to stop the agent?')) {
+                btn.disabled = false;
+                btn.innerHTML = originalText;
+                return;
+            }
+            
+            try {
+                const response = await fetch('/api/agent/stop', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    addLog(`✅ Agent stopped successfully`, 'info');
+                    // Update status after a moment
+                    setTimeout(checkStatus, 1000);
+                } else {
+                    addLog(`❌ Failed to stop agent: ${data.error}`, 'error');
+                    alert(`Failed to stop agent: ${data.error}`);
+                }
+            } catch (error) {
+                addLog(`❌ Error stopping agent: ${error.message}`, 'error');
+                alert(`Error stopping agent: ${error.message}`);
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = originalText;
             }
         }
         
