@@ -1,7 +1,7 @@
 # Automated Attack Test Suite
 
 > **Author**: Likitha Shankar  
-> **Last Updated**: November 20, 2024
+> **Last Updated**: December 7, 2024
 
 ## Overview
 
@@ -9,12 +9,13 @@ The automated attack test suite validates the security agent's ability to detect
 
 ## Features
 
-- **5 Attack Types Tested**:
+- **6 Attack Types Tested**:
   1. Privilege Escalation (T1078)
   2. High-Frequency Attack (DoS pattern)
   3. Process Churn (T1055)
   4. Suspicious File Patterns (T1070)
   5. Ptrace Attempts (T1055)
+  6. C2 Beaconing (T1071)
 
 - **Comprehensive Reporting**:
   - JSON test report with detailed results
@@ -48,7 +49,7 @@ The test suite generates a JSON report with:
 ```json
 {
   "timestamp": 1234567890,
-  "tests_run": 5,
+  "tests_run": 6,
   "failures": 0,
   "errors": 0,
   "success": true,
@@ -82,6 +83,11 @@ The test suite generates a JSON report with:
 - **MITRE ATT&CK**: T1055
 - **Behavior**: Process injection attempts via `ptrace`
 - **Expected Detection**: High-risk syscall detection
+
+### 6. C2 Beaconing
+- **MITRE ATT&CK**: T1071
+- **Behavior**: Periodic network connections to external servers
+- **Expected Detection**: Connection pattern detection, high network activity
 
 ## Integration with CI/CD
 

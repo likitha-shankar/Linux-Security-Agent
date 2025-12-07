@@ -378,7 +378,7 @@ Save updated models + feature store
 - Retraining: `core/enhanced_security_agent.py` - `_incremental_retrain_loop()`
 - Model training: `core/enhanced_anomaly_detector.py` - `train_models(append=True)`
 
-**Documentation**: `docs/TRAINING_EXPLANATION.md`
+**Documentation**: `TRAINING_DATA_SOURCES.md` (root level) and `docs/USING_REAL_TRAINING_DATA.md`
 
 ---
 

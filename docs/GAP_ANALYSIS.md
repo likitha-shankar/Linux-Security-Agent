@@ -2,7 +2,7 @@
 
 > **Author**: Likitha Shankar  
 > **Note**: This document tracks known limitations and improvement opportunities for this research prototype.  
-> **Last Updated**: November 20, 2024
+> **Last Updated**: December 7, 2024
 
 This document identifies gaps between the current research prototype and a production-ready EDR system. Many issues have been addressed since the initial analysis.
 
@@ -165,8 +165,8 @@ This document identifies gaps between the current research prototype and a produ
 |-------|----------|--------|--------|-------------------|
 | Limited test coverage | Medium | ⚠️ Basic tests exist | 1-2w | Medium |
 | No performance benchmarks | Medium | ⚠️ Not published | 1w | Medium |
-| No automated attack tests | High | ⚠️ Scripts exist, not automated | 1w | Medium |
-| No model evaluation metrics | High | ⚠️ Models work, no metrics | 1w | Medium |
+| No automated attack tests | High | ✅ Scripts exist (`scripts/simulate_attacks.py`) | - | - |
+| No model evaluation metrics | High | ✅ Evaluation scripts exist (`scripts/evaluate_ml_models.py`) | - | - |
 
 ### Code Quality Issues
 | Issue | Severity | Status | Effort | Research Priority |
@@ -178,8 +178,8 @@ This document identifies gaps between the current research prototype and a produ
 ### ML/Detection Issues
 | Issue | Severity | Status | Effort | Research Priority |
 |-------|----------|--------|--------|-------------------|
-| No evaluation metrics | High | ⚠️ Models work, no metrics | 1w | Medium |
-| Training data quality | Medium | ⚠️ No validation | 1-2w | Low |
+| No evaluation metrics | High | ✅ Evaluation scripts exist (`scripts/evaluate_ml_models.py`) | - | - |
+| Training data quality | Medium | ✅ Real ADFA-LD dataset (5,205 samples), validation scripts exist | - | - |
 | Feature validation | Medium | ⚠️ 50-D not validated | 1-2w | Low |
 | Model calibration | Low | ⚠️ Basic ensemble | 3-5d | Low |
 

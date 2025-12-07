@@ -114,8 +114,9 @@ The anomaly detection system uses Isolation Forest to identify unusual system ca
 ### Training
 
 - Model is automatically trained on first run
-- Uses synthetic data with normal and suspicious patterns
+- Uses real ADFA-LD dataset (5,205 syscall sequences from actual Linux systems)
 - Model is saved and reused on subsequent runs
+- See `TRAINING_DATA_SOURCES.md` for details on training data
 
 ## Action System
 

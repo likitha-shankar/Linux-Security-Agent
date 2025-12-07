@@ -14,7 +14,7 @@ This guide explains how to download and use real-world training data from public
   - Normal sequences (Training_Data_Master, Validation_Data_Master)
   - Attack sequences (Attack_Data_Master)
 - **License**: Academic use
-- **Size**: ~1,000+ sequences
+- **Size**: 5,205 sequences (currently used in this project)
 
 **Download Steps**:
 1. Visit the official website
@@ -81,10 +81,10 @@ python3 scripts/download_real_datasets.py \
 # Train with real data
 python3 scripts/train_with_dataset.py --file datasets/adfa_ld_training.json
 
-# Or combine with existing synthetic data
+# Or combine with additional datasets
 python3 scripts/train_with_dataset.py \
   --file datasets/adfa_ld_training.json \
-  --file datasets/diverse_training_dataset.json \
+  --file datasets/dongting_training.json \
   --append
 ```
 
@@ -149,7 +149,7 @@ You can combine multiple datasets for richer training:
 # Train on multiple sources
 python3 scripts/train_with_dataset.py \
   --file datasets/adfa_ld_training.json \
-  --file datasets/diverse_training_dataset.json \
+  --file datasets/dongting_training.json \
   --append
 ```
 
@@ -159,7 +159,7 @@ from core.enhanced_anomaly_detector import EnhancedAnomalyDetector
 
 detector = EnhancedAnomalyDetector()
 data1 = detector.load_training_data_from_file('datasets/adfa_ld_training.json')
-data2 = detector.load_training_data_from_file('datasets/diverse_training_dataset.json')
+data2 = detector.load_training_data_from_file('datasets/dongting_training.json')
 combined = detector.merge_training_datasets(data1, data2)
 detector.train_models(combined)
 ```
@@ -207,7 +207,7 @@ IEEE Transactions on Computers, 62(6), 1012-1024.
 1. ✅ Download a real dataset
 2. ✅ Convert to our format
 3. ✅ Train models with real data
-4. ✅ Compare performance: real data vs synthetic data
+4. ✅ Compare performance: ADFA-LD vs other datasets
 5. ✅ Document results in your research
 
 ## Questions?
