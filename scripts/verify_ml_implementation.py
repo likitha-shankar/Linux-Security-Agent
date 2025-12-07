@@ -35,17 +35,27 @@ def check_model_files():
     current_user = os.getenv('USER', os.getenv('USERNAME', 'unknown'))
     is_root = (os.geteuid() == 0) if hasattr(os, 'geteuid') else False
     
+    # Get the actual model directory from the detector
+    detector_temp = EnhancedAnomalyDetector()
+    actual_model_dir = Path(detector_temp.model_dir)
+    
     possible_dirs = []
     
-    # Always check current user's home first
+    # Check the actual model directory first (where models are actually stored)
+    possible_dirs.append(actual_model_dir)
+    
+    # Also check common locations
     user_home = Path.home()
+    possible_dirs.append(user_home / '.cache' / 'security_agent')
     possible_dirs.append(user_home / '.cache' / 'security_agent' / 'models')
     
-    # Only check root's directory if we're actually root
+    # Check root's directory if applicable
     if is_root:
+        possible_dirs.append(Path('/root/.cache/security_agent'))
         possible_dirs.append(Path('/root/.cache/security_agent/models'))
     elif current_user != 'root':
         # If not root, still check root's directory but handle permission errors
+        possible_dirs.append(Path('/root/.cache/security_agent'))
         possible_dirs.append(Path('/root/.cache/security_agent/models'))
     
     # Check project root
