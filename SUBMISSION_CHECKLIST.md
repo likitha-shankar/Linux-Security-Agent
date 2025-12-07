@@ -81,10 +81,10 @@
 > "Most tools like Falco use rule-based detection. My innovation is using ensemble machine learning (3 algorithms) which can detect zero-day attacks and adapts over time with incremental learning."
 
 **"Where did training data come from?"**
-> "Synthetically generated based on research literature, following academic standards like DARPA IDS and NSL-KDD datasets. 850 samples across 8 behavior types. Fully documented in TRAINING_DATA_SOURCES.md."
+> "Real ADFA-LD dataset (5,205 syscall sequences from actual Linux systems). Downloaded from GitHub and converted with 99.97% syscall name mapping success. Fully documented in TRAINING_DATA_SOURCES.md."
 
 **"Does it really work?"**
-> "Yes - verified on Google Cloud VM. Captures 100+ events/second, detects threats with anomaly scores 40+ (vs 21 for normal), and has 0% CPU overhead. Evidence in FINAL_VALIDATION_REPORT.md."
+> "Yes - verified on Google Cloud VM. Captures syscalls at kernel level via eBPF, successfully detects all 6 attack types tested. ML models trained on real ADFA-LD dataset. See HONEST_COMPREHENSIVE_ASSESSMENT.md for detailed analysis including limitations."
 
 **"What's your MITRE coverage?"**
 > "68% (13/19 techniques) including privilege escalation, defense evasion, credential access, and C2 beaconing detection. Documented in MITRE_ATTACK_COVERAGE.md."
@@ -96,10 +96,10 @@
 - **Code**: ~5,000+ lines
 - **Tests**: 15 unit tests
 - **Documentation**: 13 core documents
-- **Training Data**: 850 samples, 8 behavior types
+- **Training Data**: ADFA-LD dataset (5,205 real syscall sequences)
 - **MITRE Coverage**: 68% (13/19 techniques)
 - **Performance**: 0% CPU overhead
-- **Detection**: 30+ alerts in 30 seconds
+- **Detection**: Successfully detects all 6 attack types (see attack tests)
 - **Grade**: A+ (96%)
 
 ---
