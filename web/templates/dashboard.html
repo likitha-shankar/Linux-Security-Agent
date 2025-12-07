@@ -673,6 +673,9 @@
         
         let processes = new Map();
         let autoScroll = true;
+        // Track unique anomaly detections to avoid double counting
+        let anomalyDetections = new Set(); // Store "PID:timestamp" to track unique detections
+        let highRiskDetections = new Set(); // Store "PID:timestamp" to track unique high risk detections
         let activityData = {
             labels: [],
             anomalies: [],
@@ -792,15 +795,11 @@
         function updateStats(data) {
             if (!data) return;
             
-            // Update based on log type
+            // Update based on log type (only for explicit alert types)
             if (data.type === 'attack') {
                 stats.attacks++;
                 document.getElementById('statAttacks').textContent = stats.attacks;
                 updateChart('attack');
-            } else if (data.type === 'anomaly') {
-                stats.anomalies++;
-                document.getElementById('statAnomalies').textContent = stats.anomalies;
-                updateChart('anomaly');
             }
             
             if (data.message) {
@@ -808,9 +807,6 @@
                 
                 // Parse syscalls from SCORE UPDATE
                 if (msg.includes('SCORE UPDATE')) {
-                    stats.syscalls++;
-                    document.getElementById('statSyscalls').textContent = stats.syscalls.toLocaleString();
-                    
                     // Extract syscall count from message
                     const syscallMatch = msg.match(/Syscalls=(\d+)/);
                     if (syscallMatch) {
@@ -822,18 +818,42 @@
                     }
                 }
                 
-                // Parse HIGH RISK DETECTED
-                if (msg.includes('HIGH RISK DETECTED') || msg.includes('🔴 HIGH RISK')) {
-                    stats.highRisk++;
-                    document.getElementById('statHighRisk').textContent = stats.highRisk;
-                    updateChart('highRisk');
+                // Parse HIGH RISK DETECTED - only count unique detections
+                if ((msg.includes('HIGH RISK DETECTED') || msg.includes('🔴 HIGH RISK')) && !msg.includes('SCORE UPDATE')) {
+                    const pidMatch = msg.match(/PID=(\d+)/);
+                    if (pidMatch) {
+                        const pid = pidMatch[1];
+                        const timestamp = Math.floor(Date.now() / 1000); // Use second-level precision
+                        const detectionKey = `highrisk:${pid}:${timestamp}`;
+                        
+                        if (!highRiskDetections.has(detectionKey)) {
+                            highRiskDetections.add(detectionKey);
+                            stats.highRisk++;
+                            document.getElementById('statHighRisk').textContent = stats.highRisk;
+                            updateChart('highRisk');
+                        }
+                    }
                 }
                 
-                // Parse ANOMALY DETECTED
-                if (msg.includes('ANOMALY DETECTED') || msg.includes('⚠️  ANOMALY')) {
-                    stats.anomalies++;
-                    document.getElementById('statAnomalies').textContent = stats.anomalies;
-                    updateChart('anomaly');
+                // Parse ANOMALY DETECTED - only count unique detections (not score updates)
+                // Must be the actual detection log, not just mentions of anomaly scores
+                if ((msg.includes('ANOMALY DETECTED') || msg.includes('⚠️  ANOMALY DETECTED')) && 
+                    !msg.includes('SCORE UPDATE') && 
+                    !msg.includes('AnomalyScore=') && 
+                    !msg.includes('Anomaly:')) {
+                    const pidMatch = msg.match(/PID=(\d+)/);
+                    if (pidMatch) {
+                        const pid = pidMatch[1];
+                        const timestamp = Math.floor(Date.now() / 1000); // Use second-level precision
+                        const detectionKey = `anomaly:${pid}:${timestamp}`;
+                        
+                        if (!anomalyDetections.has(detectionKey)) {
+                            anomalyDetections.add(detectionKey);
+                            stats.anomalies++;
+                            document.getElementById('statAnomalies').textContent = stats.anomalies;
+                            updateChart('anomaly');
+                        }
+                    }
                 }
                 
                 // Parse process info from log
