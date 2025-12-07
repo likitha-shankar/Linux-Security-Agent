@@ -351,6 +351,20 @@ class SimpleSecurityAgent:
                         except (psutil.NoSuchProcess, psutil.AccessDenied):
                             process_name = event.comm or f'pid_{pid}'
                     
+                    # Double-check exclusion before adding to processes dict
+                    process_name_lower = process_name.lower()
+                    excluded_lower = [p.lower() for p in self.excluded_process_names]
+                    is_excluded = (
+                        process_name in self.excluded_process_names or
+                        process_name_lower in excluded_lower or
+                        any(excluded in process_name_lower for excluded in excluded_lower)
+                    )
+                    
+                    # If excluded, don't add to processes dict at all
+                    if is_excluded:
+                        logger.debug(f"⏭️  Skipping excluded process from tracking: PID={pid} Name={process_name}")
+                        return
+                    
                     self.processes[pid] = {
                         'name': process_name,
                         'syscalls': deque(maxlen=100),  # Last 100 for analysis
