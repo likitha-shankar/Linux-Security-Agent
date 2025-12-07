@@ -255,19 +255,42 @@ def main():
     print("2. Automatic background retraining")
     print("3. Adaptive threshold adjustment")
     print()
-    input("Press Enter to start Demo 1...")
+    
+    # Only prompt if running interactively
+    if sys.stdin.isatty():
+        try:
+            input("Press Enter to start Demo 1...")
+        except (EOFError, KeyboardInterrupt):
+            print("Starting Demo 1 automatically...")
+    else:
+        print("Starting Demo 1 automatically (non-interactive mode)...")
+        time.sleep(1)
     print()
     
     # Demo 1
     demo_basic_incremental_training()
     
-    input("Press Enter to start Demo 2...")
+    if sys.stdin.isatty():
+        try:
+            input("Press Enter to start Demo 2...")
+        except (EOFError, KeyboardInterrupt):
+            print("Starting Demo 2 automatically...")
+    else:
+        print("Starting Demo 2 automatically...")
+        time.sleep(1)
     print()
     
     # Demo 2
     demo_automatic_incremental_training()
     
-    input("Press Enter to start Demo 3...")
+    if sys.stdin.isatty():
+        try:
+            input("Press Enter to start Demo 3...")
+        except (EOFError, KeyboardInterrupt):
+            print("Starting Demo 3 automatically...")
+    else:
+        print("Starting Demo 3 automatically...")
+        time.sleep(1)
     print()
     
     # Demo 3

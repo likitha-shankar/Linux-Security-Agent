@@ -395,7 +395,15 @@ def main():
     print("\nNote: Requires sudo for eBPF agent")
     print("="*60)
     
-    input("\nPress Enter to start benchmarking...")
+    # Only prompt if running interactively
+    if sys.stdin.isatty():
+        try:
+            input("\nPress Enter to start benchmarking...")
+        except (EOFError, KeyboardInterrupt):
+            print("\nStarting benchmarking automatically...")
+    else:
+        print("\nStarting benchmarking automatically (non-interactive mode)...")
+        time.sleep(2)
     
     # Run benchmarks
     run_all_benchmarks()
