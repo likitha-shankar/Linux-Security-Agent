@@ -21,7 +21,12 @@ Academic Project: Linux Security Agent
 """
 
 import numpy as np
-import pandas as pd
+try:
+    import pandas as pd
+    PANDAS_AVAILABLE = True
+except ImportError:
+    PANDAS_AVAILABLE = False
+    pd = None
 from sklearn.ensemble import IsolationForest
 from sklearn.svm import OneClassSVM
 from sklearn.preprocessing import StandardScaler
@@ -317,12 +322,28 @@ class EnhancedAnomalyDetector:
             append: If True, append to previous feature store (incremental learning)
             max_store_samples: Maximum samples to keep in feature store (default: 200K)
         """
-        print("Training enhanced anomaly detection models...")
+        print("="*70)
+        print("🧠 TRAINING ML MODELS")
+        print("="*70)
+        print(f"\n📊 Training Data: {len(training_data)} samples")
         
-        # Extract features from training data - OPTIMIZED: direct numpy array creation
-        features = np.array([self.extract_advanced_features(syscalls, process_info) 
-                             for syscalls, process_info in training_data], dtype=np.float32)
-        print(f"Extracted {features.shape[0]} samples with {features.shape[1]} features")
+        # Extract features from training data with progress
+        print(f"\n[1/6] 📊 Extracting 50-dimensional features...")
+        import time
+        start_time = time.time()
+        
+        features_list = []
+        for i, (syscalls, process_info) in enumerate(training_data):
+            features = self.extract_advanced_features(syscalls, process_info)
+            features_list.append(features)
+            if (i + 1) % 100 == 0 or (i + 1) == len(training_data):
+                percent = ((i + 1) / len(training_data)) * 100
+                print(f"   Progress: {i + 1}/{len(training_data)} samples ({percent:.1f}%)", end='\r', flush=True)
+        
+        print(f"\n   ✅ Extracted features from {len(training_data)} samples")
+        features = np.array(features_list, dtype=np.float32)
+        print(f"   📐 Feature matrix: {features.shape[0]} samples × {features.shape[1]} features")
+        print(f"   ⏱️  Time: {time.time() - start_time:.2f} seconds")
         
         # Store features for potential calibration (if enabled)
         self._training_features = features
@@ -366,34 +387,57 @@ class EnhancedAnomalyDetector:
                         raise RuntimeError(f"Failed to append feature store: {e}") from e
         
         # Scale features
+        print(f"\n[2/6] 🔧 Scaling features (StandardScaler)...")
+        step_start = time.time()
         features_scaled = self.scaler.fit_transform(features)
+        print(f"   ✅ Features scaled (mean=0, std=1)")
+        print(f"   ⏱️  Time: {time.time() - step_start:.2f} seconds")
         
         # Apply PCA for dimensionality reduction
+        print(f"\n[3/6] 📉 Applying PCA dimensionality reduction...")
+        step_start = time.time()
         features_pca = self.pca.fit_transform(features_scaled)
+        print(f"   ✅ PCA applied: {features.shape[1]}D → {features_pca.shape[1]}D")
+        print(f"   📊 Explained variance: {self.pca.explained_variance_ratio_.sum():.1%}")
+        print(f"   ⏱️  Time: {time.time() - step_start:.2f} seconds")
         
         # Train Isolation Forest
+        print(f"\n[4/6] 🌲 Training Isolation Forest (200 trees)...")
+        step_start = time.time()
         try:
             self.isolation_forest.fit(features_pca)
             self.models_trained['isolation_forest'] = True
-            print("✅ Isolation Forest trained successfully")
+            print(f"   ✅ Isolation Forest trained successfully")
+            print(f"   📦 Model size: ~{self.isolation_forest.n_estimators} trees")
+            print(f"   ⏱️  Time: {time.time() - step_start:.2f} seconds")
         except Exception as e:
-            print(f"❌ Isolation Forest training failed: {e}")
+            print(f"   ❌ Isolation Forest training failed: {e}")
         
         # Train One-Class SVM
+        print(f"\n[5/6] 🎯 Training One-Class SVM...")
+        step_start = time.time()
         try:
             self.one_class_svm.fit(features_pca)
             self.models_trained['one_class_svm'] = True
-            print("✅ One-Class SVM trained successfully")
+            print(f"   ✅ One-Class SVM trained successfully")
+            print(f"   📦 Nu parameter: {self.one_class_svm.nu}")
+            print(f"   ⏱️  Time: {time.time() - step_start:.2f} seconds")
         except Exception as e:
-            print(f"❌ One-Class SVM training failed: {e}")
+            print(f"   ❌ One-Class SVM training failed: {e}")
         
         # Train DBSCAN (for clustering)
+        print(f"\n[6/6] 🔍 Training DBSCAN (clustering)...")
+        step_start = time.time()
         try:
             self.dbscan.fit(features_pca)
             self.models_trained['dbscan'] = True
-            print("✅ DBSCAN trained successfully")
+            n_clusters = len(set(self.dbscan.labels_)) - (1 if -1 in self.dbscan.labels_ else 0)
+            n_noise = list(self.dbscan.labels_).count(-1)
+            print(f"   ✅ DBSCAN trained successfully")
+            print(f"   📊 Clusters found: {n_clusters}, Noise points: {n_noise}")
+            print(f"   ⏱️  Time: {time.time() - step_start:.2f} seconds")
         except Exception as e:
-            print(f"❌ DBSCAN training failed: {e}")
+            print(f"   ❌ DBSCAN training failed: {e}")
         
         self.is_fitted = True
         self._save_models()
@@ -727,7 +771,23 @@ class EnhancedAnomalyDetector:
             except Exception as e:
                 print(f"❌ Error saving n-gram model: {e}")
             
-            print("✅ Models saved successfully")
+            print(f"\n💾 Saving trained models to disk...")
+            save_start = time.time()
+            print(f"   ✅ Models saved successfully")
+            print(f"   📁 Location: {self.model_dir}")
+            print(f"   ⏱️  Time: {time.time() - save_start:.2f} seconds")
+            
+            # Show total training time
+            total_time = time.time() - start_time
+            print(f"\n" + "="*70)
+            print(f"✅ TRAINING COMPLETE!")
+            print(f"="*70)
+            print(f"📊 Summary:")
+            print(f"   - Total samples: {len(training_data)}")
+            print(f"   - Feature dimensions: {features.shape[1]} → {features_pca.shape[1]} (PCA)")
+            print(f"   - Models trained: Isolation Forest ✅, One-Class SVM ✅, DBSCAN ✅")
+            print(f"   - Total time: {total_time:.2f} seconds ({total_time/60:.1f} minutes)")
+            print(f"   - Models saved to: {self.model_dir}")
         except Exception as e:
             print(f"❌ Error saving models: {e}")
     
