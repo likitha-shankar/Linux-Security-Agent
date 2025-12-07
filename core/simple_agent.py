@@ -113,6 +113,7 @@ from rich.console import Console
 from rich.table import Table
 from rich.live import Live
 from rich.panel import Panel
+from rich import box
 
 
 class SimpleSecurityAgent:
@@ -718,15 +719,22 @@ class SimpleSecurityAgent:
     def create_dashboard(self) -> Panel:
         """Create dashboard view"""
         with self.processes_lock:
-            # Create table with more informative columns
-            table = Table(title="🛡️ Security Agent - Live Monitoring", show_header=True)
-            table.add_column("PID", style="cyan", width=6)
-            table.add_column("Process", style="green", width=16)
-            table.add_column("Risk", style="yellow", width=6, justify="right")
-            table.add_column("Anomaly", style="magenta", width=7, justify="right")
-            table.add_column("Syscalls", style="blue", width=7, justify="right")
-            table.add_column("Recent Syscalls", style="cyan", width=35)  # Increased from 20 to 35
-            table.add_column("Last Update", style="dim", width=8, justify="right")
+            # Create table with better formatting
+            table = Table(
+                title="🛡️ Security Agent - Live Monitoring",
+                show_header=True,
+                header_style="bold cyan",
+                box=box.ROUNDED,
+                border_style="blue",
+                title_style="bold green"
+            )
+            table.add_column("PID", style="cyan", width=7, justify="right", no_wrap=True)
+            table.add_column("Process", style="bright_green", width=20, overflow="ellipsis")
+            table.add_column("Risk", style="yellow", width=8, justify="right", no_wrap=True)
+            table.add_column("Anomaly", style="magenta", width=9, justify="right", no_wrap=True)
+            table.add_column("Syscalls", style="bright_blue", width=10, justify="right", no_wrap=True)
+            table.add_column("Recent Syscalls", style="cyan", width=40, overflow="ellipsis")
+            table.add_column("Last", style="dim", width=6, justify="right", no_wrap=True)
             
             # Filter out excluded processes from display
             current_time = time.time()
@@ -755,10 +763,22 @@ class SimpleSecurityAgent:
                     time_since_update = current_time - proc.get('last_update', 0)
                     is_active = time_since_update < 5.0  # Active if updated in last 5 seconds
                     
-                    # Highlight recently active processes
-                    process_name = proc['name'][:18]
-                    if not is_active and time_since_update < 30:
-                        process_name = f"{process_name} (recent)"
+                    # Format process name - show real name, truncate if too long
+                    process_name = proc.get('name', 'unknown')
+                    # Remove 'pid_' prefix if it's still there
+                    if process_name.startswith('pid_'):
+                        process_name = f"<{process_name[4:]}>"  # Show as <PID> if name not found
+                    # Truncate long names
+                    if len(process_name) > 18:
+                        process_name = process_name[:15] + "..."
+                    
+                    # Add status indicator with better formatting
+                    if is_active:
+                        status_indicator = "[green]●[/green]"
+                    elif time_since_update < 30:
+                        status_indicator = "[yellow]○[/yellow]"
+                    else:
+                        status_indicator = "[dim]○[/dim]"
                     
                     # Get recent syscalls (last 8-10 unique syscalls for better visibility)
                     syscalls_list = list(proc['syscalls'])
@@ -766,11 +786,11 @@ class SimpleSecurityAgent:
                         # Get unique recent syscalls (last 12-15, then take up to 10)
                         recent_syscalls = list(dict.fromkeys(syscalls_list[-15:]))[-10:]
                         recent_str = ", ".join(recent_syscalls)
-                        # Allow up to 33 characters (35 width - 2 padding)
-                        if len(recent_str) > 33:
-                            recent_str = recent_str[:30] + "..."
+                        # Truncate if too long
+                        if len(recent_str) > 38:
+                            recent_str = recent_str[:35] + "..."
                     else:
-                        recent_str = "---"
+                        recent_str = "[dim]---[/dim]"
                     
                     # Format last update time
                     if time_since_update < 60:
@@ -780,17 +800,27 @@ class SimpleSecurityAgent:
                     else:
                         last_update_str = f"{int(time_since_update/3600)}h"
                     
-                    # Add status indicator
-                    status_indicator = "🟢" if is_active else "⚪" if time_since_update < 30 else "⚫"
+                    # Format anomaly score with color coding
+                    anomaly = proc['anomaly_score']
+                    if anomaly >= 40:
+                        anomaly_style = "red"
+                    elif anomaly >= 30:
+                        anomaly_style = "yellow"
+                    else:
+                        anomaly_style = "green"
+                    
+                    # Format syscall count with commas for readability
+                    total_syscalls = proc.get('total_syscalls', len(proc['syscalls']))
+                    syscalls_str = f"{total_syscalls:,}" if total_syscalls >= 1000 else str(total_syscalls)
                     
                     table.add_row(
-                        str(pid),
-                        f"{status_indicator} {process_name}",
-                        f"[{risk_style}]{risk:.1f}[/]",
-                        f"{proc['anomaly_score']:.2f}",
-                        str(proc.get('total_syscalls', len(proc['syscalls']))),  # Show actual total
-                        recent_str,
-                        last_update_str
+                        f"[cyan]{pid}[/cyan]",
+                        f"{status_indicator} [bright_green]{process_name}[/bright_green]",
+                        f"[{risk_style}]{risk:>6.1f}[/{risk_style}]",
+                        f"[{anomaly_style}]{anomaly:>7.2f}[/{anomaly_style}]",
+                        f"[bright_blue]{syscalls_str:>9}[/bright_blue]",
+                        f"[cyan]{recent_str}[/cyan]",
+                        f"[dim]{last_update_str:>5}[/dim]"
                     )
             else:
                 # Show info panel when no data yet
@@ -804,14 +834,16 @@ class SimpleSecurityAgent:
                     "---"
                 )
             
-            # Stats
+            # Stats with better formatting
+            total_syscalls = self.stats['total_syscalls']
+            syscalls_formatted = f"{total_syscalls:,}" if total_syscalls >= 1000 else str(total_syscalls)
             stats_text = (
-                f"Processes: {self.stats['total_processes']} | "
-                f"High Risk: {self.stats['high_risk']} | "
-                f"Anomalies: {self.stats['anomalies']} | "
-                f"C2: {self.stats['c2_beacons']} | "
-                f"Scans: {self.stats['port_scans']} | "
-                f"Syscalls: {self.stats['total_syscalls']}"
+                f"[cyan]Processes:[/cyan] {self.stats['total_processes']} | "
+                f"[red]High Risk:[/red] {self.stats['high_risk']} | "
+                f"[yellow]Anomalies:[/yellow] {self.stats['anomalies']} | "
+                f"[magenta]C2:[/magenta] {self.stats['c2_beacons']} | "
+                f"[yellow]Scans:[/yellow] {self.stats['port_scans']} | "
+                f"[blue]Syscalls:[/blue] {syscalls_formatted}"
             )
             
             # Create info panel explaining scores (show FIRST)
