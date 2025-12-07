@@ -142,7 +142,7 @@ class SimpleSecurityAgent:
         
         # Rate limiting for alerts (prevent spam from same process)
         self.alert_cooldown = {}  # pid -> last_alert_time
-        self.alert_cooldown_seconds = 60  # Don't alert same process more than once per minute
+        self.alert_cooldown_seconds = 120  # Don't alert same process more than once per 2 minutes (increased to reduce FPR)
         
         # Stats
         self.stats = {
@@ -498,7 +498,8 @@ class SimpleSecurityAgent:
                         try:
                             # HONEST FIX: Require minimum syscalls before ML detection to reduce false positives
                             # Short-lived processes with few syscalls often trigger false positives
-                            min_syscalls_for_ml = 10  # Only run ML on processes with 10+ syscalls
+                            # Increased to 15 to further reduce false positives from very short processes
+                            min_syscalls_for_ml = 15  # Only run ML on processes with 15+ syscalls
                             anomaly_result = None
                             
                             if len(syscall_list) < min_syscalls_for_ml:

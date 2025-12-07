@@ -623,9 +623,10 @@ class EnhancedAnomalyDetector:
         
         # Final decision: require both ensemble votes AND score threshold
         # This prevents false positives from low-score detections
-        # HONEST FIX: Increased threshold to 75.0 based on actual false positive analysis
-        # Live system shows normal processes score 60-80, so threshold must be higher
-        score_threshold = float(self.config.get('anomaly_score_threshold', 75.0))
+        # HONEST FIX: Increased threshold to 80.0 based on actual false positive analysis
+        # Live system shows normal processes score 60-80, so threshold must be 80+ to reduce FPR
+        # Testing showed 75.0 still too low (43 detections in 30s), 80.0 should be better
+        score_threshold = float(self.config.get('anomaly_score_threshold', 80.0))
         ensemble_agreement = anomaly_votes >= (total_models / 2) if total_models > 0 else False
         is_anomaly = ensemble_agreement and (risk_score >= score_threshold)
         
