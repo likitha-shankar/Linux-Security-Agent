@@ -194,13 +194,13 @@
         
         .main-grid {
             display: grid;
-            grid-template-columns: 1fr 400px;
+            grid-template-columns: 1fr;
             gap: 24px;
         }
         
-        @media (max-width: 1200px) {
+        @media (min-width: 1400px) {
             .main-grid {
-                grid-template-columns: 1fr;
+                grid-template-columns: 1fr 350px;
             }
         }
         
@@ -614,37 +614,7 @@
         
         <!-- Main Content Grid -->
         <div class="main-grid">
-            <!-- Left: Logs Section -->
-            <div class="card log-section">
-                <div class="card-header">
-                    <h2><i class="fas fa-terminal"></i> Live Logs</h2>
-                    <div class="log-controls">
-                        <select id="logFileSelector" class="btn" style="padding: 6px 12px; margin-right: 8px;" onchange="loadLogFile()">
-                            <option value="live">📡 Live (Current Run)</option>
-                        </select>
-                        <button class="btn" onclick="clearLogs()">
-                            <i class="fas fa-trash"></i> Clear
-                        </button>
-                        <button class="btn" onclick="toggleAutoScroll()" id="autoScrollBtn">
-                            <i class="fas fa-arrow-down"></i> Auto-scroll: ON
-                        </button>
-                    </div>
-                </div>
-                <div class="terminal" id="terminal">
-                    <div class="log-line info">
-                        <span class="timestamp">[Ready]</span>
-                        <span>📋 Dashboard Ready</span>
-                    </div>
-                    <div class="info-box" style="margin-top: 16px;">
-                        <strong>To start monitoring:</strong><br>
-                        Run this command in your VM terminal:<br>
-                        <code>sudo python3 core/simple_agent.py --collector ebpf --threshold 20</code><br>
-                        <span>The dashboard will automatically detect when the agent starts and show live logs.</span>
-                    </div>
-                </div>
-            </div>
-            
-            <!-- Right: Sidebar -->
+            <!-- Left: Main Content -->
             <div style="display: flex; flex-direction: column; gap: 24px;">
                 <!-- Activity Chart -->
                 <div class="card">
@@ -656,39 +626,42 @@
                     </div>
                 </div>
                 
-                <!-- Recent High-Risk Detections -->
-                <div class="card">
-                    <div class="card-header">
-                        <h2><i class="fas fa-exclamation-triangle"></i> Recent High-Risk</h2>
-                        <button class="btn" onclick="clearHighRiskList()" style="font-size: 0.75em; padding: 4px 8px;">
-                            <i class="fas fa-trash"></i> Clear
-                        </button>
+                <!-- Two Column Grid for Detections -->
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px;">
+                    <!-- Recent High-Risk Detections -->
+                    <div class="card">
+                        <div class="card-header">
+                            <h2><i class="fas fa-exclamation-triangle"></i> Recent High-Risk</h2>
+                            <button class="btn" onclick="clearHighRiskList()" style="font-size: 0.75em; padding: 4px 8px;">
+                                <i class="fas fa-trash"></i> Clear
+                            </button>
+                        </div>
+                        <div class="process-list" id="highRiskList" style="max-height: 300px;">
+                            <div class="empty-state">
+                                <div class="empty-state-icon">🛡️</div>
+                                <div class="empty-state-text">No high-risk processes yet</div>
+                            </div>
+                        </div>
                     </div>
-                    <div class="process-list" id="highRiskList" style="max-height: 250px;">
-                        <div class="empty-state">
-                            <div class="empty-state-icon">🛡️</div>
-                            <div class="empty-state-text">No high-risk processes yet</div>
+                    
+                    <!-- Recent Attacks -->
+                    <div class="card">
+                        <div class="card-header">
+                            <h2><i class="fas fa-bug"></i> Recent Attacks</h2>
+                            <button class="btn" onclick="clearAttackList()" style="font-size: 0.75em; padding: 4px 8px;">
+                                <i class="fas fa-trash"></i> Clear
+                            </button>
+                        </div>
+                        <div class="process-list" id="attackList" style="max-height: 300px;">
+                            <div class="empty-state">
+                                <div class="empty-state-icon">✅</div>
+                                <div class="empty-state-text">No attacks detected yet</div>
+                            </div>
                         </div>
                     </div>
                 </div>
                 
-                <!-- Recent Attacks -->
-                <div class="card">
-                    <div class="card-header">
-                        <h2><i class="fas fa-bug"></i> Recent Attacks</h2>
-                        <button class="btn" onclick="clearAttackList()" style="font-size: 0.75em; padding: 4px 8px;">
-                            <i class="fas fa-trash"></i> Clear
-                        </button>
-                    </div>
-                    <div class="process-list" id="attackList" style="max-height: 250px;">
-                        <div class="empty-state">
-                            <div class="empty-state-icon">✅</div>
-                            <div class="empty-state-text">No attacks detected yet</div>
-                        </div>
-                    </div>
-                </div>
-                
-                <!-- Top Processes -->
+                <!-- All Processes -->
                 <div class="card">
                     <div class="card-header">
                         <h2><i class="fas fa-list"></i> All Processes</h2>
@@ -699,6 +672,41 @@
                             <div class="empty-state-text">No processes detected yet</div>
                         </div>
                     </div>
+                </div>
+            </div>
+            
+            <!-- Right: Sidebar (empty for now, or can add other widgets) -->
+            <div style="display: flex; flex-direction: column; gap: 24px;">
+                <!-- Can add additional widgets here if needed -->
+            </div>
+        </div>
+        
+        <!-- Logs Section at Bottom (Full Width) -->
+        <div class="card log-section" style="margin-top: 24px;">
+            <div class="card-header">
+                <h2><i class="fas fa-terminal"></i> Live Logs</h2>
+                <div class="log-controls">
+                    <select id="logFileSelector" class="btn" style="padding: 6px 12px; margin-right: 8px;" onchange="loadLogFile()">
+                        <option value="live">📡 Live (Current Run)</option>
+                    </select>
+                    <button class="btn" onclick="clearLogs()">
+                        <i class="fas fa-trash"></i> Clear
+                    </button>
+                    <button class="btn" onclick="toggleAutoScroll()" id="autoScrollBtn">
+                        <i class="fas fa-arrow-down"></i> Auto-scroll: ON
+                    </button>
+                </div>
+            </div>
+            <div class="terminal" id="terminal">
+                <div class="log-line info">
+                    <span class="timestamp">[Ready]</span>
+                    <span>📋 Dashboard Ready</span>
+                </div>
+                <div class="info-box" style="margin-top: 16px;">
+                    <strong>To start monitoring:</strong><br>
+                    Run this command in your VM terminal:<br>
+                    <code>sudo python3 core/simple_agent.py --collector ebpf --threshold 20</code><br>
+                    <span>The dashboard will automatically detect when the agent starts and show live logs.</span>
                 </div>
             </div>
         </div>
