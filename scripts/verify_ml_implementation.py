@@ -193,10 +193,10 @@ def check_anomaly_detection(detector):
         # Test anomalous
         print("\n   Testing ANOMALOUS behavior:")
         anomalous_result = detector.detect_anomaly_ensemble(anomalous_syscalls, anomalous_info, pid=5678)
-        print(f"   - Anomaly Score: {anomaly_result.anomaly_score:.2f}")
-        print(f"   - Is Anomaly: {anomaly_result.is_anomaly}")
-        print(f"   - Confidence: {anomaly_result.confidence:.2f}")
-        print(f"   - Explanation: {anomaly_result.explanation[:100]}...")
+        print(f"   - Anomaly Score: {anomalous_result.anomaly_score:.2f}")
+        print(f"   - Is Anomaly: {anomalous_result.is_anomaly}")
+        print(f"   - Confidence: {anomalous_result.confidence:.2f}")
+        print(f"   - Explanation: {anomalous_result.explanation[:100]}...")
         
         # Check if scores make sense
         if normal_result.anomaly_score < anomalous_result.anomaly_score:
