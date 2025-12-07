@@ -355,6 +355,28 @@ def parse_log_line(line):
         'timestamp': datetime.now().isoformat()
     }
     
+    # Skip SCORE UPDATE logs to reduce spam (only show in debug mode)
+    if 'SCORE UPDATE' in line:
+        # Only include if it's a significant update (high risk or anomaly)
+        if 'Risk=' in line and 'Anomaly=' in line:
+            try:
+                # Extract risk and anomaly scores
+                risk_part = line.split('Risk=')[1].split()[0] if 'Risk=' in line else '0'
+                anomaly_part = line.split('Anomaly=')[1].split()[0] if 'Anomaly=' in line else '0'
+                risk = float(risk_part)
+                anomaly = float(anomaly_part)
+                # Only include if actually significant
+                if risk > 30 or anomaly > 40:
+                    entry['type'] = 'score'
+                else:
+                    # Skip normal score updates
+                    return None
+            except:
+                # If parsing fails, skip it
+                return None
+        else:
+            return None
+    
     # Detect log level (order matters - check more specific first)
     if 'HIGH RISK DETECTED' in line or '🔴 HIGH RISK' in line:
         entry['type'] = 'attack'
@@ -364,8 +386,6 @@ def parse_log_line(line):
         entry['type'] = 'error'
     elif 'WARNING' in line or '⚠️' in line:
         entry['type'] = 'warning'
-    elif 'SCORE UPDATE' in line:
-        entry['type'] = 'score'
     elif 'INFO' in line or 'ℹ️' in line:
         entry['type'] = 'info'
     

@@ -580,18 +580,35 @@ class SimpleSecurityAgent:
                 risk_score = base_risk_score + connection_risk_bonus
                 proc['risk_score'] = risk_score
                 
-                # DEBUG: Log all scores periodically (less frequently to reduce spam)
-                # Only log every 100 syscalls, and only if risk or anomaly is significant
-                if len(syscall_list) >= 100 and len(syscall_list) % 100 == 0:
+                # DEBUG: Log scores VERY infrequently to reduce spam
+                # Only log every 500 syscalls, and only if scores changed significantly or are high-risk
+                if len(syscall_list) >= 500 and len(syscall_list) % 500 == 0:
                     comm = proc.get('name', 'unknown')
-                    # Only log if risk > 15 or anomaly > 20 (filter out normal processes)
-                    if risk_score > 15 or anomaly_score > 20:
+                    # Only log if:
+                    # 1. Risk is actually high (>30) OR
+                    # 2. Anomaly is very high (>40) OR  
+                    # 3. Scores changed significantly from last logged value
+                    last_logged_risk = proc.get('_last_logged_risk', 0)
+                    last_logged_anomaly = proc.get('_last_logged_anomaly', 0)
+                    risk_change = abs(risk_score - last_logged_risk)
+                    anomaly_change = abs(anomaly_score - last_logged_anomaly)
+                    
+                    should_log = (
+                        risk_score > 30 or  # Actually high risk
+                        anomaly_score > 40 or  # Very anomalous
+                        (risk_change > 5.0 or anomaly_change > 5.0)  # Significant change
+                    )
+                    
+                    if should_log:
                         logger.info(f"📊 SCORE UPDATE: PID={pid} Process={comm} Risk={risk_score:.1f} Anomaly={anomaly_score:.1f} "
                                   f"Syscalls={len(syscall_list)} TotalSyscalls={proc.get('total_syscalls', 0)} "
                                   f"ConnectionBonus={connection_risk_bonus:.1f}")
                         logger.debug(f"   Process info: CPU={process_info.get('cpu_percent', 0):.1f}% "
                                    f"Memory={process_info.get('memory_percent', 0):.1f}% "
                                    f"Threads={process_info.get('num_threads', 0)}")
+                        # Store last logged values
+                        proc['_last_logged_risk'] = risk_score
+                        proc['_last_logged_anomaly'] = anomaly_score
                 
                 # Update high risk count and LOG detections (with rate limiting)
                 threshold = self.config.get('risk_threshold', 30.0)
