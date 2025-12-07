@@ -139,6 +139,10 @@ class SimpleSecurityAgent:
         self.processes = {}  # pid -> {name, syscalls, risk_score, anomaly_score, last_update}
         self.processes_lock = threading.Lock()
         
+        # Rate limiting for alerts (prevent spam from same process)
+        self.alert_cooldown = {}  # pid -> last_alert_time
+        self.alert_cooldown_seconds = 60  # Don't alert same process more than once per minute
+        
         # Stats
         self.stats = {
             'total_processes': 0,
@@ -162,7 +166,9 @@ class SimpleSecurityAgent:
         # Default system processes to exclude (known safe system daemons)
         default_excluded = ['fluent-bit', 'containerd', 'otelopscol', 'multipathd', 
                            'google_osconfig_agent', 'systemd', 'systemd-logind', 
-                           'systemd-networkd', 'systemd-resolved', 'snapd']
+                           'systemd-networkd', 'systemd-resolved', 'snapd', 'sudo',
+                           'sshd', 'bash', 'sh', 'dash', 'zsh', 'python3', 'python',
+                           'systemd-journald', 'systemd-udevd', 'dbus-daemon', 'NetworkManager']
         
         # Merge config and defaults
         excluded_processes = self.config.get('excluded_processes', [])
@@ -310,6 +316,7 @@ class SimpleSecurityAgent:
             
             # Skip detection for known system processes (reduce false positives)
             if process_name in self.excluded_process_names:
+                logger.debug(f"⏭️  Skipping excluded system process: PID={event.pid} Name={process_name}")
                 return
             
             # DEBUG: Log first few events to confirm flow
@@ -534,60 +541,75 @@ class SimpleSecurityAgent:
                                f"Memory={process_info.get('memory_percent', 0):.1f}% "
                                f"Threads={process_info.get('num_threads', 0)}")
                 
-                # Update high risk count and LOG detections
+                # Update high risk count and LOG detections (with rate limiting)
                 threshold = self.config.get('risk_threshold', 30.0)
                 if risk_score >= threshold:
                     self.stats['high_risk'] = sum(1 for p in self.processes.values() 
                                                  if p['risk_score'] >= threshold)
-                    # LOG HIGH-RISK DETECTION with full details
-                    comm = proc.get('name', 'unknown')
-                    logger.warning(f"🔴 HIGH RISK DETECTED: PID={pid} Process={comm} Risk={risk_score:.1f} Anomaly={anomaly_score:.1f}")
-                    logger.warning(f"   Threshold: {threshold:.1f} | Base Risk: {base_risk_score:.1f} | "
-                                 f"Connection Bonus: {connection_risk_bonus:.1f} | Total Syscalls: {proc.get('total_syscalls', 0)}")
-                    logger.warning(f"   Recent syscalls: {', '.join(list(proc['syscalls'])[-10:])}")
-                    if process_info:
-                        logger.warning(f"   Process resources: CPU={process_info.get('cpu_percent', 0):.1f}% "
-                                     f"Memory={process_info.get('memory_percent', 0):.1f}% "
-                                     f"Threads={process_info.get('num_threads', 0)}")
+                    
+                    # Rate limiting: only log if enough time has passed since last alert
+                    current_time = time.time()
+                    last_alert = self.alert_cooldown.get(pid, 0)
+                    if current_time - last_alert >= self.alert_cooldown_seconds:
+                        # LOG HIGH-RISK DETECTION with full details
+                        comm = proc.get('name', 'unknown')
+                        logger.warning(f"🔴 HIGH RISK DETECTED: PID={pid} Process={comm} Risk={risk_score:.1f} Anomaly={anomaly_score:.1f}")
+                        logger.warning(f"   Threshold: {threshold:.1f} | Base Risk: {base_risk_score:.1f} | "
+                                     f"Connection Bonus: {connection_risk_bonus:.1f} | Total Syscalls: {proc.get('total_syscalls', 0)}")
+                        logger.warning(f"   Recent syscalls: {', '.join(list(proc['syscalls'])[-10:])}")
+                        if process_info:
+                            logger.warning(f"   Process resources: CPU={process_info.get('cpu_percent', 0):.1f}% "
+                                         f"Memory={process_info.get('memory_percent', 0):.1f}% "
+                                         f"Threads={process_info.get('num_threads', 0)}")
+                        # Update cooldown
+                        self.alert_cooldown[pid] = current_time
                 
                 # Also log anomalies even if risk is low (lower threshold to actually log)
                 # Use is_anomaly flag OR score > 30 (more reasonable threshold)
+                # Apply rate limiting to prevent spam
                 if anomaly_result and anomaly_result.is_anomaly and anomaly_score > 30:
-                    comm = proc.get('name', 'unknown')
-                    
-                    # Get recent syscalls for context
-                    recent_syscalls = list(proc['syscalls'])[-15:] if len(proc['syscalls']) > 0 else []
-                    syscall_counts = Counter(recent_syscalls)
-                    top_syscalls = syscall_counts.most_common(5)
-                    
-                    # Identify high-risk syscalls in recent activity
-                    high_risk_syscalls = ['ptrace', 'setuid', 'setgid', 'chroot', 'mount', 'umount', 
-                                         'execve', 'clone', 'fork', 'chmod', 'chown', 'unlink', 'rename']
-                    detected_risky = [sc for sc, count in top_syscalls if sc in high_risk_syscalls]
-                    
-                    # Enhanced anomaly logging with specific details
-                    logger.warning(f"⚠️  ANOMALY DETECTED: PID={pid} Process={comm} AnomalyScore={anomaly_score:.1f}")
-                    logger.warning(f"   ┌─ What's Anomalous:")
-                    logger.warning(f"   │  {anomaly_result.explanation}")
-                    logger.warning(f"   │  Confidence: {anomaly_result.confidence:.2f} | Risk Score: {risk_score:.1f}")
-                    logger.warning(f"   ├─ Process Activity:")
-                    logger.warning(f"   │  Total Syscalls: {proc.get('total_syscalls', 0)} | Recent: {len(recent_syscalls)}")
-                    if top_syscalls:
-                        top_str = ", ".join([f"{sc}({count})" for sc, count in top_syscalls])
-                        logger.warning(f"   │  Top Syscalls: {top_str}")
-                    if detected_risky:
-                        logger.warning(f"   │  ⚠️  High-Risk Syscalls Detected: {', '.join(detected_risky)}")
-                    if process_info:
-                        logger.warning(f"   │  Resources: CPU={process_info.get('cpu_percent', 0):.1f}% "
-                                     f"Memory={process_info.get('memory_percent', 0):.1f}% "
-                                     f"Threads={process_info.get('num_threads', 0)}")
-                    if recent_syscalls:
-                        recent_str = ", ".join(recent_syscalls[-10:])  # Last 10 syscalls
-                        if len(recent_str) > 80:
-                            recent_str = recent_str[:77] + "..."
-                        logger.warning(f"   └─ Recent Sequence: {recent_str}")
-                    else:
-                        logger.warning(f"   └─ No recent syscalls recorded")
+                    # Rate limiting: only log if enough time has passed since last alert
+                    current_time = time.time()
+                    last_alert = self.alert_cooldown.get(pid, 0)
+                    if current_time - last_alert >= self.alert_cooldown_seconds:
+                        comm = proc.get('name', 'unknown')
+                        
+                        # Get recent syscalls for context
+                        recent_syscalls = list(proc['syscalls'])[-15:] if len(proc['syscalls']) > 0 else []
+                        syscall_counts = Counter(recent_syscalls)
+                        top_syscalls = syscall_counts.most_common(5)
+                        
+                        # Identify high-risk syscalls in recent activity
+                        high_risk_syscalls = ['ptrace', 'setuid', 'setgid', 'chroot', 'mount', 'umount', 
+                                             'execve', 'clone', 'fork', 'chmod', 'chown', 'unlink', 'rename']
+                        detected_risky = [sc for sc, count in top_syscalls if sc in high_risk_syscalls]
+                        
+                        # Enhanced anomaly logging with specific details
+                        logger.warning(f"⚠️  ANOMALY DETECTED: PID={pid} Process={comm} AnomalyScore={anomaly_score:.1f}")
+                        logger.warning(f"   ┌─ What's Anomalous:")
+                        logger.warning(f"   │  {anomaly_result.explanation}")
+                        logger.warning(f"   │  Confidence: {anomaly_result.confidence:.2f} | Risk Score: {risk_score:.1f}")
+                        logger.warning(f"   ├─ Process Activity:")
+                        logger.warning(f"   │  Total Syscalls: {proc.get('total_syscalls', 0)} | Recent: {len(recent_syscalls)}")
+                        if top_syscalls:
+                            top_str = ", ".join([f"{sc}({count})" for sc, count in top_syscalls])
+                            logger.warning(f"   │  Top Syscalls: {top_str}")
+                        if detected_risky:
+                            logger.warning(f"   │  ⚠️  High-Risk Syscalls Detected: {', '.join(detected_risky)}")
+                        if process_info:
+                            logger.warning(f"   │  Resources: CPU={process_info.get('cpu_percent', 0):.1f}% "
+                                         f"Memory={process_info.get('memory_percent', 0):.1f}% "
+                                         f"Threads={process_info.get('num_threads', 0)}")
+                        if recent_syscalls:
+                            recent_str = ", ".join(recent_syscalls[-10:])  # Last 10 syscalls
+                            if len(recent_str) > 80:
+                                recent_str = recent_str[:77] + "..."
+                            logger.warning(f"   └─ Recent Sequence: {recent_str}")
+                        else:
+                            logger.warning(f"   └─ No recent syscalls recorded")
+                        
+                        # Update cooldown
+                        self.alert_cooldown[pid] = current_time
         
         except AttributeError as e:
             # Missing attribute in event
