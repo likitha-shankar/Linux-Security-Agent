@@ -795,6 +795,13 @@ class SimpleSecurityAgent:
             logger.error(f"❌ Unexpected error processing event for PID={event.pid if hasattr(event, 'pid') else 'unknown'}: {type(e).__name__}: {e}")
             logger.error(f"   Full traceback: {traceback.format_exc()}")
     
+    def _count_recent_detections(self, detection_times: deque, window_seconds: int = 300) -> int:
+        """Count detections in the last window_seconds (default 5 minutes)"""
+        if not detection_times:
+            return 0
+        current_time = time.time()
+        return sum(1 for ts in detection_times if current_time - ts < window_seconds)
+    
     def create_dashboard(self) -> Panel:
         """Create dashboard view"""
         with self.processes_lock:
