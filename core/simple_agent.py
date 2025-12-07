@@ -669,10 +669,10 @@ class SimpleSecurityAgent:
                         # Update cooldown
                         self.alert_cooldown[pid] = current_time
                 
-                # Also log anomalies even if risk is low (lower threshold to actually log)
-                # Use is_anomaly flag OR score > 30 (more reasonable threshold)
-                # Apply rate limiting to prevent spam
-                if anomaly_result and anomaly_result.is_anomaly and anomaly_score > 30:
+                # Also log anomalies even if risk is low (higher threshold to reduce false positives)
+                # Only log if anomaly score is significantly high (>40) AND is_anomaly flag is set
+                # This reduces false positives from normal system processes
+                if anomaly_result and anomaly_result.is_anomaly and anomaly_score > 40:
                     # Rate limiting: only log if enough time has passed since last alert
                     current_time = time.time()
                     last_alert = self.alert_cooldown.get(pid, 0)

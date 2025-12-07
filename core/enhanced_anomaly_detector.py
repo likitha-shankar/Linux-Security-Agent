@@ -72,8 +72,9 @@ class EnhancedAnomalyDetector:
         self.config = config or {}
         
         # Multiple ML models for ensemble detection
+        # Lower contamination (0.05 = 5%) to reduce false positives on normal processes
         self.isolation_forest = IsolationForest(
-            contamination=self.config.get('contamination', 0.1),
+            contamination=self.config.get('contamination', 0.05),
             random_state=42,
             n_estimators=200,
             max_samples='auto',
