@@ -155,15 +155,20 @@ class SimpleSecurityAgent:
         self.alert_cooldown = {}  # pid -> last_alert_time
         self.alert_cooldown_seconds = 120  # Don't alert same process more than once per 2 minutes (increased to reduce FPR)
         
-        # Stats
+        # Stats - now tracking current state, not cumulative
         self.stats = {
-            'total_processes': 0,
-            'high_risk': 0,
-            'anomalies': 0,
-            'total_syscalls': 0,
-            'c2_beacons': 0,
-            'port_scans': 0
+            'total_processes': 0,  # Current active processes
+            'high_risk': 0,  # Current high-risk processes
+            'anomalies': 0,  # Current anomalous processes
+            'total_syscalls': 0,  # Cumulative (useful as throughput metric)
+            'c2_beacons': 0,  # Recent C2 detections (last 5 minutes)
+            'port_scans': 0  # Recent port scans (last 5 minutes)
         }
+        
+        # Track recent detections with timestamps (for C2/Scans)
+        self.recent_c2_detections = deque(maxlen=1000)  # Store timestamps
+        self.recent_scan_detections = deque(maxlen=1000)  # Store timestamps
+        self.process_timeout = 60  # Process considered inactive after 60 seconds
         
         # Cache info panel to prevent re-creation (reduces blinking)
         self._info_panel_cache = None
@@ -533,7 +538,7 @@ class SimpleSecurityAgent:
                                               f"Confidence={anomaly_result.confidence:.2f}")
                             
                             if anomaly_result and anomaly_result.is_anomaly:
-                                self.stats['anomalies'] += 1
+                                # Don't increment cumulative - will calculate current count dynamically
                                 logger.debug(f"Anomaly detected: PID={pid} Score={anomaly_score:.1f} "
                                            f"Explanation={anomaly_result.explanation}")
                         except ValueError as e:
@@ -615,11 +620,13 @@ class SimpleSecurityAgent:
                             
                             # Update stats
                             if pattern_type == 'C2_BEACONING':
-                                self.stats['c2_beacons'] += 1
-                                logger.warning(f"   C2 beaconing count: {self.stats['c2_beacons']}")
+                                # Track with timestamp for recent count
+                                self.recent_c2_detections.append(time.time())
+                                logger.warning(f"   C2 beaconing detected (recent count: {self._count_recent_detections(self.recent_c2_detections)})")
                             elif pattern_type == 'PORT_SCANNING':
-                                self.stats['port_scans'] += 1
-                                logger.warning(f"   Port scan count: {self.stats['port_scans']}")
+                                # Track with timestamp for recent count
+                                self.recent_scan_detections.append(time.time())
+                                logger.warning(f"   Port scan detected (recent count: {self._count_recent_detections(self.recent_scan_detections)})")
                     except AttributeError as e:
                         logger.debug(f"Connection pattern analysis AttributeError for PID {pid}: {e}")
                         logger.debug(f"   Traceback: {traceback.format_exc()}")
@@ -906,15 +913,25 @@ class SimpleSecurityAgent:
                     "---"
                 )
             
+            # Calculate CURRENT stats (not cumulative)
+            current_time = time.time()
+            current_processes = sum(1 for p in self.processes.values() 
+                                   if current_time - p['last_update'] < self.process_timeout)
+            current_anomalies = sum(1 for p in self.processes.values() 
+                                   if current_time - p['last_update'] < self.process_timeout 
+                                   and p.get('anomaly_score', 0) >= 60.0)
+            recent_c2 = self._count_recent_detections(self.recent_c2_detections)
+            recent_scans = self._count_recent_detections(self.recent_scan_detections)
+            
             # Stats with better formatting
             total_syscalls = self.stats['total_syscalls']
             syscalls_formatted = f"{total_syscalls:,}" if total_syscalls >= 1000 else str(total_syscalls)
             stats_text = (
-                f"[cyan]Processes:[/cyan] {self.stats['total_processes']} | "
+                f"[cyan]Processes:[/cyan] {current_processes} | "
                 f"[red]High Risk:[/red] {self.stats['high_risk']} | "
-                f"[yellow]Anomalies:[/yellow] {self.stats['anomalies']} | "
-                f"[magenta]C2:[/magenta] {self.stats['c2_beacons']} | "
-                f"[yellow]Scans:[/yellow] {self.stats['port_scans']} | "
+                f"[yellow]Anomalies:[/yellow] {current_anomalies} | "
+                f"[magenta]C2:[/magenta] {recent_c2} | "
+                f"[yellow]Scans:[/yellow] {recent_scans} | "
                 f"[blue]Syscalls:[/blue] {syscalls_formatted}"
             )
             
