@@ -123,7 +123,20 @@ class EnhancedAnomalyDetector:
         
         # Model persistence
         # Prefer user cache directory by default
-        default_dir = os.path.join(os.path.expanduser('~'), '.cache', 'security_agent')
+        # If running with sudo, try to use the original user's home directory
+        original_user = os.environ.get('SUDO_USER') or os.environ.get('USER') or os.environ.get('USERNAME')
+        if original_user and original_user != 'root':
+            # Use original user's home directory if available
+            try:
+                import pwd
+                original_home = pwd.getpwnam(original_user).pw_dir
+                default_dir = os.path.join(original_home, '.cache', 'security_agent')
+            except (KeyError, ImportError):
+                # Fallback to current user's home
+                default_dir = os.path.join(os.path.expanduser('~'), '.cache', 'security_agent')
+        else:
+            default_dir = os.path.join(os.path.expanduser('~'), '.cache', 'security_agent')
+        
         self.model_dir = self.config.get('model_dir', default_dir)
         os.makedirs(self.model_dir, exist_ok=True)
         self.feature_store_path = os.path.join(self.model_dir, 'training_features.npy')
