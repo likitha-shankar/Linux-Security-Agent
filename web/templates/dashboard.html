@@ -413,11 +413,10 @@
         </h1>
         <div class="status-badge">
             <div class="status-dot" id="statusDot"></div>
-            <span id="statusText">Stopped</span>
+            <span id="statusText">Checking...</span>
         </div>
-        <div class="controls">
-            <button class="btn btn-start" id="btnStart" onclick="startAgent()">▶ Start Agent</button>
-            <button class="btn btn-stop" id="btnStop" onclick="stopAgent()" disabled>⏹ Stop</button>
+        <div class="controls" style="display: none;">
+            <!-- Buttons hidden - agent must be started manually -->
         </div>
     </div>
     
@@ -482,7 +481,17 @@
                     </div>
                 </div>
                 <div class="terminal" id="terminal">
-                    <div class="log-line info">Waiting for agent to start...</div>
+                    <div class="log-line info">📋 Dashboard Ready</div>
+                    <div class="log-line info" style="margin-top: 15px; padding: 15px; background: rgba(102, 126, 234, 0.1); border-left: 4px solid #667eea;">
+                        <strong>To start monitoring:</strong><br>
+                        Run this command in your VM terminal:<br>
+                        <code style="background: #0a0e27; padding: 5px 10px; border-radius: 3px; display: inline-block; margin-top: 5px;">
+                            sudo python3 core/simple_agent.py --collector ebpf --threshold 20
+                        </code><br>
+                        <span style="color: #aaa; font-size: 0.9em; margin-top: 10px; display: block;">
+                            The dashboard will automatically detect when the agent starts and show live logs.
+                        </span>
+                    </div>
                 </div>
             </div>
         </div>
@@ -739,44 +748,7 @@
             return div.innerHTML;
         }
         
-        async function startAgent() {
-            try {
-                const response = await fetch('/api/agent/start', { method: 'POST' });
-                const data = await response.json();
-                
-                if (response.ok) {
-                    statusDot.classList.add('active');
-                    statusText.textContent = 'Running';
-                    btnStart.disabled = true;
-                    btnStop.disabled = false;
-                    addLog('Agent started successfully', 'info');
-                } else {
-                    addLog(`Error: ${data.error}`, 'error');
-                    addLog('Tip: Start agent manually: sudo python3 core/simple_agent.py --collector ebpf --threshold 20', 'info');
-                }
-            } catch (error) {
-                addLog(`Error starting agent: ${error.message}`, 'error');
-            }
-        }
-        
-        async function stopAgent() {
-            try {
-                const response = await fetch('/api/agent/stop', { method: 'POST' });
-                const data = await response.json();
-                
-                if (response.ok) {
-                    statusDot.classList.remove('active');
-                    statusText.textContent = 'Stopped';
-                    btnStart.disabled = false;
-                    btnStop.disabled = true;
-                    addLog('Agent stopped', 'info');
-                } else {
-                    addLog(`Error: ${data.error}`, 'error');
-                }
-            } catch (error) {
-                addLog(`Error stopping agent: ${error.message}`, 'error');
-            }
-        }
+        // Agent control functions removed - agent must be started manually
         
         function clearLogs() {
             terminal.innerHTML = '<div class="log-line info">Logs cleared</div>';
@@ -794,14 +766,10 @@
                 
                 if (data.running) {
                     statusDot.classList.add('active');
-                    statusText.textContent = 'Running';
-                    btnStart.disabled = true;
-                    btnStop.disabled = false;
+                    statusText.textContent = 'Agent Running';
                 } else {
                     statusDot.classList.remove('active');
-                    statusText.textContent = 'Stopped';
-                    btnStart.disabled = false;
-                    btnStop.disabled = true;
+                    statusText.textContent = 'Agent Stopped';
                 }
             } catch (error) {
                 console.error('Error checking status:', error);
