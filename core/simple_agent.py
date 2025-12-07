@@ -308,11 +308,29 @@ class SimpleSecurityAgent:
                 return
             
             # Get process name early to check if it's a known system process
+            # Try multiple methods to get real process name
             process_name = event.comm
-            if not process_name or process_name.startswith('pid_'):
+            if not process_name or process_name.startswith('pid_') or len(process_name) == 0:
                 try:
                     p = psutil.Process(event.pid)
+                    # Try name() first
                     process_name = p.name()
+                    # If still empty, try exe() and extract basename
+                    if not process_name or process_name.startswith('pid_') or len(process_name) == 0:
+                        try:
+                            exe = p.exe()
+                            if exe:
+                                process_name = os.path.basename(exe)
+                        except:
+                            pass
+                    # If still empty, try cmdline()
+                    if not process_name or process_name.startswith('pid_') or len(process_name) == 0:
+                        try:
+                            cmdline = p.cmdline()
+                            if cmdline and len(cmdline) > 0:
+                                process_name = os.path.basename(cmdline[0]) if cmdline[0] else process_name
+                        except:
+                            pass
                 except (psutil.NoSuchProcess, psutil.AccessDenied):
                     process_name = event.comm or f'pid_{event.pid}'
             
