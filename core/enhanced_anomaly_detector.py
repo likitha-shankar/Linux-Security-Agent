@@ -580,16 +580,16 @@ class EnhancedAnomalyDetector:
                     # Isolation Forest: score typically ranges -0.5 to 0.5
                     # Negative = anomaly, positive = normal
                     # Normalize to 0-1 where 1 = most anomalous
-                    # Use sigmoid-like function: 1 / (1 + exp(score * 10))
-                    # This maps: -0.5 → ~0.99, 0.0 → 0.5, 0.5 → ~0.01
-                    normalized = 1.0 / (1.0 + np.exp(score * 10.0))
+                    # Use sigmoid with adjusted scaling: 1 / (1 + exp(score * 8))
+                    # Less steep curve to reduce false positives
+                    normalized = 1.0 / (1.0 + np.exp(score * 8.0))
                     normalized_scores.append(normalized)
                 elif model == 'one_class_svm':
                     # One-Class SVM: score can range widely (e.g., -20 to 5)
                     # Negative = anomaly, positive = normal
-                    # Use sigmoid: 1 / (1 + exp(score * 0.5))
-                    # This maps large negative scores → ~1.0, positive → ~0.0
-                    normalized = 1.0 / (1.0 + np.exp(score * 0.5))
+                    # Use sigmoid with adjusted scaling: 1 / (1 + exp(score * 0.3))
+                    # Less steep curve to reduce false positives
+                    normalized = 1.0 / (1.0 + np.exp(score * 0.3))
                     normalized_scores.append(normalized)
                 else:
                     normalized_scores.append(min(1.0, max(0, score)))
