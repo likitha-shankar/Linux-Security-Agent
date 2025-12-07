@@ -610,9 +610,14 @@ class EnhancedAnomalyDetector:
             logger.debug(f"N-gram rarity calculation failed: {e}")
 
         # Convert to 0-100 risk score and add bounded n-gram contribution
-        risk_score = min(100, max(0, ensemble_score * 100))
-        ngram_weight = float(self.config.get('ngram_weight', 0.2))  # 0..1
-        risk_score = min(100.0, max(0.0, risk_score + 100.0 * ngram_weight * ngram_rarity))
+        # Cap ensemble_score at 0.75 to leave room for n-gram (max 0.25 contribution)
+        ensemble_score_capped = min(0.75, ensemble_score)
+        base_risk_score = ensemble_score_capped * 100
+        
+        # Add n-gram contribution (max 25 points)
+        ngram_weight = float(self.config.get('ngram_weight', 0.15))  # Reduced weight
+        ngram_contribution = 25.0 * ngram_weight * ngram_rarity  # Max 25 points
+        risk_score = min(100.0, max(0.0, base_risk_score + ngram_contribution))
         
         # Final decision: require both ensemble votes AND score threshold
         # This prevents false positives from low-score detections
