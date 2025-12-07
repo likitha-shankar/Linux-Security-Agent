@@ -236,7 +236,7 @@ This project successfully demonstrates:
 
 - **Architecture**: `docs/ARCHITECTURE.md` - System design and architecture
 - **Usage**: `docs/USAGE.md` - How to use the agent
-- **Installation**: `docs/INSTALL.md` - Setup instructions
+- **Installation**: `docs/HOW_TO_RUN.md` - Setup instructions
 - **Technical Q&A**: `docs/PROFESSOR_TECHNICAL_ANSWERS.md` - Detailed technical answers
 - **Gap Analysis**: `docs/GAP_ANALYSIS.md` - Known limitations and improvements
 - **Testing**: `docs/TESTING_WITH_ATTACKS.md` - Attack simulation guide

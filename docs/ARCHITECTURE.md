@@ -187,7 +187,7 @@ Why this is better here
 
 ## 🛠️ **Setup & Testing (Relevant)**
 
-- Installation and platform details: `docs/INSTALL.md`
+- Installation and platform details: `docs/HOW_TO_RUN.md` and `docs/CLOUD_DEPLOYMENT.md`
 - Demo and usage: `docs/DEMO_GUIDE.md`
 - Tests: `tests/` and top-level `test_*.py`
 
@@ -197,7 +197,7 @@ Why this is better here
 
 - `README.md` – Overview and quick start
 - `docs/ARCHITECTURE.md` – This file
-- `docs/INSTALL.md` – Installation and VM tips
+- `docs/HOW_TO_RUN.md` – Installation and VM tips
 - `docs/DEMO_GUIDE.md` – Demo instructions and pitch
 - `PROJECT_EXPLANATION.md` – Consolidated explanation and talk track
 

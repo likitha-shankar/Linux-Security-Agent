@@ -388,7 +388,7 @@ See [docs/GAP_ANALYSIS.md](docs/GAP_ANALYSIS.md) for detailed limitations and [P
 3. **Demo**: `python3 demo/run_demo.py`
 4. **Monitor**: `sudo python3 core/simple_agent.py --collector ebpf --dashboard --threshold 30`
 
-For detailed docs, see `docs/INSTALL.md`, `docs/USAGE.md`, and `docs/DEMO_GUIDE.md`.
+For detailed docs, see `docs/HOW_TO_RUN.md`, `docs/USAGE.md`, and `docs/CLOUD_DEPLOYMENT.md`.
 
 ## 📢 Project Positioning
 

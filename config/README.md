@@ -199,7 +199,7 @@ def load_config(config_file):
 ## 📚 Related Documentation
 
 ### **Setup Guides**
-- `../docs/INSTALL.md` - Installation instructions
+- `../docs/HOW_TO_RUN.md` - Installation instructions
 - `../docs/LINUX_SETUP_GUIDE.md` - Linux setup guide
 - `../docs/MACOS_GUIDE.md` - macOS setup guide
 
