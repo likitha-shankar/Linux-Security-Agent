@@ -44,8 +44,18 @@ if [ -f "ADFA-LD.zip" ]; then
     
     # Extract if not already extracted
     if [ ! -d "ADFA-LD" ]; then
-        echo "📦 Extracting ADFA-LD.zip..."
-        unzip -q ADFA-LD.zip
+        echo "📦 Extracting ADFA-LD.zip (using Python)..."
+        python3 -c "
+import zipfile
+import sys
+try:
+    with zipfile.ZipFile('ADFA-LD.zip', 'r') as zip_ref:
+        zip_ref.extractall('.')
+    print('✅ Extraction complete')
+except Exception as e:
+    print(f'❌ Extraction failed: {e}')
+    sys.exit(1)
+"
     else
         echo "✅ ADFA-LD directory already extracted"
     fi
