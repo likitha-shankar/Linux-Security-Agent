@@ -30,12 +30,26 @@ def check_model_files():
     print("1. CHECKING MODEL FILES")
     print("=" * 70)
     
-    # Check default locations
-    possible_dirs = [
-        Path.home() / '.cache' / 'security_agent' / 'models',
-        Path('/root/.cache/security_agent/models'),
-        project_root / 'models'
-    ]
+    # Check default locations - prioritize current user's home directory
+    import os
+    current_user = os.getenv('USER', os.getenv('USERNAME', 'unknown'))
+    is_root = (os.geteuid() == 0) if hasattr(os, 'geteuid') else False
+    
+    possible_dirs = []
+    
+    # Always check current user's home first
+    user_home = Path.home()
+    possible_dirs.append(user_home / '.cache' / 'security_agent' / 'models')
+    
+    # Only check root's directory if we're actually root
+    if is_root:
+        possible_dirs.append(Path('/root/.cache/security_agent/models'))
+    elif current_user != 'root':
+        # If not root, still check root's directory but handle permission errors
+        possible_dirs.append(Path('/root/.cache/security_agent/models'))
+    
+    # Check project root
+    possible_dirs.append(project_root / 'models')
     
     model_files = {
         'isolation_forest.pkl': False,
@@ -46,21 +60,32 @@ def check_model_files():
     
     found_dir = None
     for model_dir in possible_dirs:
-        if model_dir.exists():
-            found_dir = model_dir
-            print(f"✅ Found model directory: {model_dir}")
-            for model_file in model_files.keys():
-                model_path = model_dir / model_file
-                if model_path.exists():
-                    model_files[model_file] = True
-                    size = model_path.stat().st_size
-                    print(f"   ✅ {model_file}: {size:,} bytes")
-                else:
-                    print(f"   ❌ {model_file}: NOT FOUND")
-            break
+        try:
+            if model_dir.exists():
+                # Try to access the directory
+                try:
+                    list(model_dir.iterdir())  # Test read access
+                    found_dir = model_dir
+                    print(f"✅ Found model directory: {model_dir}")
+                    for model_file in model_files.keys():
+                        model_path = model_dir / model_file
+                        if model_path.exists():
+                            model_files[model_file] = True
+                            size = model_path.stat().st_size
+                            print(f"   ✅ {model_file}: {size:,} bytes")
+                        else:
+                            print(f"   ❌ {model_file}: NOT FOUND")
+                    break
+                except PermissionError:
+                    print(f"⚠️  Found directory but no read permission: {model_dir}")
+                    continue
+        except Exception as e:
+            # Skip directories that cause errors
+            continue
     
     if not found_dir:
         print("❌ No model directory found in expected locations")
+        print(f"   Checked: {[str(d) for d in possible_dirs]}")
         return None, model_files
     
     return found_dir, model_files
