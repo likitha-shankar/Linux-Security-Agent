@@ -516,13 +516,16 @@ class EnhancedAnomalyDetector:
             logger = logging.getLogger('security_agent.anomaly')
             logger.debug(f"N-gram rarity calculation failed: {e}")
 
-        # Final decision
-        is_anomaly = anomaly_votes >= (total_models / 2) if total_models > 0 else False
-        
         # Convert to 0-100 risk score and add bounded n-gram contribution
         risk_score = min(100, max(0, ensemble_score * 100))
         ngram_weight = float(self.config.get('ngram_weight', 0.2))  # 0..1
         risk_score = min(100.0, max(0.0, risk_score + 100.0 * ngram_weight * ngram_rarity))
+        
+        # Final decision: require both ensemble votes AND score threshold
+        # This prevents false positives from low-score detections
+        score_threshold = float(self.config.get('anomaly_score_threshold', 30.0))
+        ensemble_agreement = anomaly_votes >= (total_models / 2) if total_models > 0 else False
+        is_anomaly = ensemble_agreement and (risk_score >= score_threshold)
         
         # Calculate confidence with calibration if available
         if self.calibrator and self.calibrator.is_calibrated:
