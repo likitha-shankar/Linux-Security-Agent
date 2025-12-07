@@ -81,7 +81,7 @@ sys.path.insert(0, '$PROJECT_ROOT')
 from core.enhanced_anomaly_detector import EnhancedAnomalyDetector
 
 detector = EnhancedAnomalyDetector()
-detector.load_models()
+detector._load_models()
 
 if detector.is_fitted:
     test_syscalls = ['read', 'write', 'open', 'close'] * 10
