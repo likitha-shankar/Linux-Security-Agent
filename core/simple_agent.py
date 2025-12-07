@@ -642,10 +642,16 @@ class SimpleSecurityAgent:
             table.add_column("Recent Syscalls", style="cyan", width=35)  # Increased from 20 to 35
             table.add_column("Last Update", style="dim", width=8, justify="right")
             
-            # Sort by risk score, but also show recently active processes
+            # Filter out excluded processes from display
             current_time = time.time()
+            filtered_procs = [
+                (pid, proc) for pid, proc in self.processes.items()
+                if proc.get('name', '').lower() not in [p.lower() for p in self.excluded_process_names]
+            ]
+            
+            # Sort by risk score, but also show recently active processes
             sorted_procs = sorted(
-                self.processes.items(),
+                filtered_procs,
                 key=lambda x: (
                     x[1]['risk_score'],  # Primary: risk score
                     current_time - x[1].get('last_update', 0)  # Secondary: recency (negative for reverse)
