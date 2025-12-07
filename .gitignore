@@ -60,3 +60,6 @@ Thumbs.db
 
 # Web dashboard database
 web/dashboard.db
+
+# Evaluation reports (generated files)
+ml_evaluation_report.json
