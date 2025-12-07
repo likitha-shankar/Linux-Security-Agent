@@ -863,13 +863,36 @@ class SimpleSecurityAgent:
         
         try:
             # Use screen=True for better rendering and reduce refresh rate to minimize blinking
-            # refresh_per_second=1 means update every 1 second (much less frequent = no scrolling)
-            with Live(self.create_dashboard(), refresh_per_second=1, screen=True, transient=False) as live:
+            # refresh_per_second=0.5 means update every 2 seconds (much less frequent = no scrolling)
+            last_update_time = time.time()
+            last_process_count = 0
+            last_total_syscalls = 0
+            
+            with Live(self.create_dashboard(), refresh_per_second=0.5, screen=True, transient=False) as live:
                 while self.running:
-                    # Update dashboard - create_dashboard() is called here
-                    live.update(self.create_dashboard())
-                    # Sleep longer to prevent scrolling - update every 2 seconds
-                    time.sleep(2.0)
+                    # Only update if there are actual changes (prevents constant refreshing)
+                    current_time = time.time()
+                    current_process_count = len(self.processes)
+                    current_total_syscalls = self.stats['total_syscalls']
+                    
+                    # Update if:
+                    # - 3 seconds have passed (minimum refresh rate)
+                    # - Process count changed
+                    # - Significant syscall count change (>10 new syscalls)
+                    should_update = (
+                        (current_time - last_update_time >= 3.0) or
+                        (current_process_count != last_process_count) or
+                        (current_total_syscalls - last_total_syscalls > 10)
+                    )
+                    
+                    if should_update:
+                        live.update(self.create_dashboard())
+                        last_update_time = current_time
+                        last_process_count = current_process_count
+                        last_total_syscalls = current_total_syscalls
+                    
+                    # Sleep to prevent CPU spinning
+                    time.sleep(0.5)
         except KeyboardInterrupt:
             logger.info("Agent stopped by user (Ctrl+C)")
         except Exception as e:
@@ -905,6 +928,31 @@ def main():
                 config.update(yaml.safe_load(f))
         except Exception as e:
             logger.warning(f"Failed to load config: {e}")
+    
+    # Handle attack simulation options
+    attack_thread = None
+    if args.with_attacks and not args.without_attacks:
+        # Start attack simulation in background thread
+        def run_attacks():
+            import subprocess
+            import sys
+            time.sleep(10)  # Wait for agent to start
+            logger.info("🎯 Starting attack simulations...")
+            try:
+                project_root = Path(__file__).parent.parent
+                attack_script = project_root / 'scripts' / 'simulate_attacks.py'
+                if attack_script.exists():
+                    subprocess.run([sys.executable, str(attack_script)], 
+                                 cwd=str(project_root), timeout=300)
+                    logger.info("✅ Attack simulations completed")
+                else:
+                    logger.warning(f"⚠️  Attack script not found: {attack_script}")
+            except Exception as e:
+                logger.error(f"❌ Error running attacks: {e}")
+        
+        attack_thread = threading.Thread(target=run_attacks, daemon=True)
+        attack_thread.start()
+        logger.info("🎯 Attack simulations will start in 10 seconds...")
     
     # Create and run agent
     try:
