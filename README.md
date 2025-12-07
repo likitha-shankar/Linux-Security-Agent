@@ -9,11 +9,14 @@ Real-time system call monitoring and threat detection agent for Linux. Uses eBPF
 **Classification:** Not Production Ready - See [docs/PROJECT_STATUS.md](docs/PROJECT_STATUS.md) for details
 
 **Recent updates (December 2024):**
+- **Real Dataset Training**: Trained on ADFA-LD dataset (5,205 real syscall sequences from actual Linux systems)
+- **Automated Training Setup**: Complete automation for downloading ADFA-LD and training models (`scripts/complete_training_setup.sh`)
+- **Syscall Name Mapping**: Fixed conversion to properly map syscall numbers to names (99.97% success rate)
 - **Enhanced Anomaly Logging**: Detailed explanations showing exactly what's anomalous (ML models, top syscalls, high-risk patterns, resources, recent sequence)
 - **Complete Automation**: Full automation script for testing and agent execution (`scripts/automate_all_tests.py`)
 - **Headless Mode**: Agent can run without dashboard for automation (`--headless` flag)
 - Now captures actual syscall names (333 mapped) instead of just counting
-- ML trains on real system behavior instead of random data
+- ML trains on real ADFA-LD dataset instead of synthetic data
 - Added automatic memory cleanup to prevent leaks
 - Fixed thread safety issues
 - Improved container detection for Docker

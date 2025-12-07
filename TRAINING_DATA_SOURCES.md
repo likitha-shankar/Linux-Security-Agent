@@ -9,10 +9,11 @@
 
 ## Overview
 
-The Linux Security Agent uses **two training datasets** for ML model training:
+The Linux Security Agent uses **three training datasets** for ML model training:
 
 1. **Initial Dataset**: `normal_behavior_dataset.json` (500 samples)
-2. **Diverse Dataset**: `diverse_training_dataset.json` (850 samples) ⭐ **Primary dataset**
+2. **Diverse Dataset**: `diverse_training_dataset.json` (850 samples)
+3. **ADFA-LD Dataset**: `adfa_training.json` (5,205 samples) ⭐ **PRIMARY DATASET - REAL DATA**
 
 ---
 

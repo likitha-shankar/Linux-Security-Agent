@@ -40,7 +40,41 @@ cd Linux-Security-Agent
 sudo pip3 install -r requirements.txt
 ```
 
-### 1.3 Verify Setup
+### 1.3 Train ML Models (Required Before Running Agent)
+
+**Option A: Automated Setup (Recommended)**
+
+```bash
+# Complete automated setup - downloads ADFA-LD dataset and trains models
+bash scripts/complete_training_setup.sh
+```
+
+This script will:
+1. Download ADFA-LD dataset from GitHub
+2. Convert syscall numbers to names
+3. Train all ML models with progress indicators
+4. Verify models are working
+
+**Option B: Manual Setup**
+
+```bash
+# Step 1: Setup ADFA-LD dataset
+bash scripts/setup_adfa_ld_dataset.sh
+
+# Step 2: Convert to training format
+python3 scripts/download_real_datasets.py --adfa-dir ~/datasets/ADFA-LD/ADFA-LD --output datasets/adfa_training.json
+
+# Step 3: Train models
+python3 scripts/train_with_progress.py --file datasets/adfa_training.json
+```
+
+**Training Details**:
+- **Dataset**: ADFA-LD (5,205 real syscall sequences)
+- **Time**: ~5 seconds
+- **Models**: Isolation Forest, One-Class SVM, DBSCAN
+- **Location**: `~/.cache/security_agent/`
+
+### 1.4 Verify Setup
 
 ```bash
 # Test eBPF is working
@@ -48,6 +82,9 @@ python3 -c "from bcc import BPF; print('✅ eBPF working!')"
 
 # Test imports
 python3 -c "from core.simple_agent import SimpleSecurityAgent; print('✅ Agent ready!')"
+
+# Verify models are trained
+python3 -c "from core.enhanced_anomaly_detector import EnhancedAnomalyDetector; d = EnhancedAnomalyDetector(); d._load_models(); print('✅ Models loaded!' if d.is_fitted else '❌ Models not found')"
 ```
 
 ---
