@@ -640,12 +640,44 @@
                     </div>
                 </div>
                 
+                <!-- Recent High-Risk Detections -->
+                <div class="card">
+                    <div class="card-header">
+                        <h2><i class="fas fa-exclamation-triangle"></i> Recent High-Risk</h2>
+                        <button class="btn" onclick="clearHighRiskList()" style="font-size: 0.75em; padding: 4px 8px;">
+                            <i class="fas fa-trash"></i> Clear
+                        </button>
+                    </div>
+                    <div class="process-list" id="highRiskList" style="max-height: 250px;">
+                        <div class="empty-state">
+                            <div class="empty-state-icon">🛡️</div>
+                            <div class="empty-state-text">No high-risk processes yet</div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Recent Attacks -->
+                <div class="card">
+                    <div class="card-header">
+                        <h2><i class="fas fa-bug"></i> Recent Attacks</h2>
+                        <button class="btn" onclick="clearAttackList()" style="font-size: 0.75em; padding: 4px 8px;">
+                            <i class="fas fa-trash"></i> Clear
+                        </button>
+                    </div>
+                    <div class="process-list" id="attackList" style="max-height: 250px;">
+                        <div class="empty-state">
+                            <div class="empty-state-icon">✅</div>
+                            <div class="empty-state-text">No attacks detected yet</div>
+                        </div>
+                    </div>
+                </div>
+                
                 <!-- Top Processes -->
                 <div class="card">
                     <div class="card-header">
-                        <h2><i class="fas fa-list"></i> Top Processes</h2>
+                        <h2><i class="fas fa-list"></i> All Processes</h2>
                     </div>
-                    <div class="process-list" id="processList">
+                    <div class="process-list" id="processList" style="max-height: 300px;">
                         <div class="empty-state">
                             <div class="empty-state-icon">📭</div>
                             <div class="empty-state-text">No processes detected yet</div>
@@ -676,6 +708,9 @@
         // Track unique anomaly detections to avoid double counting
         let anomalyDetections = new Set(); // Store "PID:timestamp" to track unique detections
         let highRiskDetections = new Set(); // Store "PID:timestamp" to track unique high risk detections
+        // Store detailed detection information
+        let highRiskList = []; // Array of {pid, name, risk, anomaly, syscalls, timestamp, details}
+        let attackList = []; // Array of {type, pid, name, details, timestamp}
         let activityData = {
             labels: [],
             anomalies: [],
@@ -831,8 +866,58 @@
                             stats.highRisk++;
                             document.getElementById('statHighRisk').textContent = stats.highRisk;
                             updateChart('highRisk');
+                            
+                            // Extract details for high-risk list
+                            const processMatch = msg.match(/Process[=:]([^\s,]+)/);
+                            const riskMatch = msg.match(/Risk[=:](\d+\.?\d*)/);
+                            const anomalyMatch = msg.match(/Anomaly[=:](\d+\.?\d*)/);
+                            const syscallMatch = msg.match(/Total Syscalls: (\d+)/);
+                            const recentSyscallsMatch = msg.match(/Recent syscalls: ([^\n]+)/);
+                            
+                            const highRiskEntry = {
+                                pid: pid,
+                                name: processMatch ? processMatch[1] : 'unknown',
+                                risk: riskMatch ? parseFloat(riskMatch[1]) : 0,
+                                anomaly: anomalyMatch ? parseFloat(anomalyMatch[1]) : 0,
+                                syscalls: syscallMatch ? parseInt(syscallMatch[1]) : 0,
+                                recentSyscalls: recentSyscallsMatch ? recentSyscallsMatch[1].substring(0, 100) : '',
+                                timestamp: new Date().toLocaleTimeString(),
+                                details: msg.substring(0, 200)
+                            };
+                            
+                            highRiskList.unshift(highRiskEntry); // Add to beginning
+                            if (highRiskList.length > 20) highRiskList.pop(); // Keep last 20
+                            renderHighRiskList();
                         }
                     }
+                }
+                
+                // Parse ATTACK DETECTED (port scanning, C2 beaconing, etc.)
+                if (msg.includes('ATTACK') || msg.includes('PORT_SCANNING') || msg.includes('C2_BEACONING') || 
+                    msg.includes('CONNECTION PATTERN DETECTED')) {
+                    const pidMatch = msg.match(/PID=(\d+)/);
+                    const processMatch = msg.match(/Process[=:]([^\s,]+)/);
+                    
+                    let attackType = 'Unknown';
+                    if (msg.includes('PORT_SCANNING') || msg.includes('Port scanning')) {
+                        attackType = 'Port Scanning';
+                    } else if (msg.includes('C2_BEACONING') || msg.includes('C2 beaconing')) {
+                        attackType = 'C2 Beaconing';
+                    } else if (msg.includes('CONNECTION PATTERN')) {
+                        attackType = 'Suspicious Connection';
+                    }
+                    
+                    const attackEntry = {
+                        type: attackType,
+                        pid: pidMatch ? pidMatch[1] : 'N/A',
+                        name: processMatch ? processMatch[1] : 'unknown',
+                        details: msg.substring(0, 150),
+                        timestamp: new Date().toLocaleTimeString()
+                    };
+                    
+                    attackList.unshift(attackEntry); // Add to beginning
+                    if (attackList.length > 20) attackList.pop(); // Keep last 20
+                    renderAttackList();
                 }
                 
                 // Parse ANOMALY DETECTED - only count unique detections (not score updates)
@@ -931,11 +1016,68 @@
             renderProcessList();
         }
         
+        function renderHighRiskList() {
+            const highRiskListEl = document.getElementById('highRiskList');
+            
+            if (highRiskList.length === 0) {
+                highRiskListEl.innerHTML = '<div class="empty-state"><div class="empty-state-icon">🛡️</div><div class="empty-state-text">No high-risk processes yet</div></div>';
+                return;
+            }
+            
+            highRiskListEl.innerHTML = highRiskList.slice(0, 10).map(entry => {
+                return `
+                    <div class="process-item high-risk">
+                        <div class="process-header">
+                            <div>
+                                <div class="process-name">${escapeHtml(entry.name)}</div>
+                                <div class="process-pid" style="margin-top: 4px;">PID: ${entry.pid} | ${entry.timestamp}</div>
+                            </div>
+                            <div class="process-scores">
+                                <div class="score">
+                                    <span class="score-label">Risk:</span>
+                                    <span class="score-value risk-high">${entry.risk.toFixed(1)}</span>
+                                </div>
+                                <div class="score">
+                                    <span class="score-label">Anomaly:</span>
+                                    <span class="score-value risk-medium">${entry.anomaly.toFixed(1)}</span>
+                                </div>
+                            </div>
+                        </div>
+                        ${entry.recentSyscalls ? `<div style="font-size: 0.8em; color: #718096; margin-top: 6px; font-family: monospace;">Syscalls: ${escapeHtml(entry.recentSyscalls)}</div>` : ''}
+                        ${entry.syscalls > 0 ? `<div style="font-size: 0.75em; color: #a0aec0; margin-top: 4px;">Total: ${entry.syscalls} syscalls</div>` : ''}
+                    </div>
+                `;
+            }).join('');
+        }
+        
+        function renderAttackList() {
+            const attackListEl = document.getElementById('attackList');
+            
+            if (attackList.length === 0) {
+                attackListEl.innerHTML = '<div class="empty-state"><div class="empty-state-icon">✅</div><div class="empty-state-text">No attacks detected yet</div></div>';
+                return;
+            }
+            
+            attackListEl.innerHTML = attackList.slice(0, 10).map(entry => {
+                return `
+                    <div class="process-item attack">
+                        <div class="process-header">
+                            <div>
+                                <div class="process-name" style="color: #dc3545; font-weight: 600;">${escapeHtml(entry.type)}</div>
+                                <div class="process-pid" style="margin-top: 4px;">PID: ${entry.pid} | Process: ${escapeHtml(entry.name)} | ${entry.timestamp}</div>
+                            </div>
+                        </div>
+                        <div style="font-size: 0.8em; color: #718096; margin-top: 6px; font-family: monospace; word-break: break-word;">${escapeHtml(entry.details)}</div>
+                    </div>
+                `;
+            }).join('');
+        }
+        
         function renderProcessList() {
             const processList = document.getElementById('processList');
             const sorted = Array.from(processes.values())
                 .sort((a, b) => (b.risk + b.anomaly) - (a.risk + a.anomaly))
-                .slice(0, 10);
+                .slice(0, 15);
             
             if (sorted.length === 0) {
                 processList.innerHTML = '<div class="empty-state"><div class="empty-state-icon">📭</div><div class="empty-state-text">No processes detected yet</div></div>';
@@ -965,6 +1107,16 @@
                     </div>
                 `;
             }).join('');
+        }
+        
+        function clearHighRiskList() {
+            highRiskList = [];
+            renderHighRiskList();
+        }
+        
+        function clearAttackList() {
+            attackList = [];
+            renderAttackList();
         }
         
         function showAlert(data) {
