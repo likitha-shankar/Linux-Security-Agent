@@ -377,16 +377,37 @@ class SimpleSecurityAgent:
                     }
                     self.stats['total_processes'] += 1
                 else:
-                    # Update process name if we have a better one
-                    if not self.processes[pid]['name'] or self.processes[pid]['name'].startswith('pid_'):
-                        if event.comm:
+                    # Update process name if we have a better one (keep trying to get real name)
+                    current_name = self.processes[pid]['name']
+                    if not current_name or current_name.startswith('pid_'):
+                        # Try event.comm first
+                        if event.comm and not event.comm.startswith('pid_'):
                             self.processes[pid]['name'] = event.comm
+                        # Then try psutil
                         else:
                             try:
                                 p = psutil.Process(pid)
-                                self.processes[pid]['name'] = p.name()
+                                real_name = p.name()
+                                if real_name and not real_name.startswith('pid_'):
+                                    self.processes[pid]['name'] = real_name
                             except (psutil.NoSuchProcess, psutil.AccessDenied):
                                 pass
+                    
+                    # Check if process should be excluded (name might have been updated)
+                    proc_name = self.processes[pid]['name']
+                    if proc_name and not proc_name.startswith('pid_'):
+                        proc_name_lower = proc_name.lower()
+                        excluded_lower = [p.lower() for p in self.excluded_process_names]
+                        is_excluded = (
+                            proc_name in self.excluded_process_names or
+                            proc_name_lower in excluded_lower or
+                            any(excluded in proc_name_lower for excluded in excluded_lower)
+                        )
+                        if is_excluded:
+                            # Remove from tracking
+                            del self.processes[pid]
+                            logger.debug(f"⏭️  Removed excluded process from tracking: PID={pid} Name={proc_name}")
+                            return
                 
                 proc = self.processes[pid]
                 proc['syscalls'].append(syscall)
