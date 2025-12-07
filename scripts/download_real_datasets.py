@@ -75,6 +75,97 @@ def extract_archive(archive_path: Path, extract_to: Path) -> bool:
         print(f"❌ Extraction failed: {e}")
         return False
 
+def get_syscall_number_to_name_map() -> Dict[int, str]:
+    """Get complete syscall number to name mapping for x86_64"""
+    return {
+        0: 'read', 1: 'write', 2: 'open', 3: 'close', 4: 'stat',
+        5: 'fstat', 6: 'lstat', 7: 'poll', 8: 'lseek', 9: 'mmap',
+        10: 'mprotect', 11: 'munmap', 12: 'brk', 13: 'rt_sigaction',
+        14: 'rt_sigprocmask', 15: 'rt_sigreturn', 16: 'ioctl', 17: 'pread64',
+        18: 'pwrite64', 19: 'readv', 20: 'writev', 21: 'access',
+        22: 'pipe', 23: 'select', 24: 'sched_yield', 25: 'mremap',
+        26: 'msync', 27: 'mincore', 28: 'madvise', 29: 'shmget',
+        30: 'shmat', 31: 'shmctl', 32: 'dup', 33: 'dup2', 34: 'pause',
+        35: 'nanosleep', 36: 'getitimer', 37: 'alarm', 38: 'setitimer',
+        39: 'getpid', 40: 'sendfile', 41: 'socket', 42: 'connect',
+        43: 'accept', 44: 'sendto', 45: 'recvfrom', 46: 'sendmsg',
+        47: 'recvmsg', 48: 'shutdown', 49: 'bind', 50: 'listen',
+        51: 'getsockname', 52: 'getpeername', 53: 'socketpair', 54: 'setsockopt',
+        55: 'getsockopt', 56: 'clone', 57: 'fork', 58: 'vfork', 59: 'execve',
+        60: 'exit', 61: 'wait4', 62: 'kill', 63: 'uname', 64: 'semget',
+        65: 'semop', 66: 'semctl', 67: 'shmdt', 68: 'msgget', 69: 'msgsnd',
+        70: 'msgrcv', 71: 'msgctl', 72: 'fcntl', 73: 'flock', 74: 'fsync',
+        75: 'fdatasync', 76: 'truncate', 77: 'ftruncate', 78: 'getdents',
+        79: 'getcwd', 80: 'chdir', 81: 'fchdir', 82: 'rename', 83: 'mkdir',
+        84: 'rmdir', 85: 'creat', 86: 'link', 87: 'unlink', 88: 'symlink',
+        89: 'readlink', 90: 'chmod', 91: 'fchmod', 92: 'chown', 93: 'fchown',
+        94: 'lchown', 95: 'umask', 96: 'gettimeofday', 97: 'getrlimit',
+        98: 'getrusage', 99: 'sysinfo', 100: 'times', 101: 'ptrace',
+        102: 'getuid', 103: 'syslog', 104: 'getgid', 105: 'setuid',
+        106: 'setgid', 107: 'geteuid', 108: 'getegid', 109: 'setpgid',
+        110: 'getppid', 111: 'getpgrp', 112: 'setsid', 113: 'setreuid',
+        114: 'setregid', 115: 'getgroups', 116: 'setgroups', 117: 'setresuid',
+        118: 'getresuid', 119: 'setresgid', 120: 'getresgid', 121: 'getpgid',
+        122: 'setfsuid', 123: 'setfsgid', 124: 'getsid', 125: 'capget',
+        126: 'capset', 127: 'rt_sigpending', 128: 'rt_sigtimedwait',
+        129: 'rt_sigqueueinfo', 130: 'rt_sigsuspend', 131: 'sigaltstack',
+        132: 'utime', 133: 'mknod', 134: 'uselib', 135: 'personality',
+        136: 'ustat', 137: 'statfs', 138: 'fstatfs', 139: 'sysfs',
+        140: 'getpriority', 141: 'setpriority', 142: 'sched_setparam',
+        143: 'sched_getparam', 144: 'sched_setscheduler', 145: 'sched_getscheduler',
+        146: 'sched_get_priority_max', 147: 'sched_get_priority_min',
+        148: 'sched_rr_get_interval', 149: 'mlock', 150: 'munlock',
+        151: 'mlockall', 152: 'munlockall', 153: 'vhangup', 154: 'modify_ldt',
+        155: 'pivot_root', 156: 'prctl', 157: 'arch_prctl', 158: 'adjtimex',
+        159: 'setrlimit', 160: 'chroot', 161: 'sync', 162: 'acct', 163: 'settimeofday',
+        164: 'mount', 165: 'umount2', 166: 'swapon', 167: 'swapoff',
+        168: 'reboot', 169: 'sethostname', 170: 'setdomainname', 171: 'iopl',
+        172: 'ioperm', 173: 'create_module', 174: 'init_module', 175: 'delete_module',
+        176: 'get_kernel_syms', 177: 'query_module', 178: 'quotactl', 179: 'nfsservctl',
+        180: 'getpmsg', 181: 'putpmsg', 182: 'afs_syscall', 183: 'tuxcall',
+        184: 'security', 185: 'gettid', 186: 'readahead', 187: 'setxattr',
+        188: 'lsetxattr', 189: 'fsetxattr', 190: 'getxattr', 191: 'lgetxattr',
+        192: 'fgetxattr', 193: 'listxattr', 194: 'llistxattr', 195: 'flistxattr',
+        196: 'removexattr', 197: 'lremovexattr', 198: 'fremovexattr', 199: 'tkill',
+        200: 'time', 201: 'futex', 202: 'sched_setaffinity', 203: 'sched_getaffinity',
+        204: 'set_thread_area', 205: 'io_setup', 206: 'io_destroy', 207: 'io_getevents',
+        208: 'io_submit', 209: 'io_cancel', 210: 'get_thread_area',
+        211: 'lookup_dcookie', 212: 'epoll_create', 213: 'epoll_ctl_old',
+        214: 'epoll_wait_old', 215: 'remap_file_pages', 216: 'getdents64',
+        217: 'set_tid_address', 218: 'restart_syscall', 219: 'semtimedop',
+        220: 'fadvise64', 221: 'timer_create', 222: 'timer_settime', 223: 'timer_gettime',
+        224: 'timer_getoverrun', 225: 'timer_delete', 226: 'clock_settime',
+        227: 'clock_gettime', 228: 'clock_getres', 229: 'clock_nanosleep',
+        230: 'exit_group', 231: 'epoll_wait', 232: 'epoll_ctl', 233: 'tgkill',
+        234: 'utimes', 235: 'vserver', 236: 'mbind', 237: 'set_mempolicy',
+        238: 'get_mempolicy', 239: 'mq_open', 240: 'mq_unlink', 241: 'mq_timedsend',
+        242: 'mq_timedreceive', 243: 'mq_notify', 244: 'mq_getsetattr',
+        245: 'kexec_load', 246: 'waitid', 247: 'add_key', 248: 'request_key',
+        249: 'keyctl', 250: 'ioprio_set', 251: 'ioprio_get', 252: 'inotify_init',
+        253: 'inotify_add_watch', 254: 'inotify_rm_watch', 255: 'migrate_pages',
+        256: 'openat', 257: 'mkdirat', 258: 'mknodat', 259: 'fchownat',
+        260: 'futimesat', 261: 'newfstatat', 262: 'unlinkat', 263: 'renameat',
+        264: 'linkat', 265: 'symlinkat', 266: 'readlinkat', 267: 'fchmodat',
+        268: 'faccessat', 269: 'pselect6', 270: 'ppoll', 271: 'unshare',
+        272: 'set_robust_list', 273: 'get_robust_list', 274: 'splice',
+        275: 'tee', 276: 'sync_file_range', 277: 'vmsplice', 278: 'move_pages',
+        279: 'utimensat', 280: 'epoll_pwait', 281: 'signalfd', 282: 'timerfd',
+        283: 'eventfd', 284: 'fallocate', 285: 'timerfd_settime', 286: 'timerfd_gettime',
+        287: 'accept4', 288: 'signalfd4', 289: 'eventfd2', 290: 'epoll_create1',
+        291: 'dup3', 292: 'pipe2', 293: 'inotify_init1', 294: 'preadv',
+        295: 'pwritev', 296: 'rt_tgsigqueueinfo', 297: 'perf_event_open',
+        298: 'recvmmsg', 299: 'fanotify_init', 300: 'fanotify_mark',
+        301: 'prlimit64', 302: 'name_to_handle_at', 303: 'open_by_handle_at',
+        304: 'clock_adjtime', 305: 'syncfs', 306: 'sendmmsg', 307: 'setns',
+        308: 'getcpu', 309: 'process_vm_readv', 310: 'process_vm_writev',
+        311: 'kcmp', 312: 'finit_module', 313: 'sched_setattr', 314: 'sched_getattr',
+        315: 'renameat2', 316: 'seccomp', 317: 'getrandom', 318: 'memfd_create',
+        319: 'kexec_file_load', 320: 'bpf', 321: 'execveat', 322: 'userfaultfd',
+        323: 'membarrier', 324: 'mlock2', 325: 'copy_file_range', 326: 'preadv2',
+        327: 'pwritev2', 328: 'pkey_mprotect', 329: 'pkey_alloc', 330: 'pkey_free',
+        331: 'statx', 332: 'io_pgetevents', 333: 'rseq'
+    }
+
 def convert_adfa_ld_format(adfa_dir: Path) -> List[Tuple[List[str], Dict]]:
     """
     Convert ADFA-LD dataset format to our training data format
@@ -83,8 +174,30 @@ def convert_adfa_ld_format(adfa_dir: Path) -> List[Tuple[List[str], Dict]]:
     - Training_Data_Master/ (normal sequences)
     - Validation_Data_Master/ (normal sequences)
     - Attack_Data_Master/ (attack sequences)
+    
+    ADFA-LD stores syscalls as numbers (one per line), we convert to names.
     """
     training_data = []
+    syscall_map = get_syscall_number_to_name_map()
+    unmapped_count = 0
+    total_syscalls = 0
+    
+    def convert_syscall_numbers_to_names(syscall_numbers: List[str]) -> List[str]:
+        """Convert list of syscall number strings to syscall name strings"""
+        nonlocal unmapped_count, total_syscalls
+        syscall_names = []
+        for num_str in syscall_numbers:
+            total_syscalls += 1
+            try:
+                num = int(num_str.strip())
+                name = syscall_map.get(num, f'syscall_{num}')
+                if name.startswith('syscall_'):
+                    unmapped_count += 1
+                syscall_names.append(name)
+            except ValueError:
+                # If it's already a name or invalid, keep as-is
+                syscall_names.append(num_str.strip())
+        return syscall_names
     
     # Process normal sequences
     normal_dirs = ['Training_Data_Master', 'Validation_Data_Master']
@@ -97,10 +210,15 @@ def convert_adfa_ld_format(adfa_dir: Path) -> List[Tuple[List[str], Dict]]:
         for file_path in normal_dir.glob('*.txt'):
             try:
                 with open(file_path, 'r') as f:
-                    # ADFA-LD format: one syscall per line
-                    syscalls = [line.strip() for line in f if line.strip()]
+                    # ADFA-LD format: all syscall numbers on one line, space-separated
+                    content = f.read().strip()
+                    # Split by spaces to get individual syscall numbers
+                    syscall_numbers = [num.strip() for num in content.split() if num.strip()]
                 
-                if syscalls:
+                if syscall_numbers:
+                    # Convert syscall numbers to names
+                    syscalls = convert_syscall_numbers_to_names(syscall_numbers)
+                    
                     process_info = {
                         'cpu_percent': 10.0,  # Default values
                         'memory_percent': 5.0,
@@ -121,9 +239,15 @@ def convert_adfa_ld_format(adfa_dir: Path) -> List[Tuple[List[str], Dict]]:
         for file_path in attack_dir.glob('*.txt'):
             try:
                 with open(file_path, 'r') as f:
-                    syscalls = [line.strip() for line in f if line.strip()]
+                    # ADFA-LD format: all syscall numbers on one line, space-separated
+                    content = f.read().strip()
+                    # Split by spaces to get individual syscall numbers
+                    syscall_numbers = [num.strip() for num in content.split() if num.strip()]
                 
-                if syscalls:
+                if syscall_numbers:
+                    # Convert syscall numbers to names
+                    syscalls = convert_syscall_numbers_to_names(syscall_numbers)
+                    
                     process_info = {
                         'cpu_percent': 15.0,
                         'memory_percent': 8.0,
@@ -138,6 +262,15 @@ def convert_adfa_ld_format(adfa_dir: Path) -> List[Tuple[List[str], Dict]]:
                 print(f"⚠️  Error processing {file_path}: {e}")
         
         print(f"   Found {attack_count} attack sequences (for evaluation)")
+    
+    # Print conversion statistics
+    if total_syscalls > 0:
+        mapped_pct = ((total_syscalls - unmapped_count) / total_syscalls) * 100
+        print(f"\n📊 Conversion Statistics:")
+        print(f"   - Total syscalls processed: {total_syscalls:,}")
+        print(f"   - Successfully mapped: {total_syscalls - unmapped_count:,} ({mapped_pct:.1f}%)")
+        if unmapped_count > 0:
+            print(f"   - Unmapped (kept as syscall_XXX): {unmapped_count:,}")
     
     return training_data
 
