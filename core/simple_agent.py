@@ -398,23 +398,40 @@ class SimpleSecurityAgent:
                 else:
                     # Update process name if we have a better one (keep trying to get real name)
                     current_name = self.processes[pid]['name']
-                    if not current_name or current_name.startswith('pid_'):
+                    if not current_name or current_name.startswith('pid_') or len(current_name) == 0:
                         # Try event.comm first
-                        if event.comm and not event.comm.startswith('pid_'):
+                        if event.comm and not event.comm.startswith('pid_') and len(event.comm) > 0:
                             self.processes[pid]['name'] = event.comm
-                        # Then try psutil
+                        # Then try psutil with multiple methods
                         else:
                             try:
                                 p = psutil.Process(pid)
+                                # Try name() first
                                 real_name = p.name()
-                                if real_name and not real_name.startswith('pid_'):
+                                if real_name and not real_name.startswith('pid_') and len(real_name) > 0:
                                     self.processes[pid]['name'] = real_name
+                                # If still empty, try exe()
+                                elif not real_name or real_name.startswith('pid_'):
+                                    try:
+                                        exe = p.exe()
+                                        if exe:
+                                            self.processes[pid]['name'] = os.path.basename(exe)
+                                    except:
+                                        pass
+                                # If still empty, try cmdline()
+                                if self.processes[pid]['name'].startswith('pid_') or len(self.processes[pid]['name']) == 0:
+                                    try:
+                                        cmdline = p.cmdline()
+                                        if cmdline and len(cmdline) > 0 and cmdline[0]:
+                                            self.processes[pid]['name'] = os.path.basename(cmdline[0])
+                                    except:
+                                        pass
                             except (psutil.NoSuchProcess, psutil.AccessDenied):
                                 pass
                     
                     # Check if process should be excluded (name might have been updated)
                     proc_name = self.processes[pid]['name']
-                    if proc_name and not proc_name.startswith('pid_'):
+                    if proc_name and not proc_name.startswith('pid_') and len(proc_name) > 0:
                         proc_name_lower = proc_name.lower()
                         excluded_lower = [p.lower() for p in self.excluded_process_names]
                         is_excluded = (
