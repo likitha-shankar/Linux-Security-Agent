@@ -325,6 +325,10 @@ def monitor_agent_logs():
                     if line:
                         # Parse log line
                         log_entry = parse_log_line(line)
+                        # Skip None entries (filtered out score updates)
+                        if log_entry is None:
+                            continue
+                        
                         log_buffer.append(log_entry)
                         
                         # Keep buffer size manageable
