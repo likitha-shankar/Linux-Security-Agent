@@ -296,19 +296,19 @@ def parse_log_line(line):
         'timestamp': datetime.now().isoformat()
     }
     
-    # Detect log level
-    if 'ERROR' in line or '❌' in line:
+    # Detect log level (order matters - check more specific first)
+    if 'HIGH RISK DETECTED' in line or '🔴 HIGH RISK' in line:
+        entry['type'] = 'attack'
+    elif 'ANOMALY DETECTED' in line or '⚠️  ANOMALY' in line:
+        entry['type'] = 'anomaly'
+    elif 'ERROR' in line or '❌' in line:
         entry['type'] = 'error'
     elif 'WARNING' in line or '⚠️' in line:
         entry['type'] = 'warning'
-    elif 'HIGH RISK' in line or '🔴' in line:
-        entry['type'] = 'attack'
-    elif 'ANOMALY DETECTED' in line:
-        entry['type'] = 'anomaly'
-    elif 'INFO' in line or 'ℹ️' in line:
-        entry['type'] = 'info'
     elif 'SCORE UPDATE' in line:
         entry['type'] = 'score'
+    elif 'INFO' in line or 'ℹ️' in line:
+        entry['type'] = 'info'
     
     return entry
 
@@ -320,7 +320,14 @@ def is_attack_or_anomaly(line):
 @socketio.on('connect')
 def handle_connect():
     """Handle client connection"""
+    global monitoring_active
+    
     emit('status', {'message': 'Connected to security agent dashboard'})
+    
+    # Start monitoring if not already active
+    if not monitoring_active:
+        monitoring_active = True
+        threading.Thread(target=monitor_agent_logs, daemon=True).start()
     
     # Send recent log buffer
     if log_buffer:

@@ -617,6 +617,9 @@
         }
         
         function updateStats(data) {
+            if (!data) return;
+            
+            // Update based on log type
             if (data.type === 'attack') {
                 stats.attacks++;
                 document.getElementById('statAttacks').textContent = stats.attacks;
@@ -628,19 +631,40 @@
             }
             
             if (data.message) {
-                if (data.message.includes('SCORE UPDATE')) {
+                const msg = data.message;
+                
+                // Parse syscalls from SCORE UPDATE
+                if (msg.includes('SCORE UPDATE')) {
                     stats.syscalls++;
                     document.getElementById('statSyscalls').textContent = stats.syscalls.toLocaleString();
+                    
+                    // Extract syscall count from message
+                    const syscallMatch = msg.match(/Syscalls=(\d+)/);
+                    if (syscallMatch) {
+                        const count = parseInt(syscallMatch[1]);
+                        if (count > stats.syscalls) {
+                            stats.syscalls = count;
+                            document.getElementById('statSyscalls').textContent = stats.syscalls.toLocaleString();
+                        }
+                    }
                 }
                 
-                if (data.message.includes('HIGH RISK')) {
+                // Parse HIGH RISK DETECTED
+                if (msg.includes('HIGH RISK DETECTED') || msg.includes('🔴 HIGH RISK')) {
                     stats.highRisk++;
                     document.getElementById('statHighRisk').textContent = stats.highRisk;
                     updateChart('highRisk');
                 }
                 
+                // Parse ANOMALY DETECTED
+                if (msg.includes('ANOMALY DETECTED') || msg.includes('⚠️  ANOMALY')) {
+                    stats.anomalies++;
+                    document.getElementById('statAnomalies').textContent = stats.anomalies;
+                    updateChart('anomaly');
+                }
+                
                 // Parse process info from log
-                const pidMatch = data.message.match(/PID=(\d+)/);
+                const pidMatch = msg.match(/PID=(\d+)/);
                 if (pidMatch) {
                     const pid = pidMatch[1];
                     if (!processes.has(pid)) {
@@ -677,24 +701,41 @@
         }
         
         function updateProcessList(data) {
-            if (!data.message) return;
+            if (!data || !data.message) return;
             
-            const pidMatch = data.message.match(/PID=(\d+)/);
-            const processMatch = data.message.match(/Process[=:]([^\s]+)/);
-            const riskMatch = data.message.match(/Risk[=:](\d+\.?\d*)/);
-            const anomalyMatch = data.message.match(/Anomaly[=:](\d+\.?\d*)/);
+            const msg = data.message;
+            const pidMatch = msg.match(/PID=(\d+)/);
             
-            if (pidMatch) {
-                const pid = pidMatch[1];
-                const process = processes.get(pid) || { pid, name: 'unknown', risk: 0, anomaly: 0 };
-                
-                if (processMatch) process.name = processMatch[1];
-                if (riskMatch) process.risk = parseFloat(riskMatch[1]);
-                if (anomalyMatch) process.anomaly = parseFloat(anomalyMatch[1]);
-                
-                processes.set(pid, process);
-                renderProcessList();
+            if (!pidMatch) return;
+            
+            const pid = pidMatch[1];
+            const process = processes.get(pid) || { pid, name: 'unknown', risk: 0, anomaly: 0 };
+            
+            // Parse process name (multiple patterns)
+            const processMatch = msg.match(/Process[=:]([^\s,]+)/) || 
+                               msg.match(/Process=([^\s,]+)/) ||
+                               msg.match(/Process:([^\s,]+)/);
+            if (processMatch) {
+                process.name = processMatch[1];
             }
+            
+            // Parse risk score (multiple patterns)
+            const riskMatch = msg.match(/Risk[=:](\d+\.?\d*)/) || 
+                            msg.match(/Risk=(\d+\.?\d*)/);
+            if (riskMatch) {
+                process.risk = parseFloat(riskMatch[1]);
+            }
+            
+            // Parse anomaly score (multiple patterns)
+            const anomalyMatch = msg.match(/Anomaly[=:](\d+\.?\d*)/) || 
+                               msg.match(/AnomalyScore[=:](\d+\.?\d*)/) ||
+                               msg.match(/Anomaly=(\d+\.?\d*)/);
+            if (anomalyMatch) {
+                process.anomaly = parseFloat(anomalyMatch[1]);
+            }
+            
+            processes.set(pid, process);
+            renderProcessList();
         }
         
         function renderProcessList() {
