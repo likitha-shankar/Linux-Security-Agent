@@ -341,10 +341,14 @@ class EnhancedAnomalyDetector:
                 percent = ((i + 1) / len(training_data)) * 100
                 print(f"   Progress: {i + 1}/{len(training_data)} samples ({percent:.1f}%)", end='\r', flush=True)
         
+        step_time = time.time() - step_start_time
         print(f"\n   ✅ Extracted features from {len(training_data)} samples")
         features = np.array(features_list, dtype=np.float32)
         print(f"   📐 Feature matrix: {features.shape[0]} samples × {features.shape[1]} features")
-        print(f"   ⏱️  Time: {time.time() - step_start_time:.2f} seconds")
+        if step_time < 0.01:
+            print(f"   ⏱️  Time: {step_time*1000:.1f} ms")
+        else:
+            print(f"   ⏱️  Time: {step_time:.2f} seconds")
         
         # Store features for potential calibration (if enabled)
         self._training_features = features
