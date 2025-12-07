@@ -496,21 +496,31 @@ class SimpleSecurityAgent:
                     
                     if self.anomaly_detector.is_fitted:
                         try:
-                            # CORRECT function signature: (syscalls, process_info, pid)
-                            logger.debug(f"Running ML detection for PID {pid} (syscalls={len(syscall_list)})")
-                            anomaly_result = self.anomaly_detector.detect_anomaly_ensemble(
-                                syscall_list, process_info, pid
-                            )
-                            anomaly_score = abs(anomaly_result.anomaly_score)  # Use absolute value
-                            proc['anomaly_score'] = anomaly_score
+                            # HONEST FIX: Require minimum syscalls before ML detection to reduce false positives
+                            # Short-lived processes with few syscalls often trigger false positives
+                            min_syscalls_for_ml = 10  # Only run ML on processes with 10+ syscalls
+                            anomaly_result = None
                             
-                            # Log ML result for first few processes or when anomaly detected
-                            if len(syscall_list) == 20:  # First time we have 20 syscalls
-                                logger.info(f"🤖 ML RESULT: PID={pid} Process={proc['name']} "
-                                          f"Score={anomaly_score:.1f} IsAnomaly={anomaly_result.is_anomaly} "
-                                          f"Confidence={anomaly_result.confidence:.2f}")
+                            if len(syscall_list) < min_syscalls_for_ml:
+                                # Too few syscalls - skip ML detection to avoid false positives
+                                anomaly_score = 0.0
+                                proc['anomaly_score'] = anomaly_score
+                            else:
+                                # CORRECT function signature: (syscalls, process_info, pid)
+                                logger.debug(f"Running ML detection for PID {pid} (syscalls={len(syscall_list)})")
+                                anomaly_result = self.anomaly_detector.detect_anomaly_ensemble(
+                                    syscall_list, process_info, pid
+                                )
+                                anomaly_score = abs(anomaly_result.anomaly_score)  # Use absolute value
+                                proc['anomaly_score'] = anomaly_score
+                                
+                                # Log ML result for first few processes or when anomaly detected
+                                if len(syscall_list) == 20:  # First time we have 20 syscalls
+                                    logger.info(f"🤖 ML RESULT: PID={pid} Process={proc['name']} "
+                                              f"Score={anomaly_score:.1f} IsAnomaly={anomaly_result.is_anomaly} "
+                                              f"Confidence={anomaly_result.confidence:.2f}")
                             
-                            if anomaly_result.is_anomaly:
+                            if anomaly_result and anomaly_result.is_anomaly:
                                 self.stats['anomalies'] += 1
                                 logger.debug(f"Anomaly detected: PID={pid} Score={anomaly_score:.1f} "
                                            f"Explanation={anomaly_result.explanation}")
