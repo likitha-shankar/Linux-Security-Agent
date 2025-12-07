@@ -571,16 +571,26 @@ class EnhancedAnomalyDetector:
         ensemble_score = 0.0
         if scores:
             # Normalize scores and take weighted average
+            # Use proper normalization for each model's score range
             normalized_scores = []
             for model, score in scores.items():
                 if model == 'isolation_forest':
-                    # Isolation Forest: negative scores indicate anomalies
-                    normalized_scores.append(max(0, -score / 10.0))
+                    # Isolation Forest: score typically ranges -0.5 to 0.5
+                    # Negative = anomaly, positive = normal
+                    # Normalize to 0-1 where 1 = most anomalous
+                    # Use sigmoid-like function: 1 / (1 + exp(score * 10))
+                    # This maps: -0.5 → ~0.99, 0.0 → 0.5, 0.5 → ~0.01
+                    normalized = 1.0 / (1.0 + np.exp(score * 10.0))
+                    normalized_scores.append(normalized)
                 elif model == 'one_class_svm':
-                    # One-Class SVM: negative scores indicate anomalies
-                    normalized_scores.append(max(0, -score / 10.0))
+                    # One-Class SVM: score can range widely (e.g., -20 to 5)
+                    # Negative = anomaly, positive = normal
+                    # Use sigmoid: 1 / (1 + exp(score * 0.5))
+                    # This maps large negative scores → ~1.0, positive → ~0.0
+                    normalized = 1.0 / (1.0 + np.exp(score * 0.5))
+                    normalized_scores.append(normalized)
                 else:
-                    normalized_scores.append(score)
+                    normalized_scores.append(min(1.0, max(0, score)))
             
             ensemble_score = np.mean(normalized_scores)
         
