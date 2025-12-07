@@ -344,7 +344,7 @@ class EnhancedAnomalyDetector:
         print(f"\n   ✅ Extracted features from {len(training_data)} samples")
         features = np.array(features_list, dtype=np.float32)
         print(f"   📐 Feature matrix: {features.shape[0]} samples × {features.shape[1]} features")
-        print(f"   ⏱️  Time: {time.time() - start_time:.2f} seconds")
+        print(f"   ⏱️  Time: {time.time() - step_start_time:.2f} seconds")
         
         # Store features for potential calibration (if enabled)
         self._training_features = features
