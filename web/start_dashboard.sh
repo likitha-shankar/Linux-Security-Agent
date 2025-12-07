@@ -1,34 +1,43 @@
 #!/bin/bash
-# Quick start script for web dashboard
+# Simple dashboard start script
 
-cd "$(dirname "$0")"
-
-echo "🛡️  Starting Linux Security Agent Web Dashboard"
-echo "================================================"
+echo "🛡️  Starting Dashboard..."
 echo ""
 
-# Check if dependencies are installed
+# Get to the right directory
+cd "$(dirname "$0")" || exit 1
+pwd
+
+# Check Python
+echo "Checking Python..."
+python3 --version || exit 1
+
+# Check dependencies
+echo "Checking dependencies..."
 if ! python3 -c "import flask" 2>/dev/null; then
-    echo "⚠️  Flask not found. Installing dependencies..."
-    pip3 install -r requirements.txt
-    echo ""
+    echo "Installing Flask..."
+    pip3 install --user Flask flask-socketio python-socketio eventlet 2>&1 | tail -3
 fi
 
-# Check if port 5000 is in use
-if lsof -Pi :5000 -sTCP:LISTEN -t >/dev/null 2>&1; then
-    echo "⚠️  Port 5000 is already in use"
-    echo "   Killing existing process..."
-    lsof -ti:5000 | xargs kill -9 2>/dev/null
-    sleep 2
+# Check if dependencies are now available
+if ! python3 -c "import flask; import flask_socketio" 2>/dev/null; then
+    echo "❌ Dependencies not available. Trying to install..."
+    pip3 install --break-system-packages Flask flask-socketio python-socketio eventlet 2>&1 | tail -3
 fi
 
-echo "✅ Starting web server..."
+# Verify
+if python3 -c "import flask; import flask_socketio" 2>/dev/null; then
+    echo "✅ Dependencies OK"
+else
+    echo "❌ Dependencies failed. Please install manually:"
+    echo "   pip3 install Flask flask-socketio python-socketio eventlet"
+    exit 1
+fi
+
 echo ""
-echo "🌐 Dashboard will be available at: http://localhost:5000"
-echo ""
-echo "Press Ctrl+C to stop the server"
-echo "================================================"
+echo "Starting dashboard server..."
+echo "Access at: http://localhost:5001 or http://136.112.137.224:5001"
+echo "Press Ctrl+C to stop"
 echo ""
 
 python3 app.py
-
