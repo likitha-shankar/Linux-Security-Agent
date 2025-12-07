@@ -808,9 +808,12 @@
         });
         
         socket.on('log', (data) => {
-            addLog(data.message, data.type);
-            updateStats(data);
-            updateProcessList(data);
+            // Only process live logs if in live mode
+            if (currentLogMode === 'live') {
+                addLog(data.message, data.type);
+                updateStats(data);
+                updateProcessList(data);
+            }
         });
         
         socket.on('alert', (data) => {
@@ -1255,16 +1258,6 @@
                 addLog(`Error loading log file: ${error.message}`, 'error');
             }
         }
-        
-        // Only process live logs if in live mode
-        const originalSocketOn = socket.on.bind(socket);
-        socket.on('log', (data) => {
-            if (currentLogMode === 'live') {
-                addLog(data.message, data.type);
-                updateStats(data);
-                updateProcessList(data);
-            }
-        });
         
         checkStatus();
         setInterval(checkStatus, 5000);
