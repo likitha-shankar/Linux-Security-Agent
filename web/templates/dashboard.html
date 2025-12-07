@@ -1156,7 +1156,9 @@
         }
         
         function clearLogs() {
-            terminal.innerHTML = '<div class="log-line info"><span class="timestamp">[Cleared]</span><span>Logs cleared</span></div>';
+            // Only clear the log display, keep stats and other sections
+            terminal.innerHTML = '<div class="log-line info"><span class="timestamp">[Cleared]</span><span>Log display cleared - stats and processes remain</span></div>';
+            // Note: This only clears the visual log display, not the stats or process lists
         }
         
         function toggleAutoScroll() {
