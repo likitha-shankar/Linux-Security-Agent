@@ -895,9 +895,30 @@
                             const syscallMatch = msg.match(/Total Syscalls: (\d+)/);
                             const recentSyscallsMatch = msg.match(/Recent syscalls: ([^\n]+)/);
                             
+                            // Get better process name (avoid pid_XXXXX)
+                            let processName = 'unknown';
+                            if (processMatch) {
+                                const foundName = processMatch[1];
+                                if (!foundName.startsWith('pid_')) {
+                                    processName = foundName;
+                                } else {
+                                    // Try to find comm= or exe= in the log
+                                    const commMatch = msg.match(/comm[=:]([^\s,]+)/) || msg.match(/comm="([^"]+)"/);
+                                    const exeMatch = msg.match(/exe[=:]([^\s,]+)/) || msg.match(/exe="([^"]+)"/);
+                                    if (commMatch && !commMatch[1].startsWith('pid_')) {
+                                        processName = commMatch[1];
+                                    } else if (exeMatch) {
+                                        const exePath = exeMatch[1];
+                                        processName = exePath.split('/').pop() || exePath;
+                                    } else {
+                                        processName = foundName; // Fallback
+                                    }
+                                }
+                            }
+                            
                             const highRiskEntry = {
                                 pid: pid,
-                                name: processMatch ? processMatch[1] : 'unknown',
+                                name: processName,
                                 risk: riskMatch ? parseFloat(riskMatch[1]) : 0,
                                 anomaly: anomalyMatch ? parseFloat(anomalyMatch[1]) : 0,
                                 syscalls: syscallMatch ? parseInt(syscallMatch[1]) : 0,
@@ -928,10 +949,31 @@
                         attackType = 'Suspicious Connection';
                     }
                     
+                    // Get better process name (avoid pid_XXXXX)
+                    let attackProcessName = 'unknown';
+                    if (processMatch) {
+                        const foundName = processMatch[1];
+                        if (!foundName.startsWith('pid_')) {
+                            attackProcessName = foundName;
+                        } else {
+                            // Try to find comm= or exe= in the log
+                            const commMatch = msg.match(/comm[=:]([^\s,]+)/) || msg.match(/comm="([^"]+)"/);
+                            const exeMatch = msg.match(/exe[=:]([^\s,]+)/) || msg.match(/exe="([^"]+)"/);
+                            if (commMatch && !commMatch[1].startsWith('pid_')) {
+                                attackProcessName = commMatch[1];
+                            } else if (exeMatch) {
+                                const exePath = exeMatch[1];
+                                attackProcessName = exePath.split('/').pop() || exePath;
+                            } else {
+                                attackProcessName = foundName; // Fallback
+                            }
+                        }
+                    }
+                    
                     const attackEntry = {
                         type: attackType,
                         pid: pidMatch ? pidMatch[1] : 'N/A',
-                        name: processMatch ? processMatch[1] : 'unknown',
+                        name: attackProcessName,
                         details: msg.substring(0, 150),
                         timestamp: new Date().toLocaleTimeString()
                     };
@@ -1010,12 +1052,54 @@
             const pid = pidMatch[1];
             const process = processes.get(pid) || { pid, name: 'unknown', risk: 0, anomaly: 0 };
             
-            // Parse process name (multiple patterns)
-            const processMatch = msg.match(/Process[=:]([^\s,]+)/) || 
-                               msg.match(/Process=([^\s,]+)/) ||
-                               msg.match(/Process:([^\s,]+)/);
+            // Parse process name (multiple patterns - prioritize real names over pid_XXXXX)
+            let processMatch = msg.match(/Process[=:]([^\s,]+)/) || 
+                              msg.match(/Process=([^\s,]+)/) ||
+                              msg.match(/Process:([^\s,]+)/);
+            
+            // If we got a process name, check if it's actually a name or just pid_XXXXX
             if (processMatch) {
-                process.name = processMatch[1];
+                const foundName = processMatch[1];
+                // Only update if it's not a pid_XXXXX pattern, or if we don't have a name yet
+                if (!foundName.startsWith('pid_') || process.name === 'unknown' || process.name.startsWith('pid_')) {
+                    // If it's pid_XXXXX, try to find a better name in the log
+                    if (foundName.startsWith('pid_')) {
+                        // Look for comm= or exe= patterns in the log
+                        const commMatch = msg.match(/comm[=:]([^\s,]+)/) || msg.match(/comm="([^"]+)"/);
+                        const exeMatch = msg.match(/exe[=:]([^\s,]+)/) || msg.match(/exe="([^"]+)"/);
+                        
+                        if (commMatch && !commMatch[1].startsWith('pid_')) {
+                            process.name = commMatch[1];
+                        } else if (exeMatch) {
+                            // Extract basename from exe path
+                            const exePath = exeMatch[1];
+                            const basename = exePath.split('/').pop() || exePath;
+                            if (!basename.startsWith('pid_')) {
+                                process.name = basename;
+                            } else {
+                                process.name = foundName; // Fallback to pid_XXXXX
+                            }
+                        } else {
+                            process.name = foundName; // Keep what we found
+                        }
+                    } else {
+                        process.name = foundName; // Real process name found
+                    }
+                }
+            } else {
+                // Try to find comm= or exe= patterns even if Process= is not found
+                const commMatch = msg.match(/comm[=:]([^\s,]+)/) || msg.match(/comm="([^"]+)"/);
+                const exeMatch = msg.match(/exe[=:]([^\s,]+)/) || msg.match(/exe="([^"]+)"/);
+                
+                if (commMatch && !commMatch[1].startsWith('pid_')) {
+                    process.name = commMatch[1];
+                } else if (exeMatch) {
+                    const exePath = exeMatch[1];
+                    const basename = exePath.split('/').pop() || exePath;
+                    if (!basename.startsWith('pid_')) {
+                        process.name = basename;
+                    }
+                }
             }
             
             // Parse risk score (multiple patterns)
