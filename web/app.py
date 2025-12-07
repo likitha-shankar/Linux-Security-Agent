@@ -168,47 +168,59 @@ def api_status():
     """Get agent status"""
     global agent_process, monitoring_active
     
-    # Check if agent is running by checking for the process
-    # Try multiple possible log file locations
-    project_root = Path(__file__).parent.parent
-    possible_log_files = [
-        project_root / 'logs' / 'security_agent.log',  # Default location
-        Path.home() / '.cache' / 'security_agent' / 'logs' / 'security_agent.log',  # Home cache
-        Path('/root/.cache/security_agent/logs/security_agent.log'),  # Root cache (when run with sudo)
-    ]
-    
-    # Find the actual log file
-    log_file = None
-    for log_path in possible_log_files:
-        if log_path.exists():
-            log_file = log_path
-            break
-    
-    # If not found, use default location
-    if log_file is None:
-        log_file = possible_log_files[0]
     agent_running = False
     agent_pid = None
     
-    # Check if log file exists and is being written to (indicates agent is running)
-    if log_file.exists():
-        # Check if file is recent (modified in last 10 seconds)
-        import time
-        if time.time() - log_file.stat().st_mtime < 10:
-            agent_running = True
-            # Try to find the agent process
-            try:
-                result = subprocess.run(['pgrep', '-f', 'simple_agent.py'], 
-                                      capture_output=True, text=True, timeout=2)
-                if result.returncode == 0 and result.stdout.strip():
-                    agent_pid = int(result.stdout.strip().split('\n')[0])
-            except:
-                pass
-    
-    # Also check our tracked process
+    # First, check if we have a tracked process (started via web)
     if agent_process and agent_process.poll() is None:
         agent_running = True
         agent_pid = agent_process.pid
+    else:
+        # Check for agent process using pgrep (works for both web-started and manually-started agents)
+        try:
+            result = subprocess.run(['pgrep', '-f', 'simple_agent.py'], 
+                                  capture_output=True, text=True, timeout=2)
+            if result.returncode == 0 and result.stdout.strip():
+                pids = result.stdout.strip().split('\n')
+                # Get the first PID (or most recent if multiple)
+                agent_pid = int(pids[0])
+                agent_running = True
+        except Exception as e:
+            # pgrep failed, continue to check log file
+            pass
+    
+    # Also verify with log file check (if process found, verify it's actually writing logs)
+    if agent_running:
+        # Try multiple possible log file locations
+        project_root = Path(__file__).parent.parent
+        possible_log_files = [
+            project_root / 'logs' / 'security_agent.log',  # Default location
+            Path.home() / '.cache' / 'security_agent' / 'logs' / 'security_agent.log',  # Home cache
+            Path('/root/.cache/security_agent/logs/security_agent.log'),  # Root cache (when run with sudo)
+        ]
+        
+        # Find the actual log file
+        log_file = None
+        for log_path in possible_log_files:
+            if log_path.exists():
+                log_file = log_path
+                break
+        
+        # If log file exists and is recent (modified in last 30 seconds), agent is definitely running
+        if log_file and log_file.exists():
+            import time
+            if time.time() - log_file.stat().st_mtime < 30:
+                # Log file is being written to, agent is running
+                pass  # Already detected via pgrep
+            else:
+                # Process exists but log file is stale - might be starting up or issue
+                # Still consider it running if process exists
+                pass
+    
+    # If monitoring is active but we haven't detected agent, start monitoring thread
+    if agent_running and not monitoring_active:
+        monitoring_active = True
+        threading.Thread(target=monitor_agent_logs, daemon=True).start()
     
     status = {
         'running': agent_running,
