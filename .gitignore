@@ -52,3 +52,11 @@ Thumbs.db
 # Project specific
 .cache/
 *.pyc
+
+# Database files
+*.db
+*.sqlite
+*.sqlite3
+
+# Web dashboard database
+web/dashboard.db
