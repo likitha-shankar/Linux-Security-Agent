@@ -315,7 +315,8 @@ class SimpleSecurityAgent:
                     process_name = event.comm or f'pid_{event.pid}'
             
             # Skip detection for known system processes (reduce false positives)
-            if process_name in self.excluded_process_names:
+            # Check both exact match and case-insensitive match
+            if process_name in self.excluded_process_names or process_name.lower() in [p.lower() for p in self.excluded_process_names]:
                 logger.debug(f"⏭️  Skipping excluded system process: PID={event.pid} Name={process_name}")
                 return
             
@@ -805,13 +806,13 @@ class SimpleSecurityAgent:
         
         try:
             # Use screen=True for better rendering and reduce refresh rate to minimize blinking
-            # refresh_per_second=2 means update every 0.5 seconds (less frequent = less blinking)
-            with Live(self.create_dashboard(), refresh_per_second=2, screen=True, transient=False) as live:
+            # refresh_per_second=1 means update every 1 second (much less frequent = no scrolling)
+            with Live(self.create_dashboard(), refresh_per_second=1, screen=True, transient=False) as live:
                 while self.running:
                     # Update dashboard - create_dashboard() is called here
                     live.update(self.create_dashboard())
-                    # Sleep matches refresh rate to avoid unnecessary updates
-                    time.sleep(0.5)
+                    # Sleep longer to prevent scrolling - update every 2 seconds
+                    time.sleep(2.0)
         except KeyboardInterrupt:
             logger.info("Agent stopped by user (Ctrl+C)")
         except Exception as e:

@@ -257,36 +257,60 @@ def monitor_agent_logs():
         if not log_file.exists():
             return
     
-    # Read log file line by line
-    with open(log_file, 'r') as f:
-        # Go to end of file
-        f.seek(0, 2)
-        
-        while monitoring_active:
-            line = f.readline()
-            if line:
-                line = line.strip()
+    # First, read existing log content and send to buffer
+    existing_lines = []
+    if log_file.exists():
+        try:
+            with open(log_file, 'r', encoding='utf-8', errors='ignore') as f:
+                existing_lines = f.readlines()
+                # Keep last 500 lines of existing content
+                existing_lines = existing_lines[-500:]
+        except Exception as e:
+            socketio.emit('log', {'type': 'error', 'message': f'Error reading log file: {e}'})
+    
+    # Send existing lines to buffer and emit to clients
+    for line in existing_lines:
+        line = line.strip()
+        if line:
+            log_entry = parse_log_line(line)
+            log_buffer.append(log_entry)
+            # Emit to connected clients
+            socketio.emit('log', log_entry)
+    
+    # Now monitor for new lines
+    try:
+        with open(log_file, 'r', encoding='utf-8', errors='ignore') as f:
+            # Go to end of file (skip existing content we already sent)
+            f.seek(0, 2)
+            
+            while monitoring_active:
+                line = f.readline()
                 if line:
-                    # Parse log line
-                    log_entry = parse_log_line(line)
-                    log_buffer.append(log_entry)
-                    
-                    # Keep buffer size manageable
-                    if len(log_buffer) > 1000:
-                        log_buffer = log_buffer[-500:]
-                    
-                    # Emit to all connected clients
-                    socketio.emit('log', log_entry)
-                    
-                    # Check for attacks/anomalies
-                    if is_attack_or_anomaly(line):
-                        socketio.emit('alert', {
-                            'type': 'attack' if 'HIGH RISK' in line else 'anomaly',
-                            'message': line,
-                            'timestamp': datetime.now().isoformat()
-                        })
-            else:
-                time.sleep(0.5)  # Wait for new lines
+                    line = line.strip()
+                    if line:
+                        # Parse log line
+                        log_entry = parse_log_line(line)
+                        log_buffer.append(log_entry)
+                        
+                        # Keep buffer size manageable
+                        if len(log_buffer) > 1000:
+                            log_buffer = log_buffer[-500:]
+                        
+                        # Emit to all connected clients
+                        socketio.emit('log', log_entry)
+                        
+                        # Check for attacks/anomalies
+                        if is_attack_or_anomaly(line):
+                            socketio.emit('alert', {
+                                'type': 'attack' if 'HIGH RISK' in line else 'anomaly',
+                                'message': line,
+                                'timestamp': datetime.now().isoformat()
+                            })
+                else:
+                    time.sleep(0.5)  # Wait for new lines
+    except Exception as e:
+        socketio.emit('log', {'type': 'error', 'message': f'Error monitoring log file: {e}'})
+        logger.error(f"Error in log monitoring: {e}")
 
 def parse_log_line(line):
     """Parse log line into structured format"""
