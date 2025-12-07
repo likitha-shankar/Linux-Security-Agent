@@ -6,7 +6,7 @@
 Real-time system call monitoring and threat detection agent for Linux. Uses eBPF to capture syscalls from the kernel and ML to detect anomalies. This project was developed as part of a Master's degree program to explore kernel-level security monitoring and machine learning-based threat detection.
 
 **Status:** Functional Prototype - Research/Academic Project  
-**Classification:** Not Production Ready - See [docs/PROJECT_STATUS.md](docs/PROJECT_STATUS.md) for details
+**Classification:** Not Production Ready - See [PROJECT_STATUS.md](PROJECT_STATUS.md) for details
 
 **Recent updates (December 2024):**
 - **Real Dataset Training**: Trained on ADFA-LD dataset (5,205 real syscall sequences from actual Linux systems)
@@ -302,7 +302,7 @@ The system includes:
 - Real-time dashboard with process monitoring
 - Attack simulation scripts for testing
 
-See [docs/PROJECT_STATUS.md](docs/PROJECT_STATUS.md) for detailed status and [docs/GAP_ANALYSIS.md](docs/GAP_ANALYSIS.md) for known limitations.
+See [PROJECT_STATUS.md](PROJECT_STATUS.md) for detailed status and [docs/GAP_ANALYSIS.md](docs/GAP_ANALYSIS.md) for known limitations.
 
 ## Requirements
 
@@ -379,7 +379,7 @@ Linux-Security-Agent/
 - **ML Detection**: 50-D feature extraction, 3-model ensemble
 - **Note**: CPU overhead not formally benchmarked but estimated <5%
 
-See [docs/GAP_ANALYSIS.md](docs/GAP_ANALYSIS.md) for detailed limitations and [docs/PROJECT_STATUS.md](docs/PROJECT_STATUS.md) for honest assessment.
+See [docs/GAP_ANALYSIS.md](docs/GAP_ANALYSIS.md) for detailed limitations and [PROJECT_STATUS.md](PROJECT_STATUS.md) for honest assessment.
 
 ## 🚀 Getting Started
 
@@ -399,7 +399,7 @@ For detailed docs, see `docs/INSTALL.md`, `docs/USAGE.md`, and `docs/DEMO_GUIDE.
 - Research paper implementations
 
 **Not suitable for production use without significant additional work.**  
-See [docs/PROJECT_STATUS.md](docs/PROJECT_STATUS.md) and [docs/GAP_ANALYSIS.md](docs/GAP_ANALYSIS.md) for details.
+See [PROJECT_STATUS.md](PROJECT_STATUS.md) and [docs/GAP_ANALYSIS.md](docs/GAP_ANALYSIS.md) for details.
 
 **Suggested repo topics:** linux-security, ebpf, anomaly-detection, container-security, machine-learning, research, prototype, academic-project
 
