@@ -410,7 +410,7 @@ class SimpleSecurityAgent:
                         'anomaly_score': 0.0,
                         'last_update': time.time()
                     }
-                    self.stats['total_processes'] += 1
+                    # Don't increment here - will calculate current count dynamically
                 else:
                     # Update process name if we have a better one (keep trying to get real name)
                     current_name = self.processes[pid]['name']
