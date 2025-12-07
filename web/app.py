@@ -100,7 +100,24 @@ def api_status():
     global agent_process, monitoring_active
     
     # Check if agent is running by checking for the process
-    log_file = Path(__file__).parent.parent / 'logs' / 'security_agent.log'
+    # Try multiple possible log file locations
+    project_root = Path(__file__).parent.parent
+    possible_log_files = [
+        project_root / 'logs' / 'security_agent.log',  # Default location
+        Path.home() / '.cache' / 'security_agent' / 'logs' / 'security_agent.log',  # Home cache
+        Path('/root/.cache/security_agent/logs/security_agent.log'),  # Root cache (when run with sudo)
+    ]
+    
+    # Find the actual log file
+    log_file = None
+    for log_path in possible_log_files:
+        if log_path.exists():
+            log_file = log_path
+            break
+    
+    # If not found, use default location
+    if log_file is None:
+        log_file = possible_log_files[0]
     agent_running = False
     agent_pid = None
     
@@ -234,7 +251,25 @@ def monitor_agent_logs():
     """Monitor agent log file and emit updates via WebSocket"""
     global monitoring_active, log_buffer
     
-    log_file = Path(__file__).parent.parent / 'logs' / 'security_agent.log'
+    # Try multiple possible log file locations
+    project_root = Path(__file__).parent.parent
+    possible_log_files = [
+        project_root / 'logs' / 'security_agent.log',  # Default location
+        Path.home() / '.cache' / 'security_agent' / 'logs' / 'security_agent.log',  # Home cache
+        Path('/root/.cache/security_agent/logs/security_agent.log'),  # Root cache (when run with sudo)
+    ]
+    
+    # Find the actual log file
+    log_file = None
+    for log_path in possible_log_files:
+        if log_path.exists():
+            log_file = log_path
+            socketio.emit('log', {'type': 'info', 'message': f'Found log file: {log_file}'})
+            break
+    
+    # If not found, use default location
+    if log_file is None:
+        log_file = possible_log_files[0]
     
     # Wait for log file to be created (longer wait for manual starts)
     max_wait = 60
