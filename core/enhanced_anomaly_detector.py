@@ -77,9 +77,10 @@ class EnhancedAnomalyDetector:
         self.config = config or {}
         
         # Multiple ML models for ensemble detection
-        # Lower contamination (0.05 = 5%) to reduce false positives on normal processes
+        # Lower contamination (0.03 = 3%) to reduce false positives on normal processes
+        # This makes the model more conservative - only flagging clear anomalies
         self.isolation_forest = IsolationForest(
-            contamination=self.config.get('contamination', 0.05),
+            contamination=self.config.get('contamination', 0.03),
             random_state=42,
             n_estimators=200,
             max_samples='auto',
@@ -88,9 +89,10 @@ class EnhancedAnomalyDetector:
             n_jobs=-1
         )
         
-        # Lower nu (0.05 = 5%) to reduce false positives on normal processes
+        # Lower nu (0.03 = 3%) to reduce false positives on normal processes
+        # More conservative threshold for anomaly detection
         self.one_class_svm = OneClassSVM(
-            nu=self.config.get('nu', 0.05),
+            nu=self.config.get('nu', 0.03),
             kernel='rbf',
             gamma='scale',
             tol=1e-3
@@ -621,8 +623,8 @@ class EnhancedAnomalyDetector:
         
         # Final decision: require both ensemble votes AND score threshold
         # This prevents false positives from low-score detections
-        # Increased threshold to 50.0 to reduce false positives on normal behavior
-        score_threshold = float(self.config.get('anomaly_score_threshold', 50.0))
+        # Increased threshold to 60.0 to further reduce false positives
+        score_threshold = float(self.config.get('anomaly_score_threshold', 60.0))
         ensemble_agreement = anomaly_votes >= (total_models / 2) if total_models > 0 else False
         is_anomaly = ensemble_agreement and (risk_score >= score_threshold)
         
