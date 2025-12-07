@@ -1476,6 +1476,56 @@
             }
         }
         
+        // Reset dashboard on page load/refresh
+        function resetDashboard() {
+            // Clear all state
+            processes.clear();
+            highRiskList = [];
+            attackList = [];
+            recentAttacks = [];
+            anomalyDetections.clear();
+            highRiskDetections.clear();
+            totalSyscallsCount = 0;
+            
+            // Reset stats
+            stats.processes = 0;
+            stats.highRisk = 0;
+            stats.anomalies = 0;
+            stats.attacks = 0;
+            stats.syscalls = 0;
+            
+            // Update UI
+            document.getElementById('statProcesses').textContent = '0';
+            document.getElementById('statHighRisk').textContent = '0';
+            document.getElementById('statAnomalies').textContent = '0';
+            document.getElementById('statAttacks').textContent = '0';
+            document.getElementById('statSyscalls').textContent = '0';
+            
+            // Clear lists
+            document.getElementById('highRiskList').innerHTML = '<div class="empty-state"><div class="empty-state-icon">🛡️</div><div class="empty-state-text">No high-risk processes yet</div></div>';
+            document.getElementById('attackList').innerHTML = '<div class="empty-state"><div class="empty-state-icon">✅</div><div class="empty-state-text">No attacks detected yet</div></div>';
+            document.getElementById('processList').innerHTML = '<div class="empty-state"><div class="empty-state-icon">📭</div><div class="empty-state-text">No processes detected yet</div></div>';
+            
+            // Clear terminal (keep initial message)
+            const terminal = document.getElementById('terminal');
+            terminal.innerHTML = `
+                <div class="log-line info">
+                    <span class="timestamp">[Ready]</span>
+                    <span>📋 Dashboard Ready - Waiting for agent logs...</span>
+                </div>
+            `;
+            
+            // Reset chart
+            activityData.labels = [];
+            activityData.anomalies = [];
+            activityData.attacks = [];
+            activityData.highRisk = [];
+            activityChart.update('none');
+        }
+        
+        // Reset on page load
+        resetDashboard();
+        
         checkStatus();
         setInterval(checkStatus, 5000);
         loadLogFiles(); // Load available log files on page load
