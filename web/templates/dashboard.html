@@ -272,6 +272,19 @@
             border-color: #667eea;
         }
         
+        select.btn {
+            cursor: pointer;
+            appearance: none;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%234a5568' d='M6 9L1 4h10z'/%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 8px center;
+            padding-right: 30px;
+        }
+        
+        select.btn:hover {
+            background-color: #f7fafc;
+        }
+        
         .terminal {
             flex: 1;
             background: #1a202c;
@@ -606,6 +619,9 @@
                 <div class="card-header">
                     <h2><i class="fas fa-terminal"></i> Live Logs</h2>
                     <div class="log-controls">
+                        <select id="logFileSelector" class="btn" style="padding: 6px 12px; margin-right: 8px;" onchange="loadLogFile()">
+                            <option value="live">📡 Live (Current Run)</option>
+                        </select>
                         <button class="btn" onclick="clearLogs()">
                             <i class="fas fa-trash"></i> Clear
                         </button>
@@ -705,6 +721,8 @@
         
         let processes = new Map();
         let autoScroll = true;
+        let currentLogMode = 'live'; // 'live' or 'file'
+        let logFileWatcher = null;
         // Track unique anomaly detections to avoid double counting
         let anomalyDetections = new Set(); // Store "PID:timestamp" to track unique detections
         let highRiskDetections = new Set(); // Store "PID:timestamp" to track unique high risk detections
@@ -1167,8 +1185,91 @@
             }
         }
         
+        // Load available log files
+        async function loadLogFiles() {
+            try {
+                const response = await fetch('/api/logs/list');
+                const data = await response.json();
+                
+                const selector = document.getElementById('logFileSelector');
+                // Keep "Live" option, add file options
+                const liveOption = selector.options[0];
+                selector.innerHTML = '';
+                selector.appendChild(liveOption);
+                
+                if (data.logs && data.logs.length > 0) {
+                    data.logs.forEach(log => {
+                        const option = document.createElement('option');
+                        option.value = log.filename;
+                        option.textContent = `📄 ${log.filename.replace('security_agent_', '').replace('.log', '')} (${log.modified_readable})`;
+                        selector.appendChild(option);
+                    });
+                }
+            } catch (error) {
+                console.error('Error loading log files:', error);
+            }
+        }
+        
+        // Load a specific log file
+        async function loadLogFile() {
+            const selector = document.getElementById('logFileSelector');
+            const selectedFile = selector.value;
+            
+            if (selectedFile === 'live') {
+                currentLogMode = 'live';
+                terminal.innerHTML = '<div class="log-line info"><span class="timestamp">[Live]</span><span>📡 Live monitoring active</span></div>';
+                // Restart live monitoring if needed
+                return;
+            }
+            
+            currentLogMode = 'file';
+            autoScroll = false;
+            document.getElementById('autoScrollBtn').textContent = 'Auto-scroll: OFF';
+            document.getElementById('autoScrollBtn').innerHTML = '<i class="fas fa-arrow-down"></i> Auto-scroll: OFF';
+            
+            try {
+                const response = await fetch(`/api/logs/view?file=${encodeURIComponent(selectedFile)}`);
+                const data = await response.json();
+                
+                if (data.error) {
+                    addLog(`Error loading log: ${data.error}`, 'error');
+                    return;
+                }
+                
+                terminal.innerHTML = '';
+                const lines = data.content.split('\n');
+                lines.forEach(line => {
+                    if (line.trim()) {
+                        let type = 'info';
+                        if (line.includes('ERROR') || line.includes('❌')) type = 'error';
+                        else if (line.includes('WARNING') || line.includes('⚠️') || line.includes('HIGH RISK') || line.includes('ANOMALY')) type = 'warning';
+                        else if (line.includes('ATTACK') || line.includes('🔴')) type = 'attack';
+                        
+                        addLog(line, type);
+                    }
+                });
+                
+                addLog(`\n📄 Loaded log file: ${data.filename} (${data.total_lines} lines)`, 'info');
+                terminal.scrollTop = terminal.scrollHeight; // Scroll to bottom
+            } catch (error) {
+                addLog(`Error loading log file: ${error.message}`, 'error');
+            }
+        }
+        
+        // Only process live logs if in live mode
+        const originalSocketOn = socket.on.bind(socket);
+        socket.on('log', (data) => {
+            if (currentLogMode === 'live') {
+                addLog(data.message, data.type);
+                updateStats(data);
+                updateProcessList(data);
+            }
+        });
+        
         checkStatus();
         setInterval(checkStatus, 5000);
+        loadLogFiles(); // Load available log files on page load
+        setInterval(loadLogFiles, 30000); // Refresh log list every 30 seconds
     </script>
 </body>
 </html>

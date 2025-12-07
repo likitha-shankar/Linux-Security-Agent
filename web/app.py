@@ -94,6 +94,75 @@ def index():
     """Main dashboard (single page)"""
     return render_template('dashboard.html')
 
+@app.route('/api/logs/list')
+def api_list_logs():
+    """Get list of available log files"""
+    project_root = Path(__file__).parent.parent
+    possible_log_dirs = [
+        project_root / 'logs',
+        Path.home() / '.cache' / 'security_agent' / 'logs',
+        Path('/root/.cache/security_agent/logs'),
+    ]
+    
+    log_files = []
+    for log_dir in possible_log_dirs:
+        if log_dir.exists():
+            for log_file in sorted(log_dir.glob('security_agent_*.log'), reverse=True):
+                try:
+                    stat = log_file.stat()
+                    log_files.append({
+                        'filename': log_file.name,
+                        'path': str(log_file),
+                        'size': stat.st_size,
+                        'modified': datetime.fromtimestamp(stat.st_mtime).isoformat(),
+                        'modified_readable': datetime.fromtimestamp(stat.st_mtime).strftime('%Y-%m-%d %H:%M:%S')
+                    })
+                except (OSError, ValueError):
+                    continue
+            break  # Use first directory that exists
+    
+    return jsonify({'logs': log_files})
+
+@app.route('/api/logs/view')
+def api_view_log():
+    """View a specific log file"""
+    log_file = request.args.get('file')
+    if not log_file:
+        return jsonify({'error': 'No file specified'}), 400
+    
+    project_root = Path(__file__).parent.parent
+    possible_log_dirs = [
+        project_root / 'logs',
+        Path.home() / '.cache' / 'security_agent' / 'logs',
+        Path('/root/.cache/security_agent/logs'),
+    ]
+    
+    log_path = None
+    for log_dir in possible_log_dirs:
+        if log_dir.exists():
+            potential_path = log_dir / log_file
+            if potential_path.exists() and potential_path.name.startswith('security_agent_'):
+                log_path = potential_path
+                break
+    
+    if not log_path:
+        return jsonify({'error': 'Log file not found'}), 404
+    
+    try:
+        # Read last 1000 lines of the log file
+        with open(log_path, 'r', encoding='utf-8', errors='ignore') as f:
+            lines = f.readlines()
+            # Return last 1000 lines
+            content = ''.join(lines[-1000:]) if len(lines) > 1000 else ''.join(lines)
+        
+        return jsonify({
+            'filename': log_path.name,
+            'content': content,
+            'total_lines': len(lines)
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
 @app.route('/api/status')
 def api_status():
     """Get agent status"""

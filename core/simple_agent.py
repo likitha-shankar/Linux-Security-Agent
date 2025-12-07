@@ -24,7 +24,7 @@ if _core_dir not in sys.path:
 
 # Setup logging with file output
 def setup_logging(log_dir=None):
-    """Setup logging to both console and file"""
+    """Setup logging to both console and file with timestamped filename"""
     if log_dir is None:
         # Default: ~/.cache/security_agent/logs or ./logs
         home_log = Path.home() / '.cache' / 'security_agent' / 'logs'
@@ -34,8 +34,19 @@ def setup_logging(log_dir=None):
     log_dir = Path(log_dir)
     log_dir.mkdir(parents=True, exist_ok=True)
     
-    # Log file path
-    log_file = log_dir / 'security_agent.log'
+    # Create timestamped log file: security_agent_YYYY-MM-DD_HH-MM-SS.log
+    timestamp = datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
+    log_file = log_dir / f'security_agent_{timestamp}.log'
+    
+    # Also create a symlink to the latest log for backward compatibility
+    latest_log = log_dir / 'security_agent.log'
+    if latest_log.exists() and latest_log.is_symlink():
+        latest_log.unlink()  # Remove old symlink
+    try:
+        latest_log.symlink_to(log_file.name)  # Create symlink to current log
+    except (OSError, AttributeError):
+        # Symlink creation failed (Windows or permission issue), just continue
+        pass
     
     # Create formatters
     detailed_format = '%(asctime)s - %(name)s - %(levelname)s - [%(filename)s:%(lineno)d] - %(message)s'
