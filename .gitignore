@@ -33,6 +33,7 @@ dist/
 
 # Logs
 *.log
+!logs/security_agent.log  # Keep agent log file for submission
 pip-log.txt
 
 # Model files (large binary files)
