@@ -355,8 +355,6 @@ def api_stop_agent():
                                      timeout=5, check=False)
                     except:
                         pass
-        except subprocess.TimeoutExpired:
-            agent_process.kill()
         
         # Also kill any remaining processes (cleanup)
         try:
