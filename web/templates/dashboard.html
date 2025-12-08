@@ -809,13 +809,14 @@
                 },
                 scales: {
                     x: { 
-                        ticks: { color: '#718096', font: { size: 10 } }, 
+                        ticks: { color: '#718096', font: { size: 10 }, maxRotation: 45, minRotation: 0 }, 
                         grid: { color: '#e2e8f0', drawBorder: false } 
                     },
                     y: { 
                         ticks: { color: '#718096', font: { size: 10 } }, 
                         grid: { color: '#e2e8f0', drawBorder: false },
-                        beginAtZero: true
+                        beginAtZero: true,
+                        suggestedMax: undefined // Auto-scale based on data
                     }
                 }
             }
@@ -953,15 +954,34 @@
                     const pidMatch = msg.match(/PID=(\d+)/);
                     const syscallMatch = msg.match(/Syscalls=(\d+)/);
                     const totalSyscallsMatch = msg.match(/TotalSyscalls=(\d+)/);
+                    const processMatch = msg.match(/Process[=:]([^\s,]+)/);
+                    const riskMatch = msg.match(/Risk[=:](\d+\.?\d*)/);
+                    const anomalyMatch = msg.match(/Anomaly[=:](\d+\.?\d*)/);
                     
                     if (pidMatch) {
                         const pid = pidMatch[1];
                         const proc = processes.get(pid) || { pid, name: 'unknown', risk: 0, anomaly: 0, syscalls: 0 };
                         
-                        if (syscallMatch) {
-                            proc.syscalls = parseInt(syscallMatch[1]);
-                        } else if (totalSyscallsMatch) {
+                        // Update process name if available
+                        if (processMatch && !processMatch[1].startsWith('pid_')) {
+                            proc.name = processMatch[1];
+                        }
+                        
+                        // Update risk and anomaly scores
+                        if (riskMatch) {
+                            proc.risk = parseFloat(riskMatch[1]);
+                        }
+                        if (anomalyMatch) {
+                            proc.anomaly = parseFloat(anomalyMatch[1]);
+                        }
+                        
+                        // Use TotalSyscalls for total count (preferred), fallback to Syscalls
+                        if (totalSyscallsMatch) {
                             proc.syscalls = parseInt(totalSyscallsMatch[1]);
+                        } else if (syscallMatch) {
+                            // If we only have recent syscalls, add to existing total
+                            const recentSyscalls = parseInt(syscallMatch[1]);
+                            proc.syscalls = Math.max(proc.syscalls || 0, recentSyscalls);
                         }
                         proc.lastSeen = now;
                         processes.set(pid, proc);
@@ -991,12 +1011,17 @@
                             const recentSyscallsMatch = msg.match(/Recent syscalls: ([^\n]+)/);
                             
                             // Get better process name (avoid pid_XXXXX)
+                            // First, check if we already have a good name in the processes Map
                             let processName = 'unknown';
-                            if (processMatch) {
+                            const existingProc = processes.get(pid);
+                            if (existingProc && existingProc.name && !existingProc.name.startsWith('pid_') && existingProc.name !== 'unknown') {
+                                processName = existingProc.name;
+                            } else if (processMatch) {
                                 const foundName = processMatch[1];
                                 if (!foundName.startsWith('pid_')) {
                                     processName = foundName;
                                 } else {
+                                    // Try to extract from other parts of the log message
                                     const commMatch = msg.match(/comm[=:]([^\s,]+)/) || msg.match(/comm="([^"]+)"/);
                                     const exeMatch = msg.match(/exe[=:]([^\s,]+)/) || msg.match(/exe="([^"]+)"/);
                                     if (commMatch && !commMatch[1].startsWith('pid_')) {
@@ -1005,6 +1030,7 @@
                                         const exePath = exeMatch[1];
                                         processName = exePath.split('/').pop() || exePath;
                                     } else {
+                                        // Fallback: use PID format but we'll display it better in renderHighRiskList
                                         processName = foundName;
                                     }
                                 }
@@ -1025,10 +1051,14 @@
                             if (highRiskList.length > 20) highRiskList.pop();
                             renderHighRiskList();
                             
-                            // Update process risk score
+                            // Update process risk score and name (use best available name)
                             const proc = processes.get(pid) || { pid, name: processName, risk: 0, anomaly: 0, syscalls: 0 };
                             proc.risk = highRiskEntry.risk;
                             proc.anomaly = highRiskEntry.anomaly;
+                            // Update name if we have a better one
+                            if (processName && !processName.startsWith('pid_') && processName !== 'unknown') {
+                                proc.name = processName;
+                            }
                             proc.lastSeen = now;
                             processes.set(pid, proc);
                             
@@ -1130,28 +1160,41 @@
             }
         }
         
+        // Track cumulative counts for chart
+        let chartCounts = {
+            anomalies: 0,
+            attacks: 0,
+            highRisk: 0
+        };
+        
         function updateChart(type) {
             const now = new Date().toLocaleTimeString();
+            
+            // Increment cumulative counts
+            if (type === 'anomaly') {
+                chartCounts.anomalies++;
+            } else if (type === 'attack') {
+                chartCounts.attacks++;
+            } else if (type === 'highRisk') {
+                chartCounts.highRisk++;
+            }
+            
+            // Add data point with cumulative counts
             activityData.labels.push(now);
+            activityData.anomalies.push(chartCounts.anomalies);
+            activityData.attacks.push(chartCounts.attacks);
+            activityData.highRisk.push(chartCounts.highRisk);
             
-            if (type === 'anomaly') activityData.anomalies.push(1);
-            else activityData.anomalies.push(activityData.anomalies[activityData.anomalies.length - 1] || 0);
-            
-            if (type === 'attack') activityData.attacks.push(1);
-            else activityData.attacks.push(activityData.attacks[activityData.attacks.length - 1] || 0);
-            
-            if (type === 'highRisk') activityData.highRisk.push(1);
-            else activityData.highRisk.push(activityData.highRisk[activityData.highRisk.length - 1] || 0);
-            
-            // Keep last 20 data points
-            if (activityData.labels.length > 20) {
+            // Keep last 30 data points (more history)
+            if (activityData.labels.length > 30) {
                 activityData.labels.shift();
                 activityData.anomalies.shift();
                 activityData.attacks.shift();
                 activityData.highRisk.shift();
             }
             
-            activityChart.update('none');
+            // Update chart with animation
+            activityChart.update('active');
         }
         
         function updateProcessList(data) {
@@ -1255,12 +1298,29 @@
             }
             
             highRiskListEl.innerHTML = highRiskList.slice(0, 10).map(entry => {
+                // Determine display name - prefer real name, fallback to PID
+                let displayName = entry.name;
+                let showPid = false;
+                if (!entry.name || entry.name === 'unknown' || entry.name.startsWith('pid_')) {
+                    // Try to get better name from processes Map
+                    const proc = processes.get(entry.pid);
+                    if (proc && proc.name && !proc.name.startsWith('pid_') && proc.name !== 'unknown') {
+                        displayName = proc.name;
+                        showPid = true;
+                    } else {
+                        displayName = `PID ${entry.pid}`;
+                        showPid = false; // PID is already in the name
+                    }
+                } else {
+                    showPid = true; // Show PID separately if name is good
+                }
+                
                 return `
                     <div class="process-item high-risk">
                         <div class="process-header">
                             <div>
-                                <div class="process-name">${escapeHtml(entry.name)}</div>
-                                <div class="process-pid" style="margin-top: 4px;">PID: ${entry.pid} | ${entry.timestamp}</div>
+                                <div class="process-name" style="font-weight: 600; color: #dc3545;">${escapeHtml(displayName)}</div>
+                                ${showPid ? `<div class="process-pid" style="margin-top: 4px;">PID: ${entry.pid} | ${entry.timestamp}</div>` : `<div class="process-pid" style="margin-top: 4px;">${entry.timestamp}</div>`}
                             </div>
                             <div class="process-scores">
                                 <div class="score">
@@ -1273,7 +1333,7 @@
                                 </div>
                             </div>
                         </div>
-                        ${entry.recentSyscalls ? `<div style="font-size: 0.8em; color: #718096; margin-top: 6px; font-family: monospace;">Syscalls: ${escapeHtml(entry.recentSyscalls)}</div>` : ''}
+                        ${entry.recentSyscalls ? `<div style="font-size: 0.8em; color: #718096; margin-top: 6px; font-family: monospace;">Recent: ${escapeHtml(entry.recentSyscalls)}</div>` : ''}
                         ${entry.syscalls > 0 ? `<div style="font-size: 0.75em; color: #a0aec0; margin-top: 4px;">Total: ${entry.syscalls} syscalls</div>` : ''}
                     </div>
                 `;
@@ -1441,6 +1501,11 @@
             highRiskDetections.clear();
             totalSyscallsCount = 0;
             
+            // Reset chart counts
+            chartCounts.anomalies = 0;
+            chartCounts.attacks = 0;
+            chartCounts.highRisk = 0;
+            
             // Reset stats
             stats.processes = 0;
             stats.highRisk = 0;
@@ -1465,6 +1530,9 @@
             activityData.anomalies = [];
             activityData.attacks = [];
             activityData.highRisk = [];
+            chartCounts.anomalies = 0;
+            chartCounts.attacks = 0;
+            chartCounts.highRisk = 0;
             activityChart.update('none');
             
             // Add log message
@@ -1627,6 +1695,11 @@
             highRiskDetections.clear();
             totalSyscallsCount = 0;
             
+            // Reset chart counts
+            chartCounts.anomalies = 0;
+            chartCounts.attacks = 0;
+            chartCounts.highRisk = 0;
+            
             // Reset stats
             stats.processes = 0;
             stats.highRisk = 0;
@@ -1660,6 +1733,9 @@
             activityData.anomalies = [];
             activityData.attacks = [];
             activityData.highRisk = [];
+            chartCounts.anomalies = 0;
+            chartCounts.attacks = 0;
+            chartCounts.highRisk = 0;
             activityChart.update('none');
         }
         
