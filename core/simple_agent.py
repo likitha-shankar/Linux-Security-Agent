@@ -303,15 +303,24 @@ class SimpleSecurityAgent:
             self.collector.stop_monitoring()
             logger.debug("Collector stopped")
         
-        # Log final statistics
+        # Log final statistics (calculate current stats, not cumulative)
+        current_time = time.time()
+        current_processes = sum(1 for p in self.processes.values() 
+                               if current_time - p['last_update'] < self.process_timeout)
+        current_anomalies = sum(1 for p in self.processes.values() 
+                               if current_time - p['last_update'] < self.process_timeout 
+                               and p.get('anomaly_score', 0) >= 60.0)
+        recent_c2 = self._count_recent_detections(self.recent_c2_detections)
+        recent_scans = self._count_recent_detections(self.recent_scan_detections)
+        
         logger.info("="*60)
         logger.info("Agent stopped - Final Statistics:")
-        logger.info(f"  Total processes monitored: {self.stats['total_processes']}")
+        logger.info(f"  Current active processes: {current_processes}")
         logger.info(f"  Total syscalls processed: {self.stats['total_syscalls']}")
-        logger.info(f"  High risk detections: {self.stats['high_risk']}")
-        logger.info(f"  Anomalies detected: {self.stats['anomalies']}")
-        logger.info(f"  C2 beacons detected: {self.stats['c2_beacons']}")
-        logger.info(f"  Port scans detected: {self.stats['port_scans']}")
+        logger.info(f"  Current high risk processes: {self.stats['high_risk']}")
+        logger.info(f"  Current anomalous processes: {current_anomalies}")
+        logger.info(f"  Recent C2 beacons (last 5min): {recent_c2}")
+        logger.info(f"  Recent port scans (last 5min): {recent_scans}")
         logger.info("="*60)
     
     def _handle_event(self, event: SyscallEvent):
