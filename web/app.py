@@ -306,26 +306,76 @@ def api_stop_agent():
     """Stop the security agent"""
     global agent_process, monitoring_active
     
-    if not agent_process:
-        return jsonify({'error': 'Agent not running'}), 400
+    # First check if agent is actually running (using pgrep, works for both web-started and manually-started)
+    agent_running = False
+    agent_pid = None
     
     try:
-        # Kill agent process
-        agent_process.terminate()
-        try:
-            agent_process.wait(timeout=5)
+        result = subprocess.run(['pgrep', '-f', 'simple_agent.py'], 
+                              capture_output=True, text=True, timeout=2)
+        if result.returncode == 0 and result.stdout.strip():
+            agent_pids = [int(pid) for pid in result.stdout.strip().split('\n') if pid.strip()]
+            if agent_pids:
+                agent_running = True
+                agent_pid = agent_pids[0]
+    except (subprocess.TimeoutExpired, ValueError, FileNotFoundError):
+        pass
+    
+    # If agent is not running, return success (already stopped)
+    if not agent_running:
+        return jsonify({'message': 'Agent is already stopped', 'stopped': True})
+    
+    try:
+        # Try to stop the tracked process first (if started via web)
+        if agent_process and agent_process.poll() is None:
+            agent_process.terminate()
+            try:
+                agent_process.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                agent_process.kill()
+                agent_process.wait()
+        else:
+            # Agent was started manually (SSH), kill it using sudo
+            if agent_pid:
+                try:
+                    subprocess.run(['sudo', 'kill', '-INT', str(agent_pid)], 
+                                 timeout=5, check=False)
+                    # Wait a moment for graceful shutdown
+                    time.sleep(2)
+                    # If still running, force kill
+                    result = subprocess.run(['pgrep', '-f', 'simple_agent.py'], 
+                                          capture_output=True, text=True, timeout=2)
+                    if result.returncode == 0 and result.stdout.strip():
+                        subprocess.run(['sudo', 'kill', '-9', str(agent_pid)], 
+                                     timeout=5, check=False)
+                except (subprocess.TimeoutExpired, subprocess.CalledProcessError):
+                    # Try force kill
+                    try:
+                        subprocess.run(['sudo', 'pkill', '-9', '-f', 'simple_agent.py'], 
+                                     timeout=5, check=False)
+                    except:
+                        pass
         except subprocess.TimeoutExpired:
             agent_process.kill()
         
-        # Also kill any remaining processes
-        subprocess.run(['sudo', 'pkill', '-9', '-f', 'simple_agent.py'], 
-                      capture_output=True)
+        # Also kill any remaining processes (cleanup)
+        try:
+            subprocess.run(['sudo', 'pkill', '-9', '-f', 'simple_agent.py'], 
+                          capture_output=True, timeout=5, check=False)
+        except:
+            pass
         
         agent_process = None
         monitoring_active = False
         
-        return jsonify({'message': 'Agent stopped successfully'})
+        return jsonify({'message': 'Agent stopped successfully', 'stopped': True})
     except Exception as e:
+        # Even if there's an error, try to clean up
+        try:
+            subprocess.run(['sudo', 'pkill', '-9', '-f', 'simple_agent.py'], 
+                          capture_output=True, timeout=5, check=False)
+        except:
+            pass
         return jsonify({'error': str(e)}), 500
 
 def monitor_agent_logs():

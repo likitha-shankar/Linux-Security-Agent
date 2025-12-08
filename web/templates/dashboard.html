@@ -1596,13 +1596,22 @@
                 
                 const data = await response.json();
                 
+                // Handle both success and "already stopped" cases
                 if (response.ok) {
-                    addLog(`✅ Agent stopped successfully`, 'info');
+                    // Success - agent stopped or was already stopped
+                    addLog(data.message || 'Agent stopped successfully', 'info');
                     // Update status after a moment
                     setTimeout(checkStatus, 1000);
                 } else {
-                    addLog(`❌ Failed to stop agent: ${data.error}`, 'error');
-                    alert(`Failed to stop agent: ${data.error}`);
+                    // Error response - but don't show alert if agent is already stopped
+                    if (data.error && !data.error.includes('already stopped')) {
+                        addLog(`❌ Failed to stop agent: ${data.error}`, 'error');
+                        alert(`Failed to stop agent: ${data.error}`);
+                    } else {
+                        // Agent already stopped - this is fine
+                        addLog(data.message || 'Agent is already stopped', 'info');
+                        setTimeout(checkStatus, 1000);
+                    }
                 }
             } catch (error) {
                 addLog(`❌ Error stopping agent: ${error.message}`, 'error');
