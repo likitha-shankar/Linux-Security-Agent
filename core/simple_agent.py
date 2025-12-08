@@ -388,14 +388,34 @@ class SimpleSecurityAgent:
             with self.processes_lock:
                 # Update process info
                 if pid not in self.processes:
-                    # Get actual process name from psutil if comm is empty
+                    # Get actual process name from psutil - try multiple methods aggressively
                     process_name = event.comm
-                    if not process_name or process_name.startswith('pid_'):
+                    if not process_name or process_name.startswith('pid_') or len(process_name) == 0:
                         try:
                             p = psutil.Process(pid)
+                            # Try name() first
                             process_name = p.name()
+                            # If still generic, try exe()
+                            if not process_name or process_name.startswith('pid_') or len(process_name) == 0:
+                                try:
+                                    exe = p.exe()
+                                    if exe:
+                                        process_name = os.path.basename(exe)
+                                except (psutil.NoSuchProcess, psutil.AccessDenied, OSError):
+                                    pass
+                            # If still generic, try cmdline()
+                            if not process_name or process_name.startswith('pid_') or len(process_name) == 0:
+                                try:
+                                    cmdline = p.cmdline()
+                                    if cmdline and len(cmdline) > 0:
+                                        process_name = os.path.basename(cmdline[0]) if cmdline[0] else process_name
+                                except (psutil.NoSuchProcess, psutil.AccessDenied, OSError):
+                                    pass
                         except (psutil.NoSuchProcess, psutil.AccessDenied):
                             process_name = event.comm or f'pid_{pid}'
+                    # If we still don't have a good name, use event.comm if it's not pid_XXXXX
+                    if (not process_name or process_name.startswith('pid_') or len(process_name) == 0) and event.comm and not event.comm.startswith('pid_'):
+                        process_name = event.comm
                     
                     # Double-check exclusion before adding to processes dict
                     process_name_lower = process_name.lower()
@@ -662,12 +682,15 @@ class SimpleSecurityAgent:
                 syscall_count = len(syscall_list)
                 
                 should_log_score = False
-                if syscall_count >= 50 and syscall_count % 50 == 0:
-                    # Log every 50 syscalls
-                    should_log_score = True
-                elif current_time - last_score_update >= 5.0:
-                    # Log at least every 5 seconds for active processes
-                    should_log_score = True
+                # Only log if process has meaningful activity (at least 20 syscalls)
+                # AND either: (1) reached 50/100/150... syscalls OR (2) 10 seconds passed with significant activity
+                if syscall_count >= 20:
+                    if syscall_count >= 50 and syscall_count % 50 == 0:
+                        # Log every 50 syscalls for active processes
+                        should_log_score = True
+                    elif current_time - last_score_update >= 10.0:
+                        # Log at least every 10 seconds for processes with meaningful activity
+                        should_log_score = True
                 
                 if should_log_score:
                     # Get process name, try to improve if it's pid_XXXXX
