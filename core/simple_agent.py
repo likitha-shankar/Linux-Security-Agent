@@ -654,46 +654,50 @@ class SimpleSecurityAgent:
                 risk_score = base_risk_score + connection_risk_bonus
                 proc['risk_score'] = risk_score
                 
-                # DEBUG: Log scores VERY infrequently to reduce spam
-                # Only log every 500 syscalls, and only if scores changed significantly or are high-risk
-                if len(syscall_list) >= 500 and len(syscall_list) % 500 == 0:
+                # Log SCORE UPDATE more frequently for dashboard tracking
+                # Log every 50 syscalls OR every 5 seconds (whichever comes first)
+                # This ensures dashboard gets regular updates for TotalSyscalls
+                current_time = time.time()
+                last_score_update = proc.get('_last_score_update_time', 0)
+                syscall_count = len(syscall_list)
+                
+                should_log_score = False
+                if syscall_count >= 50 and syscall_count % 50 == 0:
+                    # Log every 50 syscalls
+                    should_log_score = True
+                elif current_time - last_score_update >= 5.0:
+                    # Log at least every 5 seconds for active processes
+                    should_log_score = True
+                
+                if should_log_score:
+                    # Get process name, try to improve if it's pid_XXXXX
                     comm = proc.get('name', 'unknown')
-                    # Only log if:
-                    # 1. Risk is actually high (>30) OR
-                    # 2. Anomaly is very high (>40) OR  
-                    # 3. Scores changed significantly from last logged value
-                    last_logged_risk = proc.get('_last_logged_risk', 0)
-                    last_logged_anomaly = proc.get('_last_logged_anomaly', 0)
-                    risk_change = abs(risk_score - last_logged_risk)
-                    anomaly_change = abs(anomaly_score - last_logged_anomaly)
+                    if comm.startswith('pid_'):
+                        try:
+                            p = psutil.Process(pid)
+                            better_name = p.name()
+                            if better_name and not better_name.startswith('pid_'):
+                                comm = better_name
+                                proc['name'] = better_name  # Update stored name
+                        except (psutil.NoSuchProcess, psutil.AccessDenied):
+                            pass
                     
-                    should_log = (
-                        risk_score > 30 or  # Actually high risk
-                        anomaly_score > 40 or  # Very anomalous
-                        (risk_change > 5.0 or anomaly_change > 5.0)  # Significant change
-                    )
+                    # Always log SCORE UPDATE for dashboard tracking (TotalSyscalls)
+                    # But use different log levels based on significance
+                    log_level = logger.info
+                    if risk_score > 30 or anomaly_score > 40:
+                        log_level = logger.warning  # More visible for high-risk
                     
-                    if should_log:
-                        # Get process name, try to improve if it's pid_XXXXX
-                        comm = proc.get('name', 'unknown')
-                        if comm.startswith('pid_'):
-                            try:
-                                p = psutil.Process(pid)
-                                better_name = p.name()
-                                if better_name and not better_name.startswith('pid_'):
-                                    comm = better_name
-                                    proc['name'] = better_name  # Update stored name
-                            except (psutil.NoSuchProcess, psutil.AccessDenied):
-                                pass
-                        logger.info(f"📊 SCORE UPDATE: PID={pid} Process={comm} Risk={risk_score:.1f} Anomaly={anomaly_score:.1f} "
-                                  f"Syscalls={len(syscall_list)} TotalSyscalls={proc.get('total_syscalls', 0)} "
-                                  f"ConnectionBonus={connection_risk_bonus:.1f}")
-                        logger.debug(f"   Process info: CPU={process_info.get('cpu_percent', 0):.1f}% "
-                                   f"Memory={process_info.get('memory_percent', 0):.1f}% "
-                                   f"Threads={process_info.get('num_threads', 0)}")
-                        # Store last logged values
-                        proc['_last_logged_risk'] = risk_score
-                        proc['_last_logged_anomaly'] = anomaly_score
+                    log_level(f"📊 SCORE UPDATE: PID={pid} Process={comm} Risk={risk_score:.1f} Anomaly={anomaly_score:.1f} "
+                              f"Syscalls={len(syscall_list)} TotalSyscalls={proc.get('total_syscalls', 0)} "
+                              f"ConnectionBonus={connection_risk_bonus:.1f}")
+                    logger.debug(f"   Process info: CPU={process_info.get('cpu_percent', 0):.1f}% "
+                               f"Memory={process_info.get('memory_percent', 0):.1f}% "
+                               f"Threads={process_info.get('num_threads', 0)}")
+                    # Store last logged values
+                    proc['_last_logged_risk'] = risk_score
+                    proc['_last_logged_anomaly'] = anomaly_score
+                    proc['_last_score_update_time'] = current_time
                 
                 # Update high risk count and LOG detections (with rate limiting)
                 threshold = self.config.get('risk_threshold', 30.0)
