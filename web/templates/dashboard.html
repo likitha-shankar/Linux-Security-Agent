@@ -745,8 +745,8 @@
         // Store detailed detection information
         let highRiskList = []; // Array of {pid, name, risk, anomaly, syscalls, timestamp, details}
         let attackList = []; // Array of {type, pid, name, details, timestamp}
-        // Track total syscalls (sum from all processes)
-        let totalSyscallsCount = 0;
+        // Track total syscalls (cumulative across all processes in this session)
+        let cumulativeSyscallsCount = 0;
         // Track recent attacks (for current count - last 5 minutes)
         let recentAttacks = []; // Array of {timestamp, ...}
         const ATTACK_WINDOW_MS = 5 * 60 * 1000; // 5 minutes
@@ -915,7 +915,7 @@
                         currentAnomalies++;
                     }
                     
-                    // Sum syscalls
+                    // Sum syscalls from active processes
                     if (proc.syscalls) {
                         totalSyscalls += proc.syscalls;
                     }
@@ -927,12 +927,17 @@
                 now - attack.timestamp < ATTACK_WINDOW_MS
             ).length;
             
+            // For Total Syscalls: Use cumulative count (all processes ever seen in this session)
+            // This gives a better picture of total activity, not just current active processes
+            // If cumulative is 0 (just started), fall back to current active processes sum
+            const displaySyscalls = cumulativeSyscallsCount > 0 ? cumulativeSyscallsCount : totalSyscalls;
+            
             // Update stats
             stats.processes = activeProcesses;
             stats.highRisk = currentHighRisk;
             stats.anomalies = currentAnomalies;
             stats.attacks = recentAttackCount;
-            stats.syscalls = totalSyscalls;
+            stats.syscalls = displaySyscalls;
             
             // Update UI
             document.getElementById('statProcesses').textContent = stats.processes;
@@ -976,12 +981,21 @@
                         }
                         
                         // Use TotalSyscalls for total count (preferred), fallback to Syscalls
+                        const oldSyscalls = proc.syscalls || 0;
                         if (totalSyscallsMatch) {
-                            proc.syscalls = parseInt(totalSyscallsMatch[1]);
+                            const newSyscalls = parseInt(totalSyscallsMatch[1]);
+                            proc.syscalls = newSyscalls;
+                            // Track cumulative total (only count increase, not absolute value)
+                            // This prevents double-counting when same process sends multiple updates
+                            if (newSyscalls > oldSyscalls) {
+                                cumulativeSyscallsCount += (newSyscalls - oldSyscalls);
+                            }
                         } else if (syscallMatch) {
                             // If we only have recent syscalls, add to existing total
                             const recentSyscalls = parseInt(syscallMatch[1]);
                             proc.syscalls = Math.max(proc.syscalls || 0, recentSyscalls);
+                            // For cumulative, we can't track increment from Syscalls field alone
+                            // So we'll use the current active processes sum instead
                         }
                         proc.lastSeen = now;
                         processes.set(pid, proc);
@@ -1499,7 +1513,7 @@
             recentAttacks = [];
             anomalyDetections.clear();
             highRiskDetections.clear();
-            totalSyscallsCount = 0;
+            cumulativeSyscallsCount = 0;
             
             // Reset chart counts
             chartCounts.anomalies = 0;
@@ -1702,7 +1716,7 @@
             recentAttacks = [];
             anomalyDetections.clear();
             highRiskDetections.clear();
-            totalSyscallsCount = 0;
+            cumulativeSyscallsCount = 0;
             
             // Reset chart counts
             chartCounts.anomalies = 0;
