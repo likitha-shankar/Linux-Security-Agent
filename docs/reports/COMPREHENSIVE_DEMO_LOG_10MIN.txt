@@ -1,0 +1,373 @@
+======================================================================
+COMPREHENSIVE DEMO VERIFICATION LOG
+======================================================================
+Generated: Thu Dec 11 18:32:34 UTC 2025
+Host: instance-20251205-050017
+User: likithashankar14
+======================================================================
+
+======================================================================
+PHASE 1: CLEANUP AND PREPARATION
+======================================================================
+
+Command: Stopping any running agents...
+scripts/comprehensive_demo_verification.sh: line 310: 190592 Killed                  sudo pkill -9 -f simple_agent.py 2>&1
+Result: Old agents stopped
+
+Command: Checking system requirements...
+Python version:
+Python 3.10.12
+
+Auditd available:
+/usr/sbin/auditctl
+
+Disk space:
+/dev/root        16G  7.2G  8.2G  47% /
+
+======================================================================
+PHASE 2: SETUP AUDITD RULES
+======================================================================
+
+Command: Clearing old auditd rules...
+No rules
+
+Command: Adding auditd rules...
+
+Command: Verifying auditd rules...
+-a always,exit -F arch=b64 -S socket,connect,clone,fork,execve,chmod,chown,setuid -F key=security_syscalls
+
+======================================================================
+PHASE 3: START SECURITY AGENT
+======================================================================
+
+Command: Starting agent...
+Agent PID: 190611
+
+Command: Verifying agent is running...
+root      190611  0.0  0.1  11896  5504 ?        S    18:32   0:00 sudo nohup python3 core/simple_agent.py --collector auditd --threshold 20 --headless
+root      190613 17.4  4.7 731996 191680 ?       Sl   18:32   0:02 python3 core/simple_agent.py --collector auditd --threshold 20 --headless
+Result: ✅ Agent is running
+
+Command: Checking agent log file...
+Log file: logs/security_agent_2025-12-11_18-32-37.log
+Size: 25K
+Last 5 lines:
+2025-12-11 18:32:50,594 - security_agent.simple - INFO - [simple_agent.py:510] -    Is excluded: False | Is python: True | Is network: False
+2025-12-11 18:32:50,719 - security_agent.simple - INFO - [simple_agent.py:509] - 🔍 EVENT RECEIVED: PID=183672 Syscall=execve Comm=python3 Process=python3
+2025-12-11 18:32:50,719 - security_agent.simple - INFO - [simple_agent.py:510] -    Is excluded: False | Is python: True | Is network: False
+2025-12-11 18:32:51,949 - security_agent.simple - INFO - [simple_agent.py:509] - 🔍 EVENT RECEIVED: PID=190611 Syscall=chmod Comm=python3 Process=python3
+2025-12-11 18:32:51,949 - security_agent.simple - INFO - [simple_agent.py:510] -    Is excluded: False | Is python: True | Is network: False
+
+======================================================================
+PHASE 4: NORMAL MONITORING (5 minutes)
+======================================================================
+
+Command: Waiting 5 minutes for normal system activity...
+Start time: Thu Dec 11 18:32:52 UTC 2025
+Initial event count: 50
+
+[18:33:52] Events captured: 320 (+270)
+[18:34:52] Events captured: 598 (+548)
+[18:35:52] Events captured: 845 (+795)
+[18:36:52] Events captured: 994 (+944)
+[18:37:52] Events captured: 994 (+944)
+
+Normal monitoring complete
+Total events after normal monitoring: 994
+
+======================================================================
+PHASE 5: ATTACK SIMULATION (Multiple Rounds)
+======================================================================
+
+Command: Running comprehensive attack simulation (Round 1)...
+Start time: Thu Dec 11 18:37:52 UTC 2025
+[93m⚠️  Not detected as VM/container - proceed with caution[0m
+
+
+[94m============================================================[0m
+[94m🔴 SAFE ATTACK SIMULATION - Testing Security Agent[0m
+[94m============================================================[0m
+
+[93m⚠️  WARNING: This script simulates attack patterns[0m
+[93m⚠️  Only run in a VM or isolated environment[0m
+[93m⚠️  All operations are safe and non-destructive[0m
+
+[92mNon-interactive mode - starting attack simulation...[0m
+[93m🔴 Attack: Privilege Escalation[0m
+   Attempts setuid, setgid, execve patterns with high-risk syscalls
+
+[92m✅ Privilege escalation pattern executed (10 iterations, high-risk syscalls)[0m
+[93m🔴 Attack: High-Frequency Attack[0m
+   Rapid syscall bursts to trigger rate-based detection
+
+[92m✅ High-frequency pattern executed (300 file ops, longer runtime)[0m
+[93m🔴 Attack: Suspicious File Patterns[0m
+   Bursty file I/O with chmod/chown operations (medium-high risk)
+
+[92m✅ Suspicious file pattern executed (200 files with chmod/chown)[0m
+[93m🔴 Attack: Process Churn[0m
+   Rapid fork/exec patterns
+
+[92m✅ Process churn pattern executed (50 processes, longer runtime)[0m
+[93m🔴 Attack: Network Scanning[0m
+   Rapid socket operations (safe - localhost only)
+
+[92m✅ Network scanning pattern executed (20 ports)[0m
+[93m🔴 Attack: C2 Beaconing[0m
+   Regular connections to same port at regular intervals (C2 pattern)
+
+[92m✅ C2 beaconing pattern executed (8 beacons, 3s intervals)[0m
+[93m🔴 Attack: Ptrace Attempts[0m
+   Attempts to ptrace other processes (generates ptrace syscalls)
+
+[92m✅ Ptrace pattern simulated (high-risk syscalls generated)[0m
+
+[94m============================================================[0m
+[94m✅ Attack Simulation Complete[0m
+[94m============================================================[0m
+
+[92mCheck your security agent dashboard for detection results![0m
+
+Expected results:
+  - Risk scores should spike to 50-100
+  - ML anomaly detection should flag these patterns
+  - Dashboard should show high-risk processes
+
+
+Round 1 complete. Waiting 30 seconds...
+
+Command: Running attack simulation (Round 2)...
+[93m⚠️  Not detected as VM/container - proceed with caution[0m
+
+
+[94m============================================================[0m
+[94m🔴 SAFE ATTACK SIMULATION - Testing Security Agent[0m
+[94m============================================================[0m
+
+[93m⚠️  WARNING: This script simulates attack patterns[0m
+[93m⚠️  Only run in a VM or isolated environment[0m
+[93m⚠️  All operations are safe and non-destructive[0m
+
+[92mNon-interactive mode - starting attack simulation...[0m
+[93m🔴 Attack: Privilege Escalation[0m
+   Attempts setuid, setgid, execve patterns with high-risk syscalls
+
+[92m✅ Privilege escalation pattern executed (10 iterations, high-risk syscalls)[0m
+[93m🔴 Attack: High-Frequency Attack[0m
+   Rapid syscall bursts to trigger rate-based detection
+
+[92m✅ High-frequency pattern executed (300 file ops, longer runtime)[0m
+[93m🔴 Attack: Suspicious File Patterns[0m
+   Bursty file I/O with chmod/chown operations (medium-high risk)
+
+[92m✅ Suspicious file pattern executed (200 files with chmod/chown)[0m
+[93m🔴 Attack: Process Churn[0m
+   Rapid fork/exec patterns
+
+[92m✅ Process churn pattern executed (50 processes, longer runtime)[0m
+[93m🔴 Attack: Network Scanning[0m
+   Rapid socket operations (safe - localhost only)
+
+[92m✅ Network scanning pattern executed (20 ports)[0m
+[93m🔴 Attack: C2 Beaconing[0m
+   Regular connections to same port at regular intervals (C2 pattern)
+
+[92m✅ C2 beaconing pattern executed (8 beacons, 3s intervals)[0m
+[93m🔴 Attack: Ptrace Attempts[0m
+   Attempts to ptrace other processes (generates ptrace syscalls)
+
+[92m✅ Ptrace pattern simulated (high-risk syscalls generated)[0m
+
+[94m============================================================[0m
+[94m✅ Attack Simulation Complete[0m
+[94m============================================================[0m
+
+[92mCheck your security agent dashboard for detection results![0m
+
+Expected results:
+  - Risk scores should spike to 50-100
+  - ML anomaly detection should flag these patterns
+  - Dashboard should show high-risk processes
+
+
+Round 2 complete. Waiting 30 seconds...
+
+Command: Running attack simulation (Round 3)...
+[93m⚠️  Not detected as VM/container - proceed with caution[0m
+
+
+[94m============================================================[0m
+[94m🔴 SAFE ATTACK SIMULATION - Testing Security Agent[0m
+[94m============================================================[0m
+
+[93m⚠️  WARNING: This script simulates attack patterns[0m
+[93m⚠️  Only run in a VM or isolated environment[0m
+[93m⚠️  All operations are safe and non-destructive[0m
+
+[92mNon-interactive mode - starting attack simulation...[0m
+[93m🔴 Attack: Privilege Escalation[0m
+   Attempts setuid, setgid, execve patterns with high-risk syscalls
+
+[92m✅ Privilege escalation pattern executed (10 iterations, high-risk syscalls)[0m
+[93m🔴 Attack: High-Frequency Attack[0m
+   Rapid syscall bursts to trigger rate-based detection
+
+[92m✅ High-frequency pattern executed (300 file ops, longer runtime)[0m
+[93m🔴 Attack: Suspicious File Patterns[0m
+   Bursty file I/O with chmod/chown operations (medium-high risk)
+
+[92m✅ Suspicious file pattern executed (200 files with chmod/chown)[0m
+[93m🔴 Attack: Process Churn[0m
+   Rapid fork/exec patterns
+
+[92m✅ Process churn pattern executed (50 processes, longer runtime)[0m
+[93m🔴 Attack: Network Scanning[0m
+   Rapid socket operations (safe - localhost only)
+
+[92m✅ Network scanning pattern executed (20 ports)[0m
+[93m🔴 Attack: C2 Beaconing[0m
+   Regular connections to same port at regular intervals (C2 pattern)
+
+[92m✅ C2 beaconing pattern executed (8 beacons, 3s intervals)[0m
+[93m🔴 Attack: Ptrace Attempts[0m
+   Attempts to ptrace other processes (generates ptrace syscalls)
+
+[92m✅ Ptrace pattern simulated (high-risk syscalls generated)[0m
+
+[94m============================================================[0m
+[94m✅ Attack Simulation Complete[0m
+[94m============================================================[0m
+
+[92mCheck your security agent dashboard for detection results![0m
+
+Expected results:
+  - Risk scores should spike to 50-100
+  - ML anomaly detection should flag these patterns
+  - Dashboard should show high-risk processes
+
+
+Attack simulation complete at: Thu Dec 11 18:40:54 UTC 2025
+
+======================================================================
+PHASE 6: MONITORING DETECTIONS (3 minutes)
+======================================================================
+
+Command: Monitoring for detections...
+[18:41:24] Port Scans: 72 | C2: 0
+0 | High-Risk: 52 | Anomalies: 0
+0
+[18:41:54] Port Scans: 72 | C2: 0
+0 | High-Risk: 52 | Anomalies: 0
+0
+[18:42:25] Port Scans: 72 | C2: 0
+0 | High-Risk: 52 | Anomalies: 0
+0
+[18:42:55] Port Scans: 72 | C2: 0
+0 | High-Risk: 52 | Anomalies: 0
+0
+[18:43:25] Port Scans: 72 | C2: 0
+0 | High-Risk: 52 | Anomalies: 0
+0
+[18:43:55] Port Scans: 72 | C2: 0
+0 | High-Risk: 52 | Anomalies: 0
+0
+
+======================================================================
+PHASE 7: DETECTION ANALYSIS
+======================================================================
+
+Command: Analyzing detection results...
+
+=== DETECTION SUMMARY ===
+Port Scans Detected: 72
+C2 Beacons Detected: 0
+0
+High-Risk Processes: 52
+Anomalies Detected: 0
+0
+Total Syscalls Captured: 994
+
+=== RECENT PORT SCAN DETECTIONS ===
+2025-12-11 18:33:55,851 - security_agent.simple - WARNING - [simple_agent.py:874] - 🌐 CONNECTION PATTERN DETECTED: PORT_SCANNING PID=968 Process=flb-out-stackdr
+2025-12-11 18:33:55,987 - security_agent.simple - INFO - [simple_agent.py:864] - 🔍 Connection analysis result for PID 968: {'type': 'PORT_SCANNING', 'technique': 'T1046', 'pid': 968, 'unique_ports': 30, 'timeframe': 52.201258182525635, 'rate': 0.5746987916479472, 'risk_score': 75, 'explanation': 'Port scanning: 30 ports in 52.2s', 'confidence': 0.85, 'severity': 'HIGH'}
+2025-12-11 18:33:55,987 - security_agent.simple - WARNING - [simple_agent.py:874] - 🌐 CONNECTION PATTERN DETECTED: PORT_SCANNING PID=968 Process=flb-out-stackdr
+2025-12-11 18:33:56,117 - security_agent.simple - INFO - [simple_agent.py:864] - 🔍 Connection analysis result for PID 968: {'type': 'PORT_SCANNING', 'technique': 'T1046', 'pid': 968, 'unique_ports': 31, 'timeframe': 52.33093047142029, 'rate': 0.5923838869429269, 'risk_score': 75, 'explanation': 'Port scanning: 31 ports in 52.3s', 'confidence': 0.85, 'severity': 'HIGH'}
+2025-12-11 18:33:56,118 - security_agent.simple - WARNING - [simple_agent.py:874] - 🌐 CONNECTION PATTERN DETECTED: PORT_SCANNING PID=968 Process=flb-out-stackdr
+
+=== RECENT HIGH-RISK DETECTIONS ===
+2025-12-11 18:34:45,102 - security_agent.simple - WARNING - [simple_agent.py:975] - 🔴 HIGH RISK DETECTED: PID=191043 Process=awk Risk=23.0 Anomaly=0.0
+2025-12-11 18:34:45,962 - security_agent.simple - WARNING - [simple_agent.py:975] - 🔴 HIGH RISK DETECTED: PID=191052 Process=wc Risk=23.0 Anomaly=0.0
+2025-12-11 18:34:45,964 - security_agent.simple - WARNING - [simple_agent.py:975] - 🔴 HIGH RISK DETECTED: PID=191051 Process=tail Risk=23.0 Anomaly=0.0
+2025-12-11 18:34:52,949 - security_agent.simple - WARNING - [simple_agent.py:975] - 🔴 HIGH RISK DETECTED: PID=190587 Process=tail Risk=40.9 Anomaly=69.5
+2025-12-11 18:35:13,207 - security_agent.simple - WARNING - [simple_agent.py:975] - 🔴 HIGH RISK DETECTED: PID=190611 Process=python3 Risk=32.9 Anomaly=69.6
+
+=== RECENT C2 BEACON DETECTIONS ===
+
+=== RECENT ANOMALY DETECTIONS ===
+
+======================================================================
+PHASE 8: DASHBOARD VERIFICATION
+======================================================================
+
+Command: Checking dashboard status...
+Dashboard HTTP Status: 200
+Result: ✅ Dashboard is running
+
+Command: Checking dashboard process...
+likitha+  183672  0.5  1.3 139888 55752 ?        Sl   18:08   0:11 python3 app.py
+
+======================================================================
+PHASE 9: SYSTEM STATUS
+======================================================================
+
+Agent Process:
+root      190611  0.0  0.1  11896  5504 ?        S    18:32   0:00 sudo nohup python3 core/simple_agent.py --collector auditd --threshold 20 --headless
+root      190613  4.8  4.8 731996 192448 ?       Sl   18:32   0:32 python3 core/simple_agent.py --collector auditd --threshold 20 --headless
+
+Agent Log File:
+-rw-r--r-- 1 root root 521K Dec 11 18:36 logs/security_agent_2025-12-11_18-32-37.log
+
+System Resources:
+CPU Usage:
+%Cpu(s):  3.0 us,  3.0 sy,  0.0 ni, 93.9 id,  0.0 wa,  0.0 hi,  0.0 si,  0.0 st
+
+Memory Usage:
+               total        used        free      shared  buff/cache   available
+Mem:           3.8Gi       2.4Gi       762Mi       1.0Mi       672Mi       1.2Gi
+
+======================================================================
+PHASE 10: FINAL SUMMARY
+======================================================================
+
+=== VERIFICATION RESULTS ===
+
+✅ Agent: RUNNING
+
+✅ Dashboard: RUNNING (HTTP 200)
+
+✅ Detections:
+   Port Scans: 72
+   C2 Beacons: 0
+0
+   High-Risk: 52
+   Anomalies: 0
+0
+   Total Events: 994
+
+✅ OVERALL STATUS: SYSTEM WORKING
+   - Agent is monitoring
+   - Attacks are being detected
+   - Dashboard is accessible
+   - System ready for demo
+
+======================================================================
+VERIFICATION COMPLETE
+======================================================================
+End time: Thu Dec 11 18:43:55 UTC 2025
+Total duration: ~10 minutes
+Log file: /home/likithashankar14/Linux-Security-Agent/COMPREHENSIVE_DEMO_LOG.txt
+======================================================================
+
+✅ Comprehensive log saved to: /home/likithashankar14/Linux-Security-Agent/COMPREHENSIVE_DEMO_LOG.txt
+File size: 16K
+Lines: 369

@@ -1,0 +1,26 @@
+======================================================================
+COMPREHENSIVE TEST REPORT - ANOMALY & RESPONSE FIXES
+======================================================================
+Generated: Thu Dec 11 19:20:27 UTC 2025
+Host: instance-20251205-050017
+
+=== AGENT STATUS ===
+root      200639  0.0  0.1  11900  5376 ?        S    19:19   0:00 sudo nohup python3 core/simple_agent.py --collector auditd --threshold 20 --headless
+
+=== DETECTION RESULTS ===
+Port Scans: 32
+High-Risk: 17
+Anomalies: 0
+0
+Total Events: 182
+
+=== RECENT ANOMALY DETECTIONS ===
+
+=== RECENT HIGH-RISK DETECTIONS ===
+2025-12-11 19:20:04,262 - security_agent.simple - WARNING - [simple_agent.py:1007] - 🔴 HIGH RISK DETECTED: PID=200636 Process=head Risk=23.0 Anomaly=0.0
+2025-12-11 19:20:04,364 - security_agent.simple - WARNING - [simple_agent.py:1007] - 🔴 HIGH RISK DETECTED: PID=200702 Process=tail Risk=23.0 Anomaly=0.0
+2025-12-11 19:20:04,668 - security_agent.simple - WARNING - [simple_agent.py:1007] - 🔴 HIGH RISK DETECTED: PID=200703 Process=timeout Risk=23.0 Anomaly=0.0
+2025-12-11 19:20:05,589 - security_agent.simple - WARNING - [simple_agent.py:1007] - 🔴 HIGH RISK DETECTED: PID=968 Process=flb-out-stackdr Risk=35.0 Anomaly=0.0
+2025-12-11 19:20:08,339 - security_agent.simple - WARNING - [simple_agent.py:1007] - 🔴 HIGH RISK DETECTED: PID=200705 Process=python3 Risk=23.0 Anomaly=0.0
+
+======================================================================

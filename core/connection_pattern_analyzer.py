@@ -43,15 +43,21 @@ class ConnectionPatternAnalyzer:
         """
         self.config = config or {}
         
-        # Connection tracking per process
+        # Connection tracking per process (by PID)
         self.connection_history = defaultdict(lambda: deque(maxlen=100))
+        
+        # Connection tracking by process name + IP (for C2 beaconing when PID changes)
+        # This helps track connections from short-lived processes
+        self.connection_history_by_name = defaultdict(lambda: defaultdict(lambda: deque(maxlen=100)))  # process_name -> dest_ip -> connections
         
         # Port scanning detection
         self.port_access_history = defaultdict(set)  # pid -> set of ports
+        self.port_access_history_by_name = defaultdict(lambda: defaultdict(set))  # process_name -> dest_ip -> set of ports
         
-        # Beaconing detection parameters (lowered thresholds for better detection)
+        # Beaconing detection parameters (optimized for better detection)
         self.beacon_threshold_variance = self.config.get('beacon_variance_threshold', 5.0)  # seconds
-        self.min_connections_for_beacon = self.config.get('min_connections_for_beacon', 3)  # Lowered from 5 to 3
+        self.min_connections_for_beacon = self.config.get('min_connections_for_beacon', 3)  # Minimum 3 connections
+        self.min_beacon_interval = self.config.get('min_beacon_interval', 2.0)  # Lowered to 2.0 seconds for better detection
         
         # Port scanning parameters (lowered thresholds for better detection)
         self.port_scan_threshold = self.config.get('port_scan_threshold', 5)  # unique ports (lowered from 10 to 5)
@@ -71,7 +77,7 @@ class ConnectionPatternAnalyzer:
         }
     
     def analyze_connection(self, pid: int, dest_ip: str, dest_port: int, 
-                          timestamp: float = None) -> Optional[Dict]:
+                          timestamp: float = None, process_name: str = None) -> Optional[Dict]:
         """
         Analyze a network connection for suspicious patterns
         
@@ -80,6 +86,7 @@ class ConnectionPatternAnalyzer:
             dest_ip: Destination IP address
             dest_port: Destination port
             timestamp: Connection timestamp (default: current time)
+            process_name: Process name (for tracking across PID changes)
         
         Returns:
             Detection result if suspicious, None otherwise
@@ -89,24 +96,36 @@ class ConnectionPatternAnalyzer:
         
         self.stats['total_connections_analyzed'] += 1
         
-        # Record connection
+        # Record connection by PID
         connection_info = {
             'dest': f"{dest_ip}:{dest_port}",
             'ip': dest_ip,
             'port': dest_port,
-            'time': timestamp
+            'time': timestamp,
+            'pid': pid
         }
         self.connection_history[pid].append(connection_info)
         self.port_access_history[pid].add(dest_port)
         
-        # Check for beaconing
+        # Also track by process name + IP (for C2 beaconing when PID changes)
+        if process_name:
+            self.connection_history_by_name[process_name][dest_ip].append(connection_info)
+            self.port_access_history_by_name[process_name][dest_ip].add(dest_port)
+        
+        # Check for beaconing (try both PID and process name tracking)
         beacon_result = self._detect_beaconing(pid)
+        if not beacon_result and process_name:
+            # Try detecting by process name (for short-lived processes)
+            beacon_result = self._detect_beaconing_by_name(process_name, dest_ip)
         if beacon_result:
             self.stats['beacons_detected'] += 1
             return beacon_result
         
-        # Check for port scanning
+        # Check for port scanning (try both PID and process name tracking)
         scan_result = self._detect_port_scanning(pid, timestamp)
+        if not scan_result and process_name:
+            # Try detecting by process name (for short-lived processes)
+            scan_result = self._detect_port_scanning_by_name(process_name, dest_ip, timestamp)
         if scan_result:
             self.stats['port_scans_detected'] += 1
             return scan_result
@@ -137,8 +156,8 @@ class ConnectionPatternAnalyzer:
         try:
             mean_interval = statistics.mean(intervals)
             
-            # Only consider if intervals are reasonably long (> 0.5 second) - lowered for better detection
-            if mean_interval < 0.5:
+            # Only consider if intervals are reasonably long (>= min_beacon_interval)
+            if mean_interval < self.min_beacon_interval:
                 return None
             
             # Calculate variance
@@ -147,11 +166,65 @@ class ConnectionPatternAnalyzer:
                 stdev = statistics.stdev(intervals)
                 
                 # Low variance indicates regular beaconing
-                if stdev < self.beacon_threshold_variance and mean_interval > 5.0:
+                # Lowered threshold: mean_interval >= 3.0 (was 5.0) for better detection
+                if stdev < self.beacon_threshold_variance and mean_interval >= self.min_beacon_interval:
                     return {
                         'type': 'C2_BEACONING',
                         'technique': 'T1071',
                         'pid': pid,
+                        'mean_interval': mean_interval,
+                        'variance': variance,
+                        'stdev': stdev,
+                        'connections': len(connections),
+                        'destination': connections[-1]['dest'],
+                        'risk_score': 85,
+                        'explanation': f'Regular beaconing detected: {mean_interval:.1f}s intervals (±{stdev:.1f}s)',
+                        'confidence': 0.9,
+                        'severity': 'HIGH'
+                    }
+        except statistics.StatisticsError:
+            pass
+        
+        return None
+    
+    def _detect_beaconing_by_name(self, process_name: str, dest_ip: str) -> Optional[Dict]:
+        """
+        Detect C2 beaconing by process name (handles short-lived processes)
+        """
+        connections = list(self.connection_history_by_name[process_name][dest_ip])
+        
+        if len(connections) < self.min_connections_for_beacon:
+            return None
+        
+        # Calculate time intervals between connections
+        intervals = []
+        for i in range(1, len(connections)):
+            interval = connections[i]['time'] - connections[i-1]['time']
+            intervals.append(interval)
+        
+        if len(intervals) < self.min_connections_for_beacon - 1:
+            return None
+        
+        # Check for regular timing (low variance = beaconing)
+        try:
+            mean_interval = statistics.mean(intervals)
+            
+            # Only consider if intervals are reasonably long (>= min_beacon_interval)
+            if mean_interval < self.min_beacon_interval:
+                return None
+            
+            # Calculate variance
+            if len(intervals) >= 2:
+                variance = statistics.variance(intervals)
+                stdev = statistics.stdev(intervals)
+                
+                # Low variance indicates regular beaconing
+                if stdev < self.beacon_threshold_variance and mean_interval >= self.min_beacon_interval:
+                    return {
+                        'type': 'C2_BEACONING',
+                        'technique': 'T1071',
+                        'pid': connections[-1]['pid'],  # Use most recent PID
+                        'process_name': process_name,
                         'mean_interval': mean_interval,
                         'variance': variance,
                         'stdev': stdev,
@@ -194,6 +267,44 @@ class ConnectionPatternAnalyzer:
                 'type': 'PORT_SCANNING',
                 'technique': 'T1046',
                 'pid': pid,
+                'unique_ports': unique_ports,
+                'timeframe': timeframe,
+                'rate': ports_per_second,
+                'risk_score': 75,
+                'explanation': f'Port scanning: {unique_ports} ports in {timeframe:.1f}s',
+                'confidence': 0.85,
+                'severity': 'HIGH'
+            }
+        
+        return None
+    
+    def _detect_port_scanning_by_name(self, process_name: str, dest_ip: str, current_time: float) -> Optional[Dict]:
+        """
+        Detect port scanning by process name (handles short-lived processes)
+        """
+        unique_ports = len(self.port_access_history_by_name[process_name][dest_ip])
+        
+        if unique_ports < self.port_scan_threshold:
+            return None
+        
+        connections = list(self.connection_history_by_name[process_name][dest_ip])
+        if not connections:
+            return None
+        
+        # Get time range
+        oldest = connections[0]['time']
+        newest = connections[-1]['time']
+        timeframe = newest - oldest
+        
+        # Port scan: Many unique ports in short time
+        if timeframe < self.port_scan_timeframe and unique_ports >= self.port_scan_threshold:
+            ports_per_second = unique_ports / max(timeframe, 1)
+            
+            return {
+                'type': 'PORT_SCANNING',
+                'technique': 'T1046',
+                'pid': connections[-1]['pid'],  # Use most recent PID
+                'process_name': process_name,
                 'unique_ports': unique_ports,
                 'timeframe': timeframe,
                 'rate': ports_per_second,

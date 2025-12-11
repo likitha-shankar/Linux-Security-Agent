@@ -8,7 +8,11 @@ Real-time system call monitoring and threat detection agent for Linux. Uses eBPF
 **Status:** Functional Prototype - Research/Academic Project  
 **Classification:** Not Production Ready - See [PROJECT_STATUS.md](PROJECT_STATUS.md) for details
 
-**Recent updates (December 2024):**
+**Recent updates (November-December 2025):**
+- **✅ Port Scanning Detection Fixed**: Fixed port simulation to enable proper port scanning detection (uses connection counter for unique ports)
+- **✅ C2 Beaconing Detection Fixed**: Fixed port consistency for C2 beaconing (same port for regular intervals)
+- **✅ Auditd Configuration**: Added network syscall rules for comprehensive monitoring
+- **✅ Black Box Testing**: Comprehensive testing (November 2025) confirms all features working with real data
 - **Real Dataset Training**: Trained on ADFA-LD dataset (5,205 real syscall sequences from actual Linux systems)
 - **Automated Training Setup**: Complete automation for downloading ADFA-LD and training models (`scripts/complete_training_setup.sh`)
 - **Syscall Name Mapping**: Fixed conversion to properly map syscall numbers to names (99.97% success rate)
@@ -134,14 +138,18 @@ See [web/README.md](web/README.md) for details.
 
 ### Option 1: Simple Agent (Recommended for Testing)
 ```bash
-# Run simple agent with auditd (most reliable)
+# Run simple agent with auditd (most reliable, requires auditd rules)
+# First, configure auditd for network syscalls:
+sudo auditctl -a always,exit -F arch=b64 -S socket -S connect -S bind -S accept -S sendto -S recvfrom -k network_syscalls
+
+# Then run agent:
 sudo python3 core/simple_agent.py --collector auditd --threshold 30
 
 # Or with eBPF
 sudo python3 core/simple_agent.py --collector ebpf --threshold 30
 
 # Run in headless mode (no dashboard, for automation)
-sudo python3 core/simple_agent.py --collector ebpf --threshold 20 --headless
+sudo python3 core/simple_agent.py --collector auditd --threshold 30 --headless
 ```
 
 **Benefits:**

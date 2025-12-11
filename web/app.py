@@ -96,7 +96,7 @@ def index():
 
 @app.route('/api/logs/list')
 def api_list_logs():
-    """Get list of available log files"""
+    """Get list of available log files (last 10 + current)"""
     project_root = Path(__file__).parent.parent
     possible_log_dirs = [
         project_root / 'logs',
@@ -107,10 +107,12 @@ def api_list_logs():
     log_files = []
     for log_dir in possible_log_dirs:
         if log_dir.exists():
+            # Get all log files sorted by modification time (newest first)
+            all_logs = []
             for log_file in sorted(log_dir.glob('security_agent_*.log'), reverse=True):
                 try:
                     stat = log_file.stat()
-                    log_files.append({
+                    all_logs.append({
                         'filename': log_file.name,
                         'path': str(log_file),
                         'size': stat.st_size,
@@ -119,6 +121,8 @@ def api_list_logs():
                     })
                 except (OSError, ValueError):
                     continue
+            # Only return the last 10 historical files (current/live is handled separately)
+            log_files = all_logs[:10]  # Last 10 only
             break  # Use first directory that exists
     
     return jsonify({'logs': log_files})
@@ -301,6 +305,83 @@ def api_start_agent():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
+@app.route('/api/agent/state', methods=['GET'])
+def api_get_agent_state():
+    """Get current agent state (synchronized with terminal dashboard)"""
+    try:
+        # Try multiple possible state file locations
+        project_root = Path(__file__).parent.parent
+        possible_state_files = [
+            Path('/tmp/security_agent_state.json'),  # Shared location (first priority)
+            Path.home() / '.cache' / 'security_agent' / 'agent_state.json',
+            Path('/root/.cache/security_agent/agent_state.json'),  # When run with sudo
+            project_root / '.cache' / 'security_agent' / 'agent_state.json',
+        ]
+        
+        state_file = None
+        for state_path in possible_state_files:
+            if state_path.exists():
+                state_file = state_path
+                break
+        
+        if state_file is None:
+            return jsonify({
+                'error': 'Agent state not available',
+                'message': 'Agent may not be running or state file not found',
+                'processes': [],
+                'stats': {'total_processes': 0, 'high_risk': 0, 'anomalies': 0, 'total_syscalls': 0}
+            }), 200  # Return 200 with empty state instead of 404
+        
+        # Read state file
+        try:
+            with open(state_file, 'r') as f:
+                content = f.read()
+                # Try to parse JSON
+                try:
+                    state = json.loads(content)
+                except json.JSONDecodeError as json_err:
+                    # If JSON is malformed, try to fix common issues or return empty state
+                    # Note: logger may not be available in this scope, using print for error reporting
+                    print(f"JSON decode error in state file: {json_err}")
+                    # Try to find where the error is and truncate there
+                    error_pos = json_err.pos if hasattr(json_err, 'pos') else len(content)
+                    # Return empty state instead of crashing
+                    return jsonify({
+                        'error': 'Invalid state file (malformed JSON)',
+                        'message': f'JSON error at position {error_pos}: {str(json_err)}',
+                        'processes': [],
+                        'stats': {'total_processes': 0, 'high_risk': 0, 'anomalies': 0, 'total_syscalls': 0}
+                    }), 200
+        except (IOError, OSError) as e:
+            # Note: logger may not be available in this scope, using print for error reporting
+            print(f"Error reading state file {state_file}: {e}")
+            return jsonify({
+                'error': 'Invalid state file',
+                'message': str(e),
+                'processes': [],
+                'stats': {'total_processes': 0, 'high_risk': 0, 'anomalies': 0, 'total_syscalls': 0}
+            }), 200
+        
+        # Check if state is stale (older than 10 seconds)
+        import time
+        state_age = time.time() - state.get('timestamp', 0)
+        if state_age > 10:
+            # Still return state, but mark as stale
+            state['_stale'] = True
+            state['_stale_age'] = state_age
+        
+        return jsonify(state)
+    except Exception as e:
+        # Note: logger may not be available in this scope, using print for error reporting
+        print(f"Error reading agent state: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({
+            'error': str(e),
+            'processes': [],
+            'stats': {'total_processes': 0, 'high_risk': 0, 'anomalies': 0, 'total_syscalls': 0}
+        }), 200  # Return 200 with error instead of 500
+
 @app.route('/api/agent/stop', methods=['POST'])
 def api_stop_agent():
     """Stop the security agent"""
@@ -422,23 +503,65 @@ def monitor_agent_logs():
             return
     
     # First, read existing log content and send to buffer
+    # Only send recent entries (from today) to avoid showing stale data
     existing_lines = []
     if log_file.exists():
         try:
+            from datetime import datetime, timedelta
+            cutoff_time = datetime.now() - timedelta(hours=1)  # Only show last 1 hour of logs
+            current_date = datetime.now().date()  # Today's date
+            
             with open(log_file, 'r', encoding='utf-8', errors='ignore') as f:
-                existing_lines = f.readlines()
-                # Keep last 500 lines of existing content
-                existing_lines = existing_lines[-500:]
+                all_lines = f.readlines()
+                # Filter to only recent lines (last hour OR today's date)
+                for line in all_lines[-1000:]:  # Check last 1000 lines
+                    line = line.strip()
+                    if not line:
+                        continue
+                    
+                    # Try to parse timestamp from log line
+                    # Format: "2025-12-09 18:30:45,123 - ..."
+                    try:
+                        # Extract date/time from log line
+                        if len(line) > 19 and line[4] == '-' and line[7] == '-':
+                            date_str = line[:19]  # "2025-12-09 18:30:45"
+                            log_time = datetime.strptime(date_str, '%Y-%m-%d %H:%M:%S')
+                            log_date = log_time.date()
+                            
+                            # Only include if:
+                            # 1. From today AND within last hour, OR
+                            # 2. From today (even if older than 1 hour, but not from past days)
+                            if log_date == current_date:
+                                if log_time >= cutoff_time:
+                                    existing_lines.append(line)
+                                elif len(existing_lines) < 200:  # Allow some today's data even if >1 hour old
+                                    existing_lines.append(line)
+                    except (ValueError, IndexError):
+                        # If we can't parse timestamp, skip old-looking entries
+                        # Only include if it looks recent (has current date pattern)
+                        if str(current_date) in line or len(existing_lines) < 50:
+                            existing_lines.append(line)
+                
+                # If no recent lines found, just take last 50 lines from today
+                if not existing_lines and all_lines:
+                    # Filter to only today's lines
+                    for line in all_lines[-200:]:
+                        if str(current_date) in line[:10] if len(line) > 10 else False:
+                            existing_lines.append(line.strip())
+                    # If still nothing, take last 20 lines as fallback
+                    if not existing_lines:
+                        existing_lines = [l.strip() for l in all_lines[-20:] if l.strip()]
         except Exception as e:
+            logger.warning(f"Error reading log file: {e}")
             socketio.emit('log', {'type': 'error', 'message': f'Error reading log file: {e}'})
     
     # Send existing lines to buffer and emit to clients
     for line in existing_lines:
-        line = line.strip()
         if line:
             log_entry = parse_log_line(line)
-            log_buffer.append(log_entry)
-            # Emit to connected clients
+            if log_entry:  # Only add if parsing succeeded
+                log_buffer.append(log_entry)
+                # Emit to connected clients
             socketio.emit('log', log_entry)
     
     # Now monitor for new lines

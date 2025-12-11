@@ -15,6 +15,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 try:
     from core.enhanced_anomaly_detector import EnhancedAnomalyDetector, AnomalyResult
     IMPORTS_AVAILABLE = True
+    IMPORT_ERROR = None
 except ImportError as e:
     IMPORTS_AVAILABLE = False
     IMPORT_ERROR = str(e)

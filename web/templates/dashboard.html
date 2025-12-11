@@ -16,7 +16,8 @@
         
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-            background: #f5f7fa;
+            background: linear-gradient(135deg, #e8f0f8 0%, #d4e1f0 50%, #f0f5fa 100%);
+            background-attachment: fixed;
             color: #2d3748;
             min-height: 100vh;
             overflow-x: hidden;
@@ -24,15 +25,25 @@
         }
         
         .header {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            padding: 20px 30px;
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+            background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 30%, #ec4899 60%, #f59e0b 100%);
+            background-size: 300% 300%;
+            animation: gradientShift 6s ease infinite;
+            padding: 28px 40px;
+            box-shadow: 0 10px 40px rgba(79, 70, 229, 0.5), 0 6px 20px rgba(0, 0, 0, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.3);
             display: flex;
             justify-content: space-between;
             align-items: center;
             position: sticky;
             top: 0;
             z-index: 100;
+            backdrop-filter: blur(20px);
+            border-bottom: 3px solid rgba(255, 255, 255, 0.3);
+        }
+        
+        @keyframes gradientShift {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
         }
         
         .header h1 {
@@ -51,12 +62,19 @@
         .status-badge {
             display: flex;
             align-items: center;
-            gap: 10px;
-            background: rgba(255, 255, 255, 0.25);
-            backdrop-filter: blur(10px);
-            padding: 10px 18px;
-            border-radius: 25px;
-            border: 1px solid rgba(255, 255, 255, 0.3);
+            gap: 12px;
+            background: rgba(255, 255, 255, 0.3);
+            backdrop-filter: blur(15px);
+            padding: 12px 22px;
+            border-radius: 30px;
+            border: 1px solid rgba(255, 255, 255, 0.4);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+            transition: all 0.3s ease;
+        }
+        
+        .status-badge:hover {
+            background: rgba(255, 255, 255, 0.4);
+            transform: scale(1.05);
         }
         
         .status-dot {
@@ -98,19 +116,36 @@
         }
         
         .stat-card {
-            background: white;
-            border-radius: 12px;
-            padding: 24px;
-            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
-            border: 1px solid #e2e8f0;
-            transition: all 0.3s ease;
+            background: linear-gradient(135deg, #ffffff 0%, #f8fafc 50%, #f1f5f9 100%);
+            border-radius: 24px;
+            padding: 36px;
+            box-shadow: 0 12px 24px rgba(0, 0, 0, 0.12), 0 6px 12px rgba(0, 0, 0, 0.08), inset 0 2px 4px rgba(255, 255, 255, 0.9), inset 0 -2px 4px rgba(0, 0, 0, 0.05);
+            border: 3px solid rgba(226, 232, 240, 0.8);
+            transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
             position: relative;
             overflow: hidden;
         }
         
+        .stat-card::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 3px;
+            background: linear-gradient(90deg, transparent, rgba(102, 126, 234, 0.3), transparent);
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+        
         .stat-card:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+            transform: translateY(-6px) scale(1.02);
+            box-shadow: 0 16px 32px rgba(102, 126, 234, 0.2), 0 8px 16px rgba(0, 0, 0, 0.12);
+            border-color: rgba(102, 126, 234, 0.5);
+        }
+        
+        .stat-card:hover::after {
+            opacity: 1;
         }
         
         .stat-card::before {
@@ -118,9 +153,10 @@
             position: absolute;
             top: 0;
             left: 0;
-            width: 4px;
+            width: 6px;
             height: 100%;
-            background: #667eea;
+            background: linear-gradient(180deg, #4f46e5 0%, #7c3aed 50%, #ec4899 100%);
+            box-shadow: 3px 0 12px rgba(79, 70, 229, 0.5), 0 0 20px rgba(124, 58, 237, 0.3);
         }
         
         .stat-card.high-risk::before {
@@ -143,15 +179,39 @@
         }
         
         .stat-icon {
-            width: 48px;
-            height: 48px;
-            border-radius: 10px;
+            width: 72px;
+            height: 72px;
+            border-radius: 20px;
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 1.5em;
-            background: #f0f4ff;
-            color: #667eea;
+            font-size: 2em;
+            background: linear-gradient(135deg, #eef2ff 0%, #e0e7ff 30%, #ddd6fe 70%, #f3e8ff 100%);
+            color: #4f46e5;
+            box-shadow: 0 8px 16px rgba(79, 70, 229, 0.3), 0 4px 8px rgba(124, 58, 237, 0.2), inset 0 2px 4px rgba(255, 255, 255, 0.9), inset 0 -2px 4px rgba(79, 70, 229, 0.1);
+            transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+            position: relative;
+            border: 2px solid rgba(79, 70, 229, 0.2);
+        }
+        
+        .stat-icon::before {
+            content: '';
+            position: absolute;
+            inset: -2px;
+            border-radius: 20px;
+            background: linear-gradient(135deg, rgba(102, 126, 234, 0.3), rgba(118, 75, 162, 0.3));
+            opacity: 0;
+            transition: opacity 0.3s;
+            z-index: -1;
+        }
+        
+        .stat-card:hover .stat-icon {
+            transform: scale(1.15) rotate(8deg);
+            box-shadow: 0 10px 20px rgba(102, 126, 234, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.9);
+        }
+        
+        .stat-card:hover .stat-icon::before {
+            opacity: 1;
         }
         
         .stat-card.high-risk .stat-icon {
@@ -171,11 +231,24 @@
         }
         
         .stat-value {
-            font-size: 2.2em;
-            font-weight: 700;
-            color: #1a202c;
-            margin-bottom: 4px;
+            font-size: 3.2em;
+            font-weight: 900;
+            background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 25%, #ec4899 50%, #f59e0b 75%, #4f46e5 100%);
+            background-size: 300% 300%;
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin-bottom: 10px;
             line-height: 1;
+            letter-spacing: -1.5px;
+            filter: drop-shadow(0 2px 4px rgba(79, 70, 229, 0.3));
+            animation: textShimmer 4s ease-in-out infinite;
+        }
+        
+        @keyframes textShimmer {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
         }
         
         .stat-label {
@@ -205,20 +278,30 @@
         }
         
         .card {
-            background: white;
-            border-radius: 12px;
-            padding: 24px;
-            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
-            border: 1px solid #e2e8f0;
+            background: linear-gradient(135deg, #ffffff 0%, #f8fafc 50%, #f1f5f9 100%);
+            border-radius: 24px;
+            padding: 36px;
+            box-shadow: 0 12px 28px rgba(0, 0, 0, 0.12), 0 6px 16px rgba(0, 0, 0, 0.1), inset 0 2px 4px rgba(255, 255, 255, 0.9);
+            border: 3px solid rgba(226, 232, 240, 0.8);
+            transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        
+        .card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 16px 40px rgba(79, 70, 229, 0.2), 0 8px 20px rgba(0, 0, 0, 0.15);
+            border-color: rgba(79, 70, 229, 0.5);
         }
         
         .card-header {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin-bottom: 20px;
-            padding-bottom: 16px;
+            margin-bottom: 24px;
+            padding-bottom: 18px;
             border-bottom: 2px solid #f7fafc;
+            background: linear-gradient(to right, transparent, rgba(102, 126, 234, 0.05), transparent);
+            padding-top: 4px;
+            margin-top: -4px;
         }
         
         .card-header h2 {
@@ -247,29 +330,38 @@
         }
         
         .btn {
-            padding: 8px 16px;
+            padding: 10px 18px;
             border: 1px solid #e2e8f0;
-            border-radius: 6px;
+            border-radius: 8px;
             cursor: pointer;
             font-size: 0.875em;
-            transition: all 0.2s;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
             background: white;
             color: #4a5568;
-            font-weight: 500;
+            font-weight: 600;
             display: inline-flex;
             align-items: center;
-            gap: 6px;
+            gap: 8px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
         }
         
         .btn:hover {
-            background: #f7fafc;
+            background: linear-gradient(135deg, #f7fafc 0%, #edf2f7 100%);
             border-color: #cbd5e0;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
         }
         
         .btn.active {
-            background: #667eea;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             color: white;
             border-color: #667eea;
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+        }
+        
+        .btn.active:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 16px rgba(102, 126, 234, 0.5);
         }
         
         select.btn {
@@ -287,15 +379,16 @@
         
         .terminal {
             flex: 1;
-            background: #1a202c;
-            padding: 20px;
+            background: linear-gradient(135deg, #1a202c 0%, #0f1419 100%);
+            padding: 24px;
             overflow-y: auto;
             font-family: 'SF Mono', 'Monaco', 'Cascadia Code', 'Courier New', monospace;
             font-size: 0.875em;
             line-height: 1.6;
-            border-radius: 8px;
-            border: 1px solid #e2e8f0;
+            border-radius: 12px;
+            border: 1px solid rgba(226, 232, 240, 0.1);
             margin-top: 16px;
+            box-shadow: inset 0 2px 8px rgba(0, 0, 0, 0.3), 0 4px 12px rgba(0, 0, 0, 0.2);
         }
         
         .log-line {
@@ -368,8 +461,12 @@
         }
         
         .chart-container {
-            height: 220px;
-            margin-top: 10px;
+            height: 240px;
+            margin-top: 16px;
+            background: linear-gradient(135deg, rgba(255, 255, 255, 0.5) 0%, rgba(247, 250, 252, 0.5) 100%);
+            border-radius: 12px;
+            padding: 16px;
+            box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.05);
         }
         
         .process-list {
@@ -378,19 +475,22 @@
         }
         
         .process-item {
-            padding: 16px;
-            margin-bottom: 12px;
-            background: #f7fafc;
-            border-radius: 8px;
-            border-left: 4px solid #667eea;
-            border: 1px solid #e2e8f0;
-            border-left-width: 4px;
-            transition: all 0.2s;
+            padding: 18px;
+            margin-bottom: 14px;
+            background: linear-gradient(135deg, #f7fafc 0%, #ffffff 100%);
+            border-radius: 12px;
+            border-left: 5px solid #667eea;
+            border: 1px solid rgba(226, 232, 240, 0.8);
+            border-left-width: 5px;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
         }
         
         .process-item:hover {
-            background: #edf2f7;
-            transform: translateX(2px);
+            background: linear-gradient(135deg, #edf2f7 0%, #f7fafc 100%);
+            transform: translateX(4px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+            border-left-width: 6px;
         }
         
         .process-item.high-risk {
@@ -754,19 +854,26 @@
         // Track previous agent status to detect when it starts
         let previousAgentStatus = false; // false = stopped, true = running
         let activityData = {
-            labels: [],
-            anomalies: [],
-            attacks: [],
-            highRisk: []
+            labels: [],      // X-axis: Time (e.g., "10:30:45 PM")
+            anomalies: [],   // Y-axis: Cumulative count of anomalies detected
+            attacks: [],     // Y-axis: Cumulative count of attacks detected
+            highRisk: []     // Y-axis: Cumulative count of high-risk processes
+            // Removed 'normal' - it was confusing (calculated value, not direct count)
         };
         
         // Initialize chart with light theme
-        const ctx = document.getElementById('activityChart').getContext('2d');
-        const activityChart = new Chart(ctx, {
+        let activityChart = null;
+        try {
+            const canvas = document.getElementById('activityChart');
+            if (canvas) {
+                const ctx = canvas.getContext('2d');
+                activityChart = new Chart(ctx, {
             type: 'line',
             data: {
                 labels: activityData.labels,
                 datasets: [
+                    // Removed 'Normal' line - it was confusing (calculated as total - others)
+                    // Keeping only security-relevant metrics: Anomalies, Attacks, High Risk
                     {
                         label: 'Anomalies',
                         data: activityData.anomalies,
@@ -821,6 +928,12 @@
                 }
             }
         });
+            } else {
+                console.error('Activity chart canvas element not found');
+            }
+        } catch (error) {
+            console.error('Error initializing activity chart:', error);
+        }
         
         // Socket.IO event handlers
         socket.on('connect', () => {
@@ -859,6 +972,296 @@
             showAlert(data);
             updateStats({ type: data.type });
         });
+        
+        // Sync with agent state API (for real-time synchronization with terminal dashboard)
+        function syncAgentState() {
+            // FIRST: Check if agent is running before updating anything
+            fetch('/api/status')
+                .then(response => response.json())
+                .then(agentStatus => {
+                    const isRunning = agentStatus.running || false;
+                    
+                    // If agent is NOT running, don't update chart or stats
+                    if (!isRunning) {
+                        // Agent stopped - don't add new data points to chart
+                        // Keep existing data but don't update
+                        return Promise.reject('Agent not running');
+                    }
+                    
+                    // Agent is running - proceed with state sync
+                    return fetch('/api/agent/state');
+                })
+                .then(response => {
+                    if (!response) return Promise.reject('No response'); // Agent not running, skip
+                    return response.json();
+                })
+                .catch(error => {
+                    // Agent not running or error - silently skip update
+                    return null;
+                })
+                .then(state => {
+                    if (!state || state.error) {
+                        // State not available or stale, but continue with log-based updates
+                        return;
+                    }
+                    
+                    // Double-check agent is still running (might have stopped between checks)
+                    return fetch('/api/status')
+                        .then(response => response.json())
+                        .then(status => {
+                            if (!status.running) {
+                                return null; // Agent stopped, don't update
+                            }
+                            return state; // Agent still running, proceed
+                        });
+                })
+                .then(state => {
+                    if (!state) {
+                        // Agent not running, skip all updates
+                        return;
+                    }
+                    
+                    // Update stats from agent state (PRIORITY: Use API data directly)
+                    if (state.stats) {
+                        // CRITICAL: Use API data directly, don't calculate from processes
+                        stats.processes = state.stats.total_processes || 0;
+                        stats.highRisk = state.stats.high_risk || 0;
+                        stats.anomalies = state.stats.anomalies || 0;
+                        stats.syscalls = state.stats.total_syscalls || 0;  // Use API value directly
+                        
+                        // Update UI immediately with API data
+                        document.getElementById('statProcesses').textContent = stats.processes;
+                        document.getElementById('statHighRisk').textContent = stats.highRisk;
+                        document.getElementById('statAnomalies').textContent = stats.anomalies;
+                        document.getElementById('statSyscalls').textContent = stats.syscalls.toLocaleString();
+                        
+                        // Also update cumulative count for reference
+                        if (stats.syscalls > cumulativeSyscallsCount) {
+                            cumulativeSyscallsCount = stats.syscalls;
+                        }
+                        
+                        // Update chart with current stats (for timeline visualization)
+                        // ONLY if agent is running
+                        const now = new Date().toLocaleTimeString();
+                        
+                        // Add data point every sync (every 2 seconds) to show activity
+                        if (activityData.labels.length === 0 || activityData.labels[activityData.labels.length - 1] !== now) {
+                            activityData.labels.push(now);
+                            // Removed normal line - only track security events
+                            activityData.anomalies.push(state.stats.anomalies || 0);
+                            activityData.attacks.push((state.stats.port_scans || 0) + (state.stats.c2_beacons || 0));
+                            activityData.highRisk.push(state.stats.high_risk || 0);
+                            
+                            // Keep last 30 data points
+                            if (activityData.labels.length > 30) {
+                                activityData.labels.shift();
+                                // Removed normal shift
+                                activityData.anomalies.shift();
+                                activityData.attacks.shift();
+                                activityData.highRisk.shift();
+                            }
+                            
+                            // Update chart - ensure it's initialized first
+                            if (!activityChart) {
+                                // Initialize chart if not already done
+                                try {
+                                    const canvas = document.getElementById('activityChart');
+                                    if (canvas) {
+                                        const ctx = canvas.getContext('2d');
+                                        activityChart = new Chart(ctx, {
+                                            type: 'line',
+                                            data: {
+                                                labels: activityData.labels,
+                                                datasets: [
+                                                    {
+                                                        label: 'Anomalies',
+                                                        data: activityData.anomalies,
+                                                        borderColor: '#ffc107',
+                                                        backgroundColor: 'rgba(255, 193, 7, 0.1)',
+                                                        tension: 0.4,
+                                                        borderWidth: 2
+                                                    },
+                                                    {
+                                                        label: 'Attacks',
+                                                        data: activityData.attacks,
+                                                        borderColor: '#dc3545',
+                                                        backgroundColor: 'rgba(220, 53, 69, 0.1)',
+                                                        tension: 0.4,
+                                                        borderWidth: 2
+                                                    },
+                                                    {
+                                                        label: 'High Risk',
+                                                        data: activityData.highRisk,
+                                                        borderColor: '#ff9800',
+                                                        backgroundColor: 'rgba(255, 152, 0, 0.1)',
+                                                        tension: 0.4,
+                                                        borderWidth: 2
+                                                    }
+                                                ]
+                                            },
+                                            options: {
+                                                responsive: true,
+                                                maintainAspectRatio: false,
+                                                scales: {
+                                                    y: {
+                                                        beginAtZero: true,
+                                                        ticks: {
+                                                            stepSize: 1
+                                                        }
+                                                    }
+                                                },
+                                                plugins: {
+                                                    legend: {
+                                                        display: true,
+                                                        position: 'bottom'
+                                                    }
+                                                }
+                                            }
+                                        });
+                                    }
+                                } catch (e) {
+                                    console.error('Chart initialization error:', e);
+                                }
+                            }
+                            
+                            // Update chart with new data
+                            if (activityChart) {
+                                try {
+                                    activityChart.data.labels = activityData.labels;
+                                    // Removed normal line (dataset 0) - now only 3 datasets
+                                    activityChart.data.datasets[0].data = activityData.anomalies;
+                                    activityChart.data.datasets[1].data = activityData.attacks;
+                                    activityChart.data.datasets[2].data = activityData.highRisk;
+                                    activityChart.update('none'); // 'none' for no animation, faster updates
+                                } catch (e) {
+                                    console.error('Chart update error:', e);
+                                }
+                            }
+                        }
+                    }
+                    
+                    // Update processes from agent state (synchronized with terminal dashboard)
+                    if (state.processes && Array.isArray(state.processes)) {
+                        state.processes.forEach(proc => {
+                            const pid = String(proc.pid);
+                            const existingProc = processes.get(pid) || { pid, name: 'unknown', risk: 0, anomaly: 0, syscalls: 0 };
+                            
+                    // Update with state data (more accurate than log parsing)
+                    // Only use name if it's a real name (not pid_XXXXX)
+                    if (proc.name && !proc.name.startsWith('pid_') && proc.name !== 'unknown') {
+                        existingProc.name = proc.name;
+                    }
+                    existingProc.risk = proc.risk_score || 0;
+                    existingProc.anomaly = proc.anomaly_score || 0;
+                    existingProc.syscalls = proc.total_syscalls || proc.syscall_count || 0;
+                    existingProc.recentSyscalls = proc.recent_syscalls_str || (proc.recent_syscalls ? proc.recent_syscalls.join(', ') : '');
+                    existingProc.lastSeen = Date.now();
+                            
+                            processes.set(pid, existingProc);
+                        });
+                        
+                        // Remove processes that are no longer in agent state (after timeout)
+                        const now = Date.now();
+                        processes.forEach((proc, pid) => {
+                            const inState = state.processes.some(p => String(p.pid) === pid);
+                            if (!inState && (now - proc.lastSeen) > PROCESS_TIMEOUT_MS) {
+                                processes.delete(pid);
+                            }
+                        });
+                        
+                        renderProcessList();
+                        calculateCurrentStats();
+                    }
+                })
+                .catch(error => {
+                    // Silently fail - log-based updates will continue
+                    console.debug('Agent state sync failed:', error);
+                });
+        }
+        
+        // Clear old data on page load (prevent showing stale data from old logs)
+        highRiskList = [];
+        attackList = [];
+        processes.clear();
+        cumulativeSyscallsCount = 0;  // Reset cumulative count
+        
+        // RESET chart data on page load
+        activityData.labels = [];
+        // Removed normal - not needed
+        activityData.anomalies = [];
+        activityData.attacks = [];
+        activityData.highRisk = [];
+        
+        renderHighRiskList();
+        renderAttackList();
+        
+        // Log reset for debugging
+        console.log('[Dashboard] Dashboard values reset - starting fresh monitoring session');
+        
+        // CRITICAL: Initialize chart immediately on page load
+        try {
+            const canvas = document.getElementById('activityChart');
+            if (canvas && typeof Chart !== 'undefined') {
+                const ctx = canvas.getContext('2d');
+                activityChart = new Chart(ctx, {
+                    type: 'line',
+                    data: {
+                        labels: activityData.labels,
+                        datasets: [
+                            {
+                                label: 'Anomalies',
+                                data: activityData.anomalies,
+                                borderColor: '#ffc107',
+                                backgroundColor: 'rgba(255, 193, 7, 0.1)',
+                                tension: 0.4,
+                                borderWidth: 2
+                            },
+                            {
+                                label: 'Attacks',
+                                data: activityData.attacks,
+                                borderColor: '#dc3545',
+                                backgroundColor: 'rgba(220, 53, 69, 0.1)',
+                                tension: 0.4,
+                                borderWidth: 2
+                            },
+                            {
+                                label: 'High Risk',
+                                data: activityData.highRisk,
+                                borderColor: '#ff9800',
+                                backgroundColor: 'rgba(255, 152, 0, 0.1)',
+                                tension: 0.4,
+                                borderWidth: 2
+                            }
+                        ]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        scales: {
+                            y: {
+                                beginAtZero: true,
+                                ticks: {
+                                    stepSize: 1
+                                }
+                            }
+                        },
+                        plugins: {
+                            legend: {
+                                display: true,
+                                position: 'bottom'
+                            }
+                        }
+                    }
+                });
+                console.log('✅ Activity chart initialized');
+            }
+        } catch (e) {
+            console.error('❌ Chart initialization error:', e);
+        }
+        
+        // Poll agent state every 2 seconds (same as terminal dashboard update rate)
+        setInterval(syncAgentState, 2000);
+        syncAgentState(); // Initial sync immediately
         
         function addLog(message, type = 'info') {
             const line = document.createElement('div');
@@ -944,7 +1347,8 @@
             document.getElementById('statHighRisk').textContent = stats.highRisk;
             document.getElementById('statAnomalies').textContent = stats.anomalies;
             document.getElementById('statAttacks').textContent = stats.attacks;
-            document.getElementById('statSyscalls').textContent = stats.syscalls.toLocaleString();
+            // Use stats.syscalls directly from state API (most accurate)
+            document.getElementById('statSyscalls').textContent = (stats.syscalls || 0).toLocaleString();
         }
         
         function updateStats(data) {
@@ -1176,12 +1580,14 @@
         
         // Track cumulative counts for chart
         let chartCounts = {
-            anomalies: 0,
-            attacks: 0,
-            highRisk: 0
+            // Removed normal - not needed for security monitoring
+            anomalies: 0,  // Total anomalies detected since start
+            attacks: 0,     // Total attacks detected since start
+            highRisk: 0     // Total high-risk processes detected since start
         };
         
         function updateChart(type) {
+            try {
             const now = new Date().toLocaleTimeString();
             
             // Increment cumulative counts
@@ -1192,23 +1598,32 @@
             } else if (type === 'highRisk') {
                 chartCounts.highRisk++;
             }
+            // Removed 'normal' type - not tracking normal events
             
             // Add data point with cumulative counts
-            activityData.labels.push(now);
-            activityData.anomalies.push(chartCounts.anomalies);
-            activityData.attacks.push(chartCounts.attacks);
-            activityData.highRisk.push(chartCounts.highRisk);
+            activityData.labels.push(now);  // X-axis: Time
+            activityData.anomalies.push(chartCounts.anomalies);  // Y-axis: Count
+            activityData.attacks.push(chartCounts.attacks);      // Y-axis: Count
+            activityData.highRisk.push(chartCounts.highRisk);    // Y-axis: Count
             
             // Keep last 30 data points (more history)
             if (activityData.labels.length > 30) {
                 activityData.labels.shift();
+                // Removed normal shift
                 activityData.anomalies.shift();
                 activityData.attacks.shift();
                 activityData.highRisk.shift();
             }
             
-            // Update chart with animation
+                // Update chart with animation (only if chart exists)
+                if (typeof activityChart !== 'undefined' && activityChart) {
             activityChart.update('active');
+                } else {
+                    console.warn('Activity chart not initialized yet');
+                }
+            } catch (error) {
+                console.error('Error updating activity chart:', error);
+            }
         }
         
         function updateProcessList(data) {
@@ -1392,24 +1807,24 @@
                 const riskClass = p.risk >= 50 ? 'high-risk' : p.risk >= 30 ? 'anomaly' : '';
                 const riskColor = p.risk >= 50 ? 'risk-high' : p.risk >= 30 ? 'risk-medium' : 'risk-low';
                 
-                // Determine display name - prefer real name, fallback to PID
-                let displayName = p.name;
-                let showPid = false;
-                if (!p.name || p.name === 'unknown' || p.name.startsWith('pid_')) {
-                    // If name is generic, show PID prominently
-                    displayName = `PID ${p.pid}`;
-                    showPid = false; // Already showing PID
-                } else {
-                    // Show real name with PID below
-                    showPid = true;
+                // If no real name, just show PID (ignore name issue)
+                let displayName = `PID ${p.pid}`;
+                if (p.name && !p.name.startsWith('pid_') && p.name !== 'unknown') {
+                    displayName = p.name;
                 }
+                
+                // Get recent syscalls for display
+                const recentSyscalls = p.recentSyscalls || '';
+                const syscallDisplay = recentSyscalls ? 
+                    `<div style="font-size: 0.75em; color: #718096; margin-top: 6px; font-family: monospace; word-break: break-word;">Recent: ${escapeHtml(recentSyscalls.substring(0, 100))}${recentSyscalls.length > 100 ? '...' : ''}</div>` : 
+                    '';
                 
                 return `
                     <div class="process-item ${riskClass}">
                         <div class="process-header">
                             <div style="flex: 1;">
                                 <div class="process-name" style="font-weight: 600; font-size: 0.95em;">${escapeHtml(displayName)}</div>
-                                ${showPid ? `<div class="process-pid" style="margin-top: 4px; font-size: 0.8em; color: #718096;">PID: ${p.pid}</div>` : ''}
+                                <div class="process-pid" style="margin-top: 4px; font-size: 0.8em; color: #718096;">PID: ${p.pid}${p.name && !p.name.startsWith('pid_') ? ` | ${escapeHtml(p.name)}` : ''}</div>
                             </div>
                             <div class="process-scores">
                                 <div class="score">
@@ -1422,8 +1837,8 @@
                                 </div>
                             </div>
                         </div>
-                        ${p.syscalls > 0 ? `<div style="font-size: 0.75em; color: #a0aec0; margin-top: 6px;">${p.syscalls.toLocaleString()} syscalls</div>` : ''}
-                        <div class="process-pid">PID: ${p.pid}</div>
+                        ${syscallDisplay}
+                        ${p.syscalls > 0 ? `<div style="font-size: 0.75em; color: #a0aec0; margin-top: 4px;">Total: ${p.syscalls.toLocaleString()} syscalls</div>` : ''}
                     </div>
                 `;
             }).join('');
@@ -1547,7 +1962,19 @@
             chartCounts.anomalies = 0;
             chartCounts.attacks = 0;
             chartCounts.highRisk = 0;
+            // Update chart if it exists
+            if (activityChart) {
+                try {
+                    activityChart.data.labels = [];
+                    // Removed normal line (was dataset 0)
+                    activityChart.data.datasets[0].data = [];  // Anomalies
+                    activityChart.data.datasets[1].data = [];  // Attacks
+                    activityChart.data.datasets[2].data = [];  // High Risk
             activityChart.update('none');
+                } catch (e) {
+                    console.error('Chart reset error:', e);
+                }
+            }
             
             // Add log message
             addLog('🔄 Dashboard values reset - starting fresh monitoring session', 'info');
@@ -1649,7 +2076,9 @@
                 selector.appendChild(liveOption);
                 
                 if (data.logs && data.logs.length > 0) {
-                    data.logs.forEach(log => {
+                    // Only show last 10 historical logs (current/live is already in selector)
+                    const logsToShow = data.logs.slice(0, 10);
+                    logsToShow.forEach(log => {
                         const option = document.createElement('option');
                         option.value = log.filename;
                         option.textContent = `📄 ${log.filename.replace('security_agent_', '').replace('.log', '')} (${log.modified_readable})`;

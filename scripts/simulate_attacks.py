@@ -304,6 +304,33 @@ def simulate_ptrace_attempts():
     
     print(f"{GREEN}✅ Ptrace pattern simulated (high-risk syscalls generated){RESET}")
 
+def simulate_c2_beaconing():
+    """Simulate C2 beaconing pattern (regular intervals to same port)"""
+    print_attack(
+        "C2 Beaconing",
+        "Regular connections to same port at regular intervals (C2 pattern)"
+    )
+    
+    import socket
+    
+    # C2 beaconing: same port, regular intervals
+    target_port = 8080
+    beacon_count = 8
+    interval = 3  # 3-second intervals
+    
+    for i in range(beacon_count):
+        try:
+            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            sock.settimeout(0.1)
+            sock.connect(('127.0.0.1', target_port))  # Same port each time
+            sock.close()
+        except (socket.error, ConnectionRefusedError):
+            pass  # Expected - port not open
+        if i < beacon_count - 1:  # Don't sleep after last beacon
+            time.sleep(interval)  # Regular intervals
+    
+    print(f"{GREEN}✅ C2 beaconing pattern executed ({beacon_count} beacons, {interval}s intervals){RESET}")
+
 def run_all_attacks():
     """Run all attack simulations"""
     print_header("🔴 SAFE ATTACK SIMULATION - Testing Security Agent")
@@ -322,12 +349,40 @@ def run_all_attacks():
         print(f"{GREEN}Non-interactive mode - starting attack simulation...{RESET}")
         time.sleep(2)
     
+    def simulate_c2_beaconing():
+        """Simulate C2 beaconing pattern (regular intervals to same port)"""
+        print_attack(
+            "C2 Beaconing",
+            "Regular connections to same port at regular intervals (C2 pattern)"
+        )
+        
+        import socket
+        
+        # C2 beaconing: same port, regular intervals
+        target_port = 8080
+        beacon_count = 8
+        interval = 3  # 3-second intervals
+        
+        for i in range(beacon_count):
+            try:
+                sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                sock.settimeout(0.1)
+                sock.connect(('127.0.0.1', target_port))  # Same port each time
+                sock.close()
+            except (socket.error, ConnectionRefusedError):
+                pass  # Expected - port not open
+            if i < beacon_count - 1:  # Don't sleep after last beacon
+                time.sleep(interval)  # Regular intervals
+        
+        print(f"{GREEN}✅ C2 beaconing pattern executed ({beacon_count} beacons, {interval}s intervals){RESET}")
+    
     attacks = [
         ("Privilege Escalation", simulate_privilege_escalation),
         ("High-Frequency Attack", simulate_high_frequency_attack),
         ("Suspicious File Patterns", simulate_suspicious_file_patterns),
         ("Process Churn", simulate_process_churn),
         ("Network Scanning", simulate_network_scanning),
+        ("C2 Beaconing", simulate_c2_beaconing),
         ("Ptrace Attempts", simulate_ptrace_attempts),
     ]
     

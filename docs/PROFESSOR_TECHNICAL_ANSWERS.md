@@ -1,8 +1,5 @@
 # Technical Answers for Professor - Linux Security Agent
 
-> **Author**: Master's Student Research Project  
-> **Note**: This document was prepared by a Master's student to answer technical questions about the Linux Security Agent implementation developed as part of academic research.
-
 This document provides detailed answers to technical questions about the Linux Security Agent implementation.
 
 ---
@@ -456,5 +453,5 @@ All critical bugs have been fixed:
 
 ---
 
-**Last Updated**: November 20, 2024
+**Last Updated**: December 11, 2025
 

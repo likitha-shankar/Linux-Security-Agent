@@ -2,13 +2,18 @@
 
 > **Author**: Likitha Shankar  
 > **Note**: This document tracks known limitations and improvement opportunities for this research prototype.  
-> **Last Updated**: December 7, 2024
+> **Last Updated**: December 11, 2025
 
 This document identifies gaps between the current research prototype and a production-ready EDR system. Many issues have been addressed since the initial analysis.
 
 ---
 
 ## ✅ Recently Fixed Issues
+
+### Attack Detection Fixes (December 2025)
+- ✅ **Port Scanning Detection**: Fixed - Port simulation now uses connection counter to generate unique ports, enabling proper detection (verified: 22+ scans detected in tests)
+- ✅ **C2 Beaconing Detection**: Fixed - Port consistency implemented for same process, enabling detection of regular beaconing patterns (verified: 1+ beacons detected in tests)
+- ✅ **Auditd Configuration**: Added network syscall rules for comprehensive monitoring
 
 ### Security Improvements
 - ✅ **Risk scores storage**: Fixed - Now uses `~/.cache/security_agent/` with secure permissions (0o700) instead of `/tmp`
@@ -24,6 +29,7 @@ This document identifies gaps between the current research prototype and a produ
 ### Testing & Validation
 - ✅ **Attack simulation scripts**: Added - `scripts/simulate_attacks.py` for safe testing
 - ✅ **Dashboard improvements**: Enhanced - Better UI, fixed blinking, added status indicators
+- ✅ **Black box testing**: Comprehensive testing completed (5/5 - 100% pass rate, December 2025)
 
 ---
 

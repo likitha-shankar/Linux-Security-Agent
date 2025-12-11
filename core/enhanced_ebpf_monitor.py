@@ -572,24 +572,29 @@ TRACEPOINT_PROBE(raw_syscalls, sys_enter) {
             syscall_num = event.syscall_num
             syscall_name = self._syscall_num_to_name(syscall_num)
             
+            # Extract comm (process name) from eBPF event - captured at kernel level
+            comm = event.comm.decode('utf-8', errors='ignore').strip('\x00').strip()
+            
             # Store event
             self.events.append({
                 'pid': pid,
                 'syscall_num': syscall_num,
                 'syscall_name': syscall_name,
+                'comm': comm,  # Store comm for reference
                 'timestamp': event.timestamp
             })
             
             # Update stats
             self.syscall_stats[syscall_name] += 1
             
-            # Call callback with REAL syscall name
+            # Call callback with REAL syscall name AND comm (process name from kernel)
             if self.event_callback:
                 try:
                     self.event_callback(pid, syscall_name, {
                         'pid': pid,
                         'syscall_num': syscall_num,
                         'syscall_name': syscall_name,  # ✅ REAL syscall name!
+                        'comm': comm,  # ✅ Process name from eBPF kernel capture
                         'timestamp': event.timestamp / 1e9  # Convert to seconds
                     })
                 except Exception as callback_error:

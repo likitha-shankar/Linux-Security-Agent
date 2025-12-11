@@ -77,10 +77,10 @@ class EnhancedAnomalyDetector:
         self.config = config or {}
         
         # Multiple ML models for ensemble detection
-        # Lower contamination (0.03 = 3%) to reduce false positives on normal processes
-        # This makes the model more conservative - only flagging clear anomalies
+        # Increased contamination (0.05 = 5%) to improve detection sensitivity
+        # This makes the model less conservative - flagging more potential anomalies
         self.isolation_forest = IsolationForest(
-            contamination=self.config.get('contamination', 0.03),
+            contamination=self.config.get('contamination', 0.05),
             random_state=42,
             n_estimators=200,
             max_samples='auto',
@@ -89,10 +89,10 @@ class EnhancedAnomalyDetector:
             n_jobs=-1
         )
         
-        # Lower nu (0.03 = 3%) to reduce false positives on normal processes
-        # More conservative threshold for anomaly detection
+        # Increased nu (0.05 = 5%) to improve detection sensitivity
+        # Less conservative threshold for anomaly detection
         self.one_class_svm = OneClassSVM(
-            nu=self.config.get('nu', 0.03),
+            nu=self.config.get('nu', 0.05),
             kernel='rbf',
             gamma='scale',
             tol=1e-3
@@ -580,16 +580,16 @@ class EnhancedAnomalyDetector:
                     # Isolation Forest: score typically ranges -0.5 to 0.5
                     # Negative = anomaly, positive = normal
                     # Normalize to 0-1 where 1 = most anomalous
-                    # Use sigmoid with adjusted scaling: 1 / (1 + exp(score * 8))
-                    # Less steep curve to reduce false positives
-                    normalized = 1.0 / (1.0 + np.exp(score * 8.0))
+                    # Adjusted scaling for better sensitivity: 1 / (1 + exp(score * 6))
+                    # Less steep curve to improve detection
+                    normalized = 1.0 / (1.0 + np.exp(score * 6.0))
                     normalized_scores.append(normalized)
                 elif model == 'one_class_svm':
                     # One-Class SVM: score can range widely (e.g., -20 to 5)
                     # Negative = anomaly, positive = normal
-                    # Use sigmoid with adjusted scaling: 1 / (1 + exp(score * 0.3))
-                    # Less steep curve to reduce false positives
-                    normalized = 1.0 / (1.0 + np.exp(score * 0.3))
+                    # Adjusted scaling for better sensitivity: 1 / (1 + exp(score * 0.25))
+                    # Less steep curve to improve detection
+                    normalized = 1.0 / (1.0 + np.exp(score * 0.25))
                     normalized_scores.append(normalized)
                 else:
                     normalized_scores.append(min(1.0, max(0, score)))
@@ -621,14 +621,16 @@ class EnhancedAnomalyDetector:
         ngram_contribution = 25.0 * ngram_weight * ngram_rarity  # Max 25 points
         risk_score = min(100.0, max(0.0, base_risk_score + ngram_contribution))
         
-        # Final decision: require both ensemble votes AND score threshold
-        # This prevents false positives from low-score detections
-        # HONEST FIX: Increased threshold to 80.0 based on actual false positive analysis
-        # Live system shows normal processes score 60-80, so threshold must be 80+ to reduce FPR
-        # Testing showed 75.0 still too low (43 detections in 30s), 80.0 should be better
-        score_threshold = float(self.config.get('anomaly_score_threshold', 80.0))
-        ensemble_agreement = anomaly_votes >= (total_models / 2) if total_models > 0 else False
-        is_anomaly = ensemble_agreement and (risk_score >= score_threshold)
+        # Final decision: use score threshold primarily, ensemble votes as secondary check
+        # Lowered threshold to 60.0 for better detection sensitivity
+        # Score 60+ indicates suspicious behavior that should be flagged
+        score_threshold = float(self.config.get('anomaly_score_threshold', 60.0))
+        # More lenient: either high score OR ensemble agreement
+        # This ensures we catch anomalies even if models don't fully agree
+        ensemble_agreement = anomaly_votes >= 1 if total_models > 0 else False
+        # Flag as anomaly if: (1) score is high enough OR (2) ensemble agrees AND score is reasonable
+        # Lowered to 50.0 for ensemble agreement to catch more anomalies
+        is_anomaly = (risk_score >= score_threshold) or (ensemble_agreement and risk_score >= 50.0)
         
         # Calculate confidence with calibration if available
         if self.calibrator and self.calibrator.is_calibrated:

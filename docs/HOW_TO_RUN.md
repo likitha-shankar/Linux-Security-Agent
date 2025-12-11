@@ -93,15 +93,24 @@ python3 -c "from core.enhanced_anomaly_detector import EnhancedAnomalyDetector; 
 
 ### Option A: Simple Agent (Recommended for First Time)
 
+**IMPORTANT: Configure auditd first (if using auditd collector):**
 ```bash
-# Run with eBPF collector (best performance)
-sudo python3 core/simple_agent.py --collector ebpf --threshold 20
+# Configure auditd to log network syscalls (required for attack detection)
+sudo auditctl -a always,exit -F arch=b64 -S socket -S connect -S bind -S accept -S sendto -S recvfrom -k network_syscalls
 
-# Or with auditd collector (more reliable fallback)
-sudo python3 core/simple_agent.py --collector auditd --threshold 20
+# Verify rules are set
+sudo auditctl -l | grep network_syscalls
+```
+
+```bash
+# Run with auditd collector (most reliable, recommended)
+sudo python3 core/simple_agent.py --collector auditd --threshold 30
+
+# Or with eBPF collector (best performance, if available)
+sudo python3 core/simple_agent.py --collector ebpf --threshold 30
 
 # Run in headless mode (no dashboard, for automation)
-sudo python3 core/simple_agent.py --collector ebpf --threshold 20 --headless
+sudo python3 core/simple_agent.py --collector auditd --threshold 30 --headless
 ```
 
 **What you'll see:**

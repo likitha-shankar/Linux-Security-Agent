@@ -19,6 +19,7 @@ try:
     from core.enhanced_anomaly_detector import EnhancedAnomalyDetector
     from core.enhanced_ebpf_monitor import StatefulEBPFMonitor
     IMPORTS_AVAILABLE = True
+    IMPORT_ERROR = None
 except ImportError as e:
     IMPORTS_AVAILABLE = False
     IMPORT_ERROR = str(e)
