@@ -18,6 +18,14 @@ from typing import Dict, List, Optional, Any
 from datetime import datetime
 from pathlib import Path
 
+try:
+    # Prefer explicit Central Time for log file naming so timestamps
+    # match the demo / presentation timezone regardless of server TZ.
+    from zoneinfo import ZoneInfo  # Python 3.9+
+    _CENTRAL_TZ = ZoneInfo("America/Chicago")
+except Exception:
+    _CENTRAL_TZ = None
+
 # Add core to path
 _core_dir = os.path.dirname(os.path.abspath(__file__))
 if _core_dir not in sys.path:
@@ -36,7 +44,13 @@ def setup_logging(log_dir=None):
     log_dir.mkdir(parents=True, exist_ok=True)
     
     # Create timestamped log file: security_agent_YYYY-MM-DD_HH-MM-SS.log
-    timestamp = datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
+    # Use US Central time (America/Chicago) for filenames so they align with the
+    # expected demo timezone, even if the VM/system is running in UTC.
+    if _CENTRAL_TZ is not None:
+        timestamp = datetime.now(_CENTRAL_TZ).strftime('%Y-%m-%d_%H-%M-%S')
+    else:
+        # Fallback to local time if zoneinfo is unavailable
+        timestamp = datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
     log_file = log_dir / f'security_agent_{timestamp}.log'
     
     # Also create a symlink to the latest log for backward compatibility
@@ -219,6 +233,12 @@ class SimpleSecurityAgent:
         # Store agent's own PID to exclude from detection (prevent self-detection false positives)
         self.agent_pid = os.getpid()
         logger.info(f"Agent PID: {self.agent_pid} (will be excluded from detection)")
+        
+        # Warm-up period: Suppress connection pattern detections during first few minutes
+        # This prevents false positives from normal system startup activity (SSH, DNS, package checks, etc.)
+        self.startup_time = time.time()
+        self.warmup_period_seconds = self.config.get('warmup_period_seconds', 180)  # 3 minutes default
+        logger.info(f"Warm-up period: {self.warmup_period_seconds}s (connection pattern detections suppressed during startup)")
         
         # Known system processes to exclude (optional, can be configured)
         self.excluded_pids = set([self.agent_pid])
@@ -918,26 +938,40 @@ class SimpleSecurityAgent:
                             conn_result = None
                         
                         if conn_result:
-                            connection_risk_bonus = 30.0  # Boost risk for connection patterns
-                            pattern_type = conn_result.get('type', 'UNKNOWN')
-                            explanation = conn_result.get('explanation', 'No explanation')
+                            # Check if we're still in warm-up period (suppress false positives from startup)
+                            time_since_startup = time.time() - self.startup_time
+                            if time_since_startup < self.warmup_period_seconds:
+                                remaining_warmup = self.warmup_period_seconds - time_since_startup
+                                # Only log once when warm-up period ends (avoid spam)
+                                if not hasattr(self, '_warmup_logged') or not self._warmup_logged:
+                                    logger.info(f"⏳ Warm-up period active: Suppressing connection pattern detections for {(remaining_warmup):.0f}s (prevents false positives from startup)")
+                                    self._warmup_logged = True
+                                conn_result = None  # Ignore detection during warm-up
+                            elif time_since_startup >= self.warmup_period_seconds and not hasattr(self, '_warmup_ended_logged'):
+                                logger.info(f"✅ Warm-up period ended - connection pattern detections are now active")
+                                self._warmup_ended_logged = True
                             
-                            logger.warning(f"🌐 CONNECTION PATTERN DETECTED: {pattern_type} PID={pid} Process={proc['name']}")
-                            logger.warning(f"   Details: {explanation}")
-                            logger.warning(f"   Destination: {dest_ip}:{dest_port} (NOTE: Port may be simulated)")
-                            logger.warning(f"   Risk bonus added: +{connection_risk_bonus:.1f}")
-                            
-                            # Update stats
-                            if pattern_type == 'C2_BEACONING':
-                                # Track with timestamp for recent count
-                                self.recent_c2_detections.append(time.time())
-                                self.stats['c2_beacons'] = self._count_recent_detections(self.recent_c2_detections)
-                                logger.warning(f"   C2 beaconing detected (recent count: {self.stats['c2_beacons']})")
-                            elif pattern_type == 'PORT_SCANNING':
-                                # Track with timestamp for recent count
-                                self.recent_scan_detections.append(time.time())
-                                self.stats['port_scans'] = self._count_recent_detections(self.recent_scan_detections)
-                                logger.warning(f"   Port scan detected (recent count: {self.stats['port_scans']})")
+                            if conn_result:
+                                connection_risk_bonus = 30.0  # Boost risk for connection patterns
+                                pattern_type = conn_result.get('type', 'UNKNOWN')
+                                explanation = conn_result.get('explanation', 'No explanation')
+                                
+                                logger.warning(f"🌐 CONNECTION PATTERN DETECTED: {pattern_type} PID={pid} Process={proc['name']}")
+                                logger.warning(f"   Details: {explanation}")
+                                logger.warning(f"   Destination: {dest_ip}:{dest_port} (NOTE: Port may be simulated)")
+                                logger.warning(f"   Risk bonus added: +{connection_risk_bonus:.1f}")
+                                
+                                # Update stats
+                                if pattern_type == 'C2_BEACONING':
+                                    # Track with timestamp for recent count
+                                    self.recent_c2_detections.append(time.time())
+                                    self.stats['c2_beacons'] = self._count_recent_detections(self.recent_c2_detections)
+                                    logger.warning(f"   C2 beaconing detected (recent count: {self.stats['c2_beacons']})")
+                                elif pattern_type == 'PORT_SCANNING':
+                                    # Track with timestamp for recent count
+                                    self.recent_scan_detections.append(time.time())
+                                    self.stats['port_scans'] = self._count_recent_detections(self.recent_scan_detections)
+                                    logger.warning(f"   Port scan detected (recent count: {self.stats['port_scans']})")
                     except AttributeError as e:
                         logger.debug(f"Connection pattern analysis AttributeError for PID {pid}: {e}")
                         logger.debug(f"   Traceback: {traceback.format_exc()}")

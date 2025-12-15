@@ -8,6 +8,7 @@ sudo pkill -9 -f simple_agent.py || true
 pkill -9 -f app.py || true
 pkill -9 -f START_COMPLETE_DEMO.sh || true
 pkill -9 -f "scripts/simulate_attacks.py" || true
+sudo rm -f /tmp/security_agent_state.json
 ```
 
 ---

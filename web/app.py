@@ -309,6 +309,51 @@ def api_start_agent():
 def api_get_agent_state():
     """Get current agent state (synchronized with terminal dashboard)"""
     try:
+        # First, check if agent is currently running.
+        # If not running, we should return a fully reset/empty state so the
+        # dashboard cards all go to zero when the agent is stopped.
+        agent_running = False
+        try:
+            result = subprocess.run(['pgrep', '-f', 'simple_agent.py'],
+                                    capture_output=True, text=True, timeout=2)
+            if result.returncode == 0 and result.stdout.strip():
+                agent_running = True
+        except Exception:
+            # If process check fails, fall back to file-based logic below.
+            pass
+
+        # If agent is NOT running, reset state and (optionally) clean up stale state files
+        if not agent_running:
+            project_root = Path(__file__).parent.parent
+            possible_state_files = [
+                Path('/tmp/security_agent_state.json'),
+                Path.home() / '.cache' / 'security_agent' / 'agent_state.json',
+                Path('/root/.cache/security_agent/agent_state.json'),
+                project_root / '.cache' / 'security_agent' / 'agent_state.json',
+            ]
+
+            # Best-effort cleanup of old state files so a fresh dashboard open starts from zero
+            for state_path in possible_state_files:
+                try:
+                    if state_path.exists():
+                        state_path.unlink()
+                except Exception:
+                    # Ignore filesystem errors – API response should still succeed
+                    pass
+
+            # Return a fully-reset state (no processes, zero stats)
+            return jsonify({
+                'processes': [],
+                'stats': {
+                    'total_processes': 0,
+                    'high_risk': 0,
+                    'anomalies': 0,
+                    'total_syscalls': 0,
+                    'c2_beacons': 0,
+                    'port_scans': 0,
+                }
+            }), 200
+
         # Try multiple possible state file locations
         project_root = Path(__file__).parent.parent
         possible_state_files = [
@@ -402,9 +447,25 @@ def api_stop_agent():
     except (subprocess.TimeoutExpired, ValueError, FileNotFoundError):
         pass
     
-    # If agent is not running, return success (already stopped)
+    # If agent is not running, also reset state so dashboard shows zeroed metrics
     if not agent_running:
-        return jsonify({'message': 'Agent is already stopped', 'stopped': True})
+        try:
+            project_root = Path(__file__).parent.parent
+            possible_state_files = [
+                Path('/tmp/security_agent_state.json'),
+                Path.home() / '.cache' / 'security_agent' / 'agent_state.json',
+                Path('/root/.cache/security_agent/agent_state.json'),
+                project_root / '.cache' / 'security_agent' / 'agent_state.json',
+            ]
+            for state_path in possible_state_files:
+                try:
+                    if state_path.exists():
+                        state_path.unlink()
+                except Exception:
+                    pass
+        except Exception:
+            pass
+        return jsonify({'message': 'Agent is already stopped', 'stopped': True, 'state_reset': True})
     
     try:
         # Try to stop the tracked process first (if started via web)
@@ -455,7 +516,43 @@ def api_stop_agent():
                           capture_output=True, timeout=5, check=False)
         except:
             pass
-        return jsonify({'error': str(e)}), 500
+        # Also best-effort state reset even on error, so dashboard is consistent
+        try:
+            project_root = Path(__file__).parent.parent
+            possible_state_files = [
+                Path('/tmp/security_agent_state.json'),
+                Path.home() / '.cache' / 'security_agent' / 'agent_state.json',
+                Path('/root/.cache/security_agent/agent_state.json'),
+                project_root / '.cache' / 'security_agent' / 'agent_state.json',
+            ]
+            for state_path in possible_state_files:
+                try:
+                    if state_path.exists():
+                        state_path.unlink()
+                except Exception:
+                    pass
+        except Exception:
+            pass
+        return jsonify({'error': str(e), 'state_reset': True}), 500
+
+    # After successful stop, clear monitoring flag and reset state files so dashboard starts from zero
+    try:
+        monitoring_active = False
+        project_root = Path(__file__).parent.parent
+        possible_state_files = [
+            Path('/tmp/security_agent_state.json'),
+            Path.home() / '.cache' / 'security_agent' / 'agent_state.json',
+            Path('/root/.cache/security_agent/agent_state.json'),
+            project_root / '.cache' / 'security_agent' / 'agent_state.json',
+        ]
+        for state_path in possible_state_files:
+            try:
+                if state_path.exists():
+                    state_path.unlink()
+            except Exception:
+                pass
+    except Exception:
+        pass
 
 def monitor_agent_logs():
     """Monitor agent log file and emit updates via WebSocket"""
