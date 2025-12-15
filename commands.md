@@ -37,6 +37,9 @@ python3 -c "from scripts.simulate_attacks import simulate_network_scanning; simu
 
 # Only C2 beaconing (if you want to try to trigger it live)
 python3 -c "from scripts.simulate_attacks import simulate_c2_beaconing; simulate_c2_beaconing()"
+
+
+cat /tmp/security_agent_state.json | jq '.stats'
 ```
 
 ---
@@ -46,20 +49,26 @@ python3 -c "from scripts.simulate_attacks import simulate_c2_beaconing; simulate
 ```bash
 cd ~/Linux-Security-Agent
 
-# Live logs (everything)
-sudo tail -f logs/security_agent_*.log
+# Get the latest log file (current session)
+LATEST_LOG=$(ls -t logs/security_agent_*.log 2>/dev/null | head -1)
 
-# Only high-risk + anomalies
-sudo tail -f logs/security_agent_*.log | grep -E "HIGH RISK DETECTED|ANOMALY DETECTED"
+# Live logs (everything) - current log only
+sudo tail -f "$LATEST_LOG"
 
-# Only high-risk (short snapshot)
-sudo grep "HIGH RISK DETECTED" logs/security_agent_*.log | tail -20
+# Only high-risk + anomalies - current log only
+sudo tail -f "$LATEST_LOG" | grep -E "HIGH RISK DETECTED|ANOMALY DETECTED"
 
-# Only anomalies (short snapshot)
-sudo grep "ANOMALY DETECTED" logs/security_agent_*.log | tail -20
+# Only high-risk (short snapshot) - current log only
+sudo grep "HIGH RISK DETECTED" "$LATEST_LOG" | tail -20
 
-# Only network-pattern attacks (port scan + C2) – good for showing T1046 / T1071
-sudo grep -E "PORT_SCANNING|C2_BEACONING" logs/security_agent_*.log | tail -20
+# Only anomalies (short snapshot) - current log only
+sudo grep "ANOMALY DETECTED" "$LATEST_LOG" | tail -20
+
+# Only network-pattern attacks (port scan + C2) – good for showing T1046 / T1071 - current log only
+sudo grep -E "PORT_SCANNING|C2_BEACONING" "$LATEST_LOG" | tail -20
+
+# Or use the symlink (always points to latest)
+sudo tail -f logs/security_agent.log | grep -E "PORT_SCANNING|C2_BEACONING"
 ```
 
 ---
@@ -90,21 +99,34 @@ From dashboard (e.g. `PID 636393`, process `groups`):
 ```bash
 cd ~/Linux-Security-Agent
 
-# Show all log lines for this PID
-sudo grep "PID=636393" logs/security_agent_*.log | tail -20
+# Get the latest log file (current session)
+LATEST_LOG=$(ls -t logs/security_agent_*.log 2>/dev/null | head -1)
 
-# Or by process name
-sudo grep "Process=groups" logs/security_agent_*.log | tail -20
+# Show all log lines for this PID - current log only
+sudo grep "PID=636393" "$LATEST_LOG" | tail -20
+
+# Or by process name - current log only
+sudo grep "Process=groups" "$LATEST_LOG" | tail -20
+
+# Or use the symlink
+sudo grep "PID=636393" logs/security_agent.log | tail -20
 ```
 
 ---
 
-### 6. Show a C2 beaconing example from past runs (if needed)
+### 6. Show a C2 beaconing example from current log (if needed)
 
 ```bash
 cd ~/Linux-Security-Agent
 
-sudo grep -n "C2_BEACONING" logs/security_agent_*.log | tail -10
+# Get the latest log file (current session)
+LATEST_LOG=$(ls -t logs/security_agent_*.log 2>/dev/null | head -1)
+
+# Show C2 beaconing from current log only
+sudo grep -n "C2_BEACONING" "$LATEST_LOG" | tail -10
+
+# Or use the symlink
+sudo grep -n "C2_BEACONING" logs/security_agent.log | tail -10
 ```
 
 This prints lines like:
