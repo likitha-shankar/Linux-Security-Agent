@@ -1183,8 +1183,8 @@ class SimpleSecurityAgent:
                             
                             # Automated response for anomalies (if enabled and risk is high enough)
                             if self.response_handler and self.response_handler.enabled:
-                            # Only take action if both anomaly AND risk are high
-                            if anomaly_score >= 70.0 and risk_score >= 70.0:
+                                # Only take action if both anomaly AND risk are high
+                                if anomaly_score >= 70.0 and risk_score >= 70.0:
                                 reason = f"ML anomaly detected: {anomaly_score:.1f}, Risk: {risk_score:.1f}"
                                 action = self.response_handler.take_action(
                                     pid=pid,
