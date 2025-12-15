@@ -31,6 +31,20 @@ _core_dir = os.path.dirname(os.path.abspath(__file__))
 if _core_dir not in sys.path:
     sys.path.insert(0, _core_dir)
 
+# Custom formatter to use Chicago timezone for log timestamps
+class ChicagoTimeFormatter(logging.Formatter):
+    """Custom formatter that converts log timestamps to Chicago timezone"""
+    def formatTime(self, record, datefmt=None):
+        if _CENTRAL_TZ is not None:
+            # Convert to Chicago timezone
+            dt = datetime.fromtimestamp(record.created, tz=_CENTRAL_TZ)
+            if datefmt:
+                return dt.strftime(datefmt)
+            return dt.strftime('%Y-%m-%d %H:%M:%S')
+        else:
+            # Fallback to default behavior if timezone not available
+            return super().formatTime(record, datefmt)
+
 # Setup logging with file output
 def setup_logging(log_dir=None):
     """Setup logging to both console and file with timestamped filename"""
@@ -82,13 +96,13 @@ def setup_logging(log_dir=None):
         encoding='utf-8'
     )
     file_handler.setLevel(logging.DEBUG)  # More detailed in file
-    file_handler.setFormatter(logging.Formatter(detailed_format))
+    file_handler.setFormatter(ChicagoTimeFormatter(detailed_format))
     root_logger.addHandler(file_handler)
     
     # Console handler
     console_handler = logging.StreamHandler(sys.stdout)
     console_handler.setLevel(logging.INFO)  # Less verbose on console
-    console_handler.setFormatter(logging.Formatter(console_format))
+    console_handler.setFormatter(ChicagoTimeFormatter(console_format))
     root_logger.addHandler(console_handler)
     
     return str(log_file)
