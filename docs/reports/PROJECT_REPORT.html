@@ -1271,12 +1271,12 @@
             <h4>4.1.1 High-Level System Architecture</h4>
             <div class="code-block" style="background: #f7fafc; padding: 20px; border-left: 4px solid #667eea; margin: 20px 0; font-family: 'Courier New', monospace; font-size: 0.85em; line-height: 1.4; overflow-x: auto;">
 <pre style="margin: 0; color: #2d3748;">
-┌───────────────────────────────────────────────────────────────────────────┐
+┌─────────────────────────────────────────────────────────────────────────────┐
 │                         Linux Security Agent                                │
-│                      (Research Prototype - Academic)                        │
-└───────────────────────────────────────────────────────────────────────────┘
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
                                     │
-                    ┌───────────┴───────────────┐
+                    ┌───────────────┴───────────────┐
                     │                               │
             ┌───────▼───────┐               ┌───────▼───────┐
             │   Collector   │               │   Collector   │
@@ -1289,31 +1289,31 @@
                     └───────────────┬───────────────┘
                                     │
                     ┌───────────────▼───────────────┐
-                    │   Collector Factory            │
-                    │   (Auto-fallback logic)        │
+                    │   Collector Factory           │
+                    │   (Auto-fallback logic)       │
                     └───────────────┬───────────────┘
                                     │
                     ┌───────────────▼───────────────┐
-                    │   SimpleSecurityAgent          │
+                    │   SimpleSecurityAgent         │
                     │   (Main Orchestrator)         │
                     └───────────────┬───────────────┘
                                     │
-        ┌───────────────┬───────────┤──────────┬────────────────┐
-        │               │           │          │                │
-┌───────▼────────┐ ┌────▼─────┐ ┌──▼────────┐ ┌▼──────────┐ ┌─▼────────────┐
-│ Risk Scorer   │ │Connection│ │Anomaly    │ │Process    │ │Response      │
-│               │ │Pattern   │ │Detector   │ │Tracker    │ │Handler       │
-│ - Base weights│ │Analyzer  │ │(ML)       │ │           │ │(Optional)    │
-│ - Deviation   │ │          │ │- Isolation│ │- PID track│ │              │
-│ - Container   │ │- Port    │ │  Forest   │ │- Syscall  │ │- Warn/Freeze │
-│ - Behavioral  │ │  Scanning│ │- One-Class│ │  history  │ │- Kill (Safe) │
-│               │ │- C2      │ │  SVM      │ │- Stateful │ │- Disabled by │
-│               │ │  Beaconing│ │- DBSCAN   │ │  data     │ │  default     │
-│               │ │- Exfil   │ │- N-gram   │ │- Name     │ │              │
-│               │ │- Risk+30 │ │  Bigram   │ │  resolver │ │              │
-└───────┬────────┘ └────┬─────┘ └──┬────────┘ └┬──────────┘ └─┬────────────┘
+        ┌───────────────┬───────────┼───────────────┬──────────────┐
+        │               │           │               │              │
+┌───────▼────────┐ ┌────▼─────┐ ┌────▼──────┐ ┌─────▼─────┐ ┌──────▼───────┐
+│ Risk Scorer    │ │Connection│ │Anomaly    │ │Process    │ │Response      │
+│                │ │Pattern   │ │Detector   │ │Tracker    │ │Handler       │
+│ - Base weights │ │Analyzer  │ │(ML)       │ │           │ │(Optional)    │
+│ - Deviation    │ │          │ │- Isolation│ │- PID track│ │              │
+│ - Container    │ │- Port    │ │  Forest   │ │- Syscall  │ │- Warn/Freeze │
+│ - Behavioral   │ │  Scanning│ │- One-Class│ │  history  │ │- Kill (Safe) │
+│                │ │- C2      │ │  SVM      │ │- Stateful │ │- Disabled by │
+│                │ │ Beaconing│ │- DBSCAN   │ │  data     │ │  default     │
+│                │ │- Exfil   │ │- N-gram   │ │- Name     │ │              │
+│                │ │- Risk+30 │ │  Bigram   │ │  resolver │ │              │
+└───────┬────────┘ └────┬─────┘ └───┬───────┘ └─┬─────────┘ └──┬───────────┘
         │               │           │           │              │
-        └───────────────┴───────────┤───────────┴──────────────────┘
+        └───────────────┴───────────┼───────────┴──────────────┘
                                     │
                     ┌───────────────▼───────────────┐
                     │   Dashboard (Rich TUI)        │
@@ -1541,7 +1541,7 @@
 <pre style="margin: 0; color: #2d3748;">
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │              CONNECTION PATTERN ANALYZER                                    │
-│              (Port Scanning, C2 Beaconing, Data Exfiltration)              │
+│              (Port Scanning, C2 Beaconing, Data Exfiltration)               │
 └─────────────────────────────────────────────────────────────────────────────┘
 
 ┌──────────────────┐
@@ -1558,91 +1558,90 @@
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │  Connection Tracking                                                        │
 │  ┌───────────────────────────────────────────────────────────────────────┐  │
-│  │ Track connections by:                                                  │  │
-│  │  - PID (process ID)                                                    │  │
+│  │  - PID (process ID)                                                   │  │
 │  │  - Process Name + Dest IP (for short-lived processes)                 │  │
-│  │                                                                        │  │
-│  │ Store:                                                                 │  │
-│  │  - Destination IP:Port                                                 │  │
-│  │  - Timestamp                                                           │  │
-│  │  - Unique ports accessed                                               │  │
-│  │  - Connection intervals                                                │  │
+│  │                                                                       │  │
+│  │ Store:                                                                │  │
+│  │  - Destination IP:Port                                                │  │
+│  │  - Timestamp                                                          │  │
+│  │  - Unique ports accessed                                              │  │
+│  │  - Connection intervals                                               │  │
 │  └───────────────────────────────────────────────────────────────────────┘  │
 └────────────────────────────────┬────────────────────────────────────────────┘
                                  │
                                  ▼
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│  Pattern Detection (3 Detection Types)                                     │
+│  Pattern Detection (3 Detection Types)                                      │
 ├─────────────────────────────────────────────────────────────────────────────┤
 │                                                                             │
-│  ┌─────────────────────────────────────────────────────────────────────┐   │
-│  │ 1. PORT SCANNING DETECTION                                          │   │
-│  │                                                                     │   │
-│  │ Algorithm:                                                          │   │
-│  │   - Count unique ports accessed                                     │   │
-│  │   - Check timeframe (< 60 seconds)                                  │   │
-│  │   - Threshold: 5+ unique ports                                      │   │
-│  │                                                                     │   │
-│  │ Example:                                                            │   │
-│  │   Process connects to: 8000, 8001, 8002, 8003, 8004                │   │
-│  │   Within: 30 seconds                                                │   │
-│  │   → PORT SCAN DETECTED!                                             │   │
-│  │                                                                     │   │
-│  │ Output:                                                             │   │
-│  │   - Type: PORT_SCANNING                                             │   │
-│  │   - MITRE: T1046                                                    │   │
-│  │   - Risk Score: +75                                                 │   │
-│  │   - Confidence: 85%                                                 │   │
-│  │   - Severity: HIGH                                                  │   │
-│  └─────────────────────────────────────────────────────────────────────┘   │
+│  ┌─────────────────────────────────────────────────────────────────────┐    │
+│  │ 1. PORT SCANNING DETECTION                                          │    │
+│  │                                                                     │    │
+│  │ Algorithm:                                                          │    │
+│  │   - Count unique ports accessed                                     │    │
+│  │   - Check timeframe (< 60 seconds)                                  │    │ 
+│  │   - Threshold: 5+ unique ports                                      │    │
+│  │                                                                     │    │
+│  │ Example:                                                            │    │
+│  │   Process connects to: 8000, 8001, 8002, 8003, 8004                 │    │
+│  │   Within: 30 seconds                                                │    │
+│  │   → PORT SCAN DETECTED!                                             │    │
+│  │                                                                     │    │
+│  │ Output:                                                             │    │
+│  │   - Type: PORT_SCANNING                                             │    │
+│  │   - MITRE: T1046                                                    │    │
+│  │   - Risk Score: +75                                                 │    │
+│  │   - Confidence: 85%                                                 │    │
+│  │   - Severity: HIGH                                                  │    │
+│  └─────────────────────────────────────────────────────────────────────┘    │
 │                                                                             │
-│  ┌─────────────────────────────────────────────────────────────────────┐   │
-│  │ 2. C2 BEACONING DETECTION                                           │   │
-│  │                                                                     │   │
-│  │ Algorithm:                                                          │   │
-│  │   - Track connection intervals                                      │   │
-│  │   - Calculate mean interval                                         │   │
-│  │   - Calculate standard deviation                                    │   │
-│  │   - Check for regularity                                            │   │
-│  │                                                                     │   │
-│  │ Requirements:                                                       │   │
-│  │   - Minimum 3 connections                                           │   │
-│  │   - Intervals ≥ 2.0 seconds                                         │   │
-│  │   - Std deviation < 5.0 seconds (low variance = regular)            │   │
-│  │                                                                     │   │
-│  │ Example:                                                            │   │
-│  │   Connections at: t=0s, t=3s, t=6s, t=9s, t=12s                    │   │
-│  │   Intervals: [3s, 3s, 3s, 3s]                                      │   │
-│  │   Mean: 3.0s, StdDev: 0.0s                                          │   │
-│  │   → C2 BEACONING DETECTED!                                          │   │
-│  │                                                                     │   │
-│  │ Output:                                                             │   │
-│  │   - Type: C2_BEACONING                                              │   │
-│  │   - MITRE: T1071                                                    │   │
-│  │   - Risk Score: +85                                                 │   │
-│  │   - Confidence: 90%                                                 │   │
-│  │   - Severity: HIGH                                                  │   │
-│  └─────────────────────────────────────────────────────────────────────┘   │
+│  ┌─────────────────────────────────────────────────────────────────────┐    │
+│  │ 2. C2 BEACONING DETECTION                                           │    │
+│  │                                                                     │    │
+│  │ Algorithm:                                                          │    │
+│  │   - Track connection intervals                                      │    │
+│  │   - Calculate mean interval                                         │    │
+│  │   - Calculate standard deviation                                    │    │
+│  │   - Check for regularity                                            │    │
+│  │                                                                     │    │
+│  │ Requirements:                                                       │    │
+│  │   - Minimum 3 connections                                           │    │
+│  │   - Intervals ≥ 2.0 seconds                                         │    │
+│  │   - Std deviation < 5.0 seconds (low variance = regular)            │    │
+│  │                                                                     │    │
+│  │ Example:                                                            │    │
+│  │   Connections at: t=0s, t=3s, t=6s, t=9s, t=12s                     │    │
+│  │   Intervals: [3s, 3s, 3s, 3s]                                       │    │
+│  │   Mean: 3.0s, StdDev: 0.0s                                          │    │
+│  │   → C2 BEACONING DETECTED!                                          │    │
+│  │                                                                     │    │
+│  │ Output:                                                             │    │
+│  │   - Type: C2_BEACONING                                              │    │
+│  │   - MITRE: T1071                                                    │    │
+│  │   - Risk Score: +85                                                 │    │
+│  │   - Confidence: 90%                                                 │    │
+│  │   - Severity: HIGH                                                  │    │
+│  └─────────────────────────────────────────────────────────────────────┘    │
 │                                                                             │
-│  ┌─────────────────────────────────────────────────────────────────────┐   │
-│  │ 3. DATA EXFILTRATION DETECTION                                      │   │
-│  │                                                                     │   │
-│  │ Algorithm:                                                          │   │
-│  │   - Track bytes sent/received                                       │   │
-│  │   - Calculate upload/download ratio                                 │   │
-│  │   - Check threshold                                                 │   │
-│  │                                                                     │   │
-│  │ Requirements:                                                       │   │
-│  │   - Bytes sent > 100 MB                                             │   │
-│  │   - High send/receive ratio (lots of upload, little download)      │   │
-│  │                                                                     │   │
-│  │ Output:                                                             │   │
-│  │   - Type: DATA_EXFILTRATION                                         │   │
-│  │   - MITRE: T1041                                                    │   │
-│  │   - Risk Score: +90                                                 │   │
-│  │   - Confidence: 80%                                                 │   │
-│  │   - Severity: CRITICAL                                              │   │
-│  └─────────────────────────────────────────────────────────────────────┘   │
+│  ┌─────────────────────────────────────────────────────────────────────┐    │
+│  │ 3. DATA EXFILTRATION DETECTION                                      │    │
+│  │                                                                     │    │
+│  │ Algorithm:                                                          │    │
+│  │   - Track bytes sent/received                                       │    │
+│  │   - Calculate upload/download ratio                                 │    │
+│  │   - Check threshold                                                 │    │
+│  │                                                                     │    │
+│  │ Requirements:                                                       │    │
+│  │   - Bytes sent > 100 MB                                             │    │
+│  │   - High send/receive ratio (lots of upload, little download)       │    │
+│  │                                                                     │    │
+│  │ Output:                                                             │    │
+│  │   - Type: DATA_EXFILTRATION                                         │    │
+│  │   - MITRE: T1041                                                    │    │
+│  │   - Risk Score: +90                                                 │    │
+│  │   - Confidence: 80%                                                 │    │
+│  │   - Severity: CRITICAL                                              │    │
+│  └─────────────────────────────────────────────────────────────────────┘    │
 │                                                                             │
 └────────────────────────────────┬────────────────────────────────────────────┘
                                  │
@@ -1651,14 +1650,14 @@
 │  Risk Score Integration                                                     │
 │  ┌───────────────────────────────────────────────────────────────────────┐  │
 │  │ Connection Pattern Detected → Add Risk Bonus                          │  │
-│  │                                                                        │  │
-│  │ connection_risk_bonus = +30 points                                     │  │
-│  │                                                                        │  │
-│  │ Final Risk Score:                                                      │  │
+│  │                                                                       │  │
+│  │ connection_risk_bonus = +30 points                                    │  │
+│  │                                                                       │  │
+│  │ Final Risk Score:                                                     │  │
 │  │   final_risk = base_risk_score + connection_risk_bonus                │  │
-│  │                                                                        │  │
-│  │ Example:                                                               │  │
-│  │   base_risk = 45                                                       │  │
+│  │                                                                       │  │
+│  │ Example:                                                              │  │
+│  │   base_risk = 45                                                      │  │
 │  │   connection_bonus = +30 (port scan detected)                         │  │
 │  │   final_risk = 75 → HIGH RISK!                                        │  │
 │  └───────────────────────────────────────────────────────────────────────┘  │
@@ -1761,19 +1760,19 @@
             <div class="code-block" style="background: #f7fafc; padding: 20px; border-left: 4px solid #667eea; margin: 20px 0; font-family: 'Courier New', monospace; font-size: 0.85em; line-height: 1.4; overflow-x: auto;">
 <pre style="margin: 0; color: #2d3748;">
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                            DATA FLOW PIPELINE                                │
+│                            DATA FLOW PIPELINE                               │
 └─────────────────────────────────────────────────────────────────────────────┘
 
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │  COLLECTION LAYER                                                           │
 ├─────────────────────────────────────────────────────────────────────────────┤
 │                                                                             │
-│  ┌──────────────┐              ┌──────────────┐                           │
-│  │ eBPF Monitor │              │ auditd       │                           │
-│  │              │              │ Collector    │                           │
-│  │ - BCC hooks  │              │ - Log parser │                           │
-│  │ - Perf buf   │              │ - Event norm │                           │
-│  └──────┬───────┘              └──────┬───────┘                           │
+│  ┌──────────────┐              ┌──────────────┐                             │
+│  │ eBPF Monitor │              │ auditd       │                             │
+│  │              │              │ Collector    │                             │
+│  │ - BCC hooks  │              │ - Log parser │                             │
+│  │ - Perf buf   │              │ - Event norm │                             │
+│  └──────┬───────┘              └──────┬───────┘                             │
 │         │                              │                                    │
 │         └──────────────┬───────────────┘                                    │
 │                        │                                                    │
@@ -1781,107 +1780,107 @@
 │              │ Collector Factory │                                          │
 │              │ (Unified Schema)  │                                          │
 │              └─────────┬─────────┘                                          │
-│                       │                                                    │
+│                       │                                                     │
 │              ┌─────────▼─────────┐                                          │
-│              │  SyscallEvent   │                                          │
-│              │  {              │                                          │
-│              │    ts: float    │                                          │
-│              │    pid: int     │                                          │
-│              │    syscall: str │                                          │
-│              │    comm: str   │                                          │
-│              │    ...         │                                          │
-│              │  }              │                                          │
-│              └─────────────────┘                                          │
-└────────────────────────┬──────────────────────────────────────────────────┘
+│              │  SyscallEvent   │                                            │
+│              │  {              │                                            │
+│              │    ts: float    │                                            │
+│              │    pid: int     │                                            │
+│              │    syscall: str │                                            │
+│              │    comm: str   │                                             │
+│              │    ...         │                                             │
+│              │  }              │                                            │
+│              └─────────────────┘                                            │
+└────────────────────────┬────────────────────────────────────────────────────┘
                          │
                          ▼
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│  PROCESSING LAYER                                                            │
+│  PROCESSING LAYER                                                           │
 ├─────────────────────────────────────────────────────────────────────────────┤
 │                                                                             │
-│  ┌─────────────────────────────────────────────────────────────────────┐   │
-│  │  Event Handler (_handle_event)                                      │   │
-│  │  - Update process state                                             │   │
-│  │  - Maintain syscall history (deque, maxlen=100)                     │   │
-│  │  - Thread-safe updates (processes_lock)                            │   │
-│  │  - Process name resolution (eBPF comm → /proc → psutil)             │   │
-│  └────────────────────┬────────────────────────────────────────────────┘   │
-│                       │                                                      │
+│  ┌─────────────────────────────────────────────────────────────────────┐    │
+│  │  Event Handler (_handle_event)                                      │    │
+│  │  - Update process state                                             │    │
+│  │  - Maintain syscall history (deque, maxlen=100)                     │    │
+│  │  - Thread-safe updates (processes_lock)                             │    │
+│  │  - Process name resolution (eBPF comm → /proc → psutil)             │    │
+│  └────────────────────┬────────────────────────────────────────────────┘    │
+│                       │                                                     │
 │         ┌─────────────┴─────────────┬──────────────────┐                    │
 │         │                           │                  │                    │
-│  ┌──────▼──────────┐      ┌────────▼──────────┐  ┌────▼──────────────┐     │
-│  │ Risk Scoring    │      │ Feature Extract   │  │ Connection        │     │
-│  │                 │      │                   │  │ Pattern Analysis  │     │
-│  │ - Base syscall  │      │ - 50-D vector     │  │                  │     │
-│  │   risk (1-10)   │      │ - Syscall counts  │  │ - Track network  │     │
-│  │ - Deviation     │      │ - Sequences       │  │   syscalls       │     │
-│  │ - Container ctx │      │ - Process info    │  │ - Port scanning  │     │
-│  │ - Behavioral    │      │ - Temporal        │  │ - C2 beaconing   │     │
-│  │   baseline      │      │   features        │  │ - Exfiltration   │     │
-│  │ - Anomaly score │      │ - N-gram patterns │  │                  │     │
-│  │   weight (30%)  │      │                   │  │ Output:          │     │
-│  │                 │      └────────┬──────────┘  │ risk_bonus +30   │     │
-│  │ Output:         │                │            └──────────────────┘     │
-│  │ base_risk_score │                ▼                     │               │
-│  │ (0-100)         │      ┌──────────────────┐           │               │
-│  └────────┬────────┘      │ StandardScaler   │           │               │
-│           │               │ (Normalization)  │           │               │
-│           │               └────────┬─────────┘           │               │
-│           │                        │                     │               │
-│           │               ┌────────▼─────────┐           │               │
-│           │               │ PCA              │           │               │
-│           │               │ (Dimensionality  │           │               │
-│           │               │  Reduction)      │           │               │
-│           │               │  50D → 10D       │           │               │
-│           │               └────────┬─────────┘           │               │
-│           │                        │                     │               │
-│           │               ┌────────▼─────────┐           │               │
-│           │               │ ML Ensemble      │           │               │
-│           │               │                 │           │               │
-│           │               │ - Isolation     │           │               │
-│           │               │   Forest        │           │               │
-│           │               │ - One-Class SVM │           │               │
-│           │               │ - DBSCAN        │           │               │
-│           │               │ - N-gram Bigram │           │               │
-│           │               │   (sequence)    │           │               │
-│           │               │                 │           │               │
-│           │               │ Output:         │           │               │
-│           │               │ anomaly_score   │           │               │
-│           │               │ (0-100)         │           │               │
-│           │               └────────┬─────────┘           │               │
-│           │                        │                     │               │
-│           └────────────────────────┼─────────────────────┘               │
-│                                    │                                      │
-│                          ┌─────────▼─────────┐                            │
-│                          │ Combine Scores    │                            │
-│                          │                  │                            │
-│                          │ final_risk =     │                            │
-│                          │  base_risk +     │                            │
-│                          │  connection_bonus│                            │
-│                          │                  │                            │
-│                          │ risk_score: 0-100│                            │
-│                          └──────────────────┘                            │
+│  ┌──────▼──────────┐      ┌────────▼──────────┐  ┌────▼──────────────┐      │
+│  │ Risk Scoring    │      │ Feature Extract   │  │ Connection        │      │
+│  │                 │      │                   │  │ Pattern Analysis  │      │
+│  │ - Base syscall  │      │ - 50-D vector     │  │                   │      │
+│  │   risk (1-10)   │      │ - Syscall counts  │  │ - Track network   │      │
+│  │ - Deviation     │      │ - Sequences       │  │   syscalls        │      │
+│  │ - Container ctx │      │ - Process info    │  │ - Port scanning   │      │
+│  │ - Behavioral    │      │ - Temporal        │  │ - C2 beaconing    │      │
+│  │   baseline      │      │   features        │  │ - Exfiltration    │      │
+│  │ - Anomaly score │      │ - N-gram patterns │  │                   │      │
+│  │   weight (30%)  │      │                   │  │ Output:           │      │
+│  │                 │      └────────┬──────────┘  │ risk_bonus +30    │      │
+│  │ Output:         │                │            └───────────────────┘      │
+│  │ base_risk_score │                ▼                     │                 │
+│  │ (0-100)         │      ┌──────────────────┐            │                 │
+│  └────────┬────────┘      │ StandardScaler   │            │                 │
+│           │               │ (Normalization)  │            │                 │
+│           │               └────────┬─────────┘            │                 │
+│           │                        │                      │                 │
+│           │               ┌────────▼─────────┐            │                 │
+│           │               │ PCA              │            │                 │
+│           │               │ (Dimensionality  │            │                 │
+│           │               │  Reduction)      │            │                 │
+│           │               │  50D → 10D       │            │                 │
+│           │               └────────┬─────────┘            │                 │
+│           │                        │                      │                 │
+│           │               ┌────────▼─────────┐            │                 │
+│           │               │ ML Ensemble      │            │                 │
+│           │               │                  │            │                 │
+│           │               │ - Isolation      │            │                 │
+│           │               │   Forest         │            │                 │
+│           │               │ - One-Class SVM  │            │                 │
+│           │               │ - DBSCAN         │            │                 │
+│           │               │ - N-gram Bigram  │            │                 │
+│           │               │   (sequence)     │            │                 │
+│           │               │                  │            │                 │
+│           │               │ Output:          │            │                 │
+│           │               │ anomaly_score    │            │                 │
+│           │               │ (0-100)          │            │                 │
+│           │               └────────┬─────────┘            │                 │
+│           │                        │                      │                 │
+│           └────────────────────────┼──────────────────────┘                 │
+│                                    │                                        │
+│                          ┌─────────▼─────────┐                              │
+│                          │ Combine Scores    │                              │
+│                          │                   │                              │
+│                          │ final_risk =      │                              │
+│                          │  base_risk +      │                              │
+│                          │  connection_bonus │                              │
+│                          │                   │                              │
+│                          │ risk_score: 0-100 │                              │
+│                          └───────────────────┘                              │
 │                                                                             │
 └────────────────────────────┬────────────────────────────────────────────────┘
-                              │
-                              ▼
+                             │
+                             ▼
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │  OUTPUT LAYER                                                               │
 ├─────────────────────────────────────────────────────────────────────────────┤
 │                                                                             │
-│  ┌─────────────────────────────────────────────────────────────────────┐   │
-│  │  Dashboard (Rich TUI)                                                │   │
-│  │  - Process table (PID, Command, Risk, Anomaly, Syscalls)            │   │
-│  │  - Statistics (Total processes, High risk, Anomalies)              │   │
-│  │  - Real-time updates (0.5s refresh)                                 │   │
-│  └─────────────────────────────────────────────────────────────────────┘   │
+│  ┌─────────────────────────────────────────────────────────────────────┐    │
+│  │  Dashboard (Rich TUI)                                               │    │
+│  │  - Process table (PID, Command, Risk, Anomaly, Syscalls)            │    │
+│  │  - Statistics (Total processes, High risk, Anomalies)               │    │
+│  │  - Real-time updates (0.5s refresh)                                 │    │
+│  └─────────────────────────────────────────────────────────────────────┘    │
 │                                                                             │
-│  ┌─────────────────────────────────────────────────────────────────────┐   │
-│  │  JSON Export (Optional)                                             │   │
-│  │  - Structured event logs                                             │   │
-│  │  - Risk/anomaly scores                                              │   │
-│  │  - Process metadata                                                 │   │
-│  └─────────────────────────────────────────────────────────────────────┘   │
+│  ┌─────────────────────────────────────────────────────────────────────┐    │
+│  │  JSON Export (Optional)                                             │    │
+│  │  - Structured event logs                                            │    │
+│  │  - Risk/anomaly scores                                              │    │
+│  │  - Process metadata                                                 │    │
+│  └─────────────────────────────────────────────────────────────────────┘    │
 │                                                                             │
 └─────────────────────────────────────────────────────────────────────────────┘
 </pre>
@@ -2252,124 +2251,124 @@ if bytes_sent > 100_000_000 AND  # >100MB
             <div class="code-block" style="background: #f7fafc; padding: 20px; border-left: 4px solid #667eea; margin: 20px 0; font-family: 'Courier New', monospace; font-size: 0.85em; line-height: 1.4; overflow-x: auto;">
 <pre style="margin: 0; color: #2d3748;">
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                    ML ANOMALY DETECTION PIPELINE                           │
+│                    ML ANOMALY DETECTION PIPELINE                            │
 └─────────────────────────────────────────────────────────────────────────────┘
 
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │  TRAINING PHASE                                                             │
 ├─────────────────────────────────────────────────────────────────────────────┤
 │                                                                             │
-│  ┌──────────────┐                                                          │
-│  │ Training Data│                                                          │
-│  │ (JSON files) │                                                          │
-│  │              │                                                          │
-│  │ - Normal    │                                                          │
-│  │   behavior  │                                                          │
-│  │ - Syscall   │                                                          │
-│  │   sequences │                                                          │
-│  │ - Process   │                                                          │
-│  │   metadata  │                                                          │
-│  └──────┬───────┘                                                          │
-│         │                                                                    │
-│         ▼                                                                    │
-│  ┌─────────────────────────────────────────────────────────────────────┐   │
-│  │ Feature Extraction (50-Dimensional Vector)                         │   │
-│  │                                                                     │   │
-│  │ Features:                                                           │   │
-│  │  - Syscall counts (33 common syscalls)                              │   │
-│  │  - Sequence patterns (bigrams, trigrams)                            │   │
-│  │  - Process metadata (uid, gid, cwd, exe)                            │   │
-│  │  - Temporal features (time since start, rate)                       │   │
-│  │  - Resource usage (CPU, memory)                                      │   │
-│  └────────────────────┬────────────────────────────────────────────────┘   │
-│                       │                                                      │
-│                       ▼                                                      │
-│  ┌─────────────────────────────────────────────────────────────────────┐   │
-│  │ Preprocessing                                                       │   │
-│  │                                                                     │   │
-│  │  ┌──────────────┐         ┌──────────────┐                        │   │
-│  │  │StandardScaler│─────────▶│     PCA      │                        │   │
-│  │  │(Normalize)   │         │(Dimensionality│                        │   │
-│  │  │              │         │  Reduction)   │                        │   │
-│  │  └──────────────┘         └──────────────┘                        │   │
-│  └────────────────────┬────────────────────────────────────────────────┘   │
-│                       │                                                      │
-│                       ▼                                                      │
-│  ┌─────────────────────────────────────────────────────────────────────┐   │
-│  │ Model Training (Ensemble)                                          │   │
-│  │                                                                     │   │
-│  │  ┌──────────────────┐  ┌──────────────────┐  ┌─────────────────┐  │   │
-│  │  │Isolation Forest  │  │ One-Class SVM    │  │     DBSCAN       │  │   │
-│  │  │                  │  │                  │  │                  │  │   │
-│  │  │- Random splits   │  │- Boundary        │  │- Clustering      │  │   │
-│  │  │- Outlier         │  │  learning        │  │- Density-based   │  │   │
-│  │  │  isolation       │  │- Kernel trick    │  │- Structure       │  │   │
-│  │  └──────────────────┘  └──────────────────┘  └─────────────────┘  │   │
-│  │                                                                     │   │
-│  │  ┌─────────────────────────────────────────────────────────────┐  │   │
-│  │  │ Ensemble Voting                                               │  │   │
-│  │  │ - Average scores from IF and OCSVM                            │  │   │
-│  │  │ - DBSCAN used for training-time structure analysis            │  │   │
-│  │  └─────────────────────────────────────────────────────────────┘  │   │
-│  └────────────────────┬────────────────────────────────────────────────┘   │
-│                       │                                                      │
-│                       ▼                                                      │
-│  ┌─────────────────────────────────────────────────────────────────────┐   │
-│  │ Model Persistence                                                    │   │
-│  │                                                                     │   │
-│  │  - scaler.pkl                                                       │   │
-│  │  - pca.pkl                                                          │   │
-│  │  - isolation_forest.pkl                                             │   │
-│  │  - one_class_svm.pkl                                                │   │
-│  │  - dbscan.pkl                                                        │   │
-│  └─────────────────────────────────────────────────────────────────────┘   │
+│  ┌──────────────┐                                                           │
+│  │ Training Data│                                                           │
+│  │ (JSON files) │                                                           │
+│  │              │                                                           │
+│  │ - Normal     │                                                           │
+│  │   behavior   │                                                           │
+│  │ - Syscall    │                                                           │
+│  │   sequences  │                                                           │
+│  │ - Process    │                                                           │
+│  │   metadata   │                                                           │
+│  └──────┬───────┘                                                           │
+│         │                                                                   │
+│         ▼                                                                   │
+│  ┌─────────────────────────────────────────────────────────────────────┐    │
+│  │ Feature Extraction (50-Dimensional Vector)                          │    │
+│  │                                                                     │    │
+│  │ Features:                                                           │    │
+│  │  - Syscall counts (33 common syscalls)                              │    │
+│  │  - Sequence patterns (bigrams, trigrams)                            │    │
+│  │  - Process metadata (uid, gid, cwd, exe)                            │    │
+│  │  - Temporal features (time since start, rate)                       │    │
+│  │  - Resource usage (CPU, memory)                                     │    │
+│  └────────────────────┬────────────────────────────────────────────────┘    │
+│                       │                                                     │
+│                       ▼                                                     │
+│  ┌─────────────────────────────────────────────────────────────────────┐    │
+│  │ Preprocessing                                                       │    │
+│  │                                                                     │    │
+│  │  ┌──────────────┐         ┌──────────────┐                          │    │
+│  │  │StandardScaler│─────────▶│     PCA      │                         │    │
+│  │  │(Normalize)   │         │(Dimensionality│                         │    │
+│  │  │              │         │  Reduction)   │                         │    │
+│  │  └──────────────┘         └──────────────┘                          │    │
+│  └────────────────────┬────────────────────────────────────────────────┘    │ 
+│                       │                                                     │
+│                       ▼                                                     │
+│  ┌─────────────────────────────────────────────────────────────────────┐    │
+│  │ Model Training (Ensemble)                                           │    │
+│  │                                                                     │    │
+│  │  ┌──────────────────┐  ┌──────────────────┐  ┌─────────────────┐    │    │
+│  │  │Isolation Forest  │  │ One-Class SVM    │  │     DBSCAN      │    │    │
+│  │  │                  │  │                  │  │                 │    │    │
+│  │  │- Random splits   │  │- Boundary        │  │- Clustering     │    │    │
+│  │  │- Outlier         │  │  learning        │  │- Density-based  │    │    │
+│  │  │  isolation       │  │- Kernel trick    │  │- Structure      │    │    │
+│  │  └──────────────────┘  └──────────────────┘  └─────────────────┘    │    │
+│  │                                                                     │    │
+│  │  ┌──────────────────────────────────────────────────────────────┐   │    │
+│  │  │  Ensemble Voting                                             │   │    │
+│  │  │ - Average scores from IF and OCSVM                           │   │    │
+│  │  │ - DBSCAN used for training-time structure analysis           │   │    │
+│  │  └──────────────────────────────────────────────────────────────┘   │    |
+│  └────────────────────┬────────────────────────────────────────────────┘    │
+│                       │                                                     │
+│                       ▼                                                     │
+│  ┌─────────────────────────────────────────────────────────────────────┐    │
+│  │ Model Persistence                                                   │    │
+│  │                                                                     │    │
+│  │  - scaler.pkl                                                       │    │
+│  │  - pca.pkl                                                          │    │
+│  │  - isolation_forest.pkl                                             │    │
+│  │  - one_class_svm.pkl                                                │    │
+│  │  - dbscan.pkl                                                       │    │
+│  └─────────────────────────────────────────────────────────────────────┘    │
 │                                                                             │
 └─────────────────────────────────────────────────────────────────────────────┘
 
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│  INFERENCE PHASE (Real-time)                                               │
+│  INFERENCE PHASE (Real-time)                                                │
 ├─────────────────────────────────────────────────────────────────────────────┤
 │                                                                             │
-│  ┌──────────────┐                                                          │
-│  │ Live Syscall │                                                          │
-│  │   Event      │                                                          │
-│  └──────┬───────┘                                                          │
-│         │                                                                    │
-│         ▼                                                                    │
-│  ┌─────────────────────────────────────────────────────────────────────┐   │
-│  │ Feature Extraction (50-D)                                           │   │
-│  │ - Extract same features as training                                 │   │
-│  └────────────────────┬────────────────────────────────────────────────┘   │
-│                       │                                                      │
-│                       ▼                                                      │
-│  ┌─────────────────────────────────────────────────────────────────────┐   │
-│  │ Load Preprocessing Models                                            │   │
-│  │  - scaler.transform(features)                                       │   │
-│  │  - pca.transform(scaled_features)                                   │   │
-│  └────────────────────┬────────────────────────────────────────────────┘   │
-│                       │                                                      │
-│                       ▼                                                      │
-│  ┌─────────────────────────────────────────────────────────────────────┐   │
-│  │ Load ML Models                                                       │   │
-│  │  - isolation_forest.decision_function(pca_features)                  │   │
-│  │  - one_class_svm.decision_function(pca_features)                    │   │
-│  └────────────────────┬────────────────────────────────────────────────┘   │
-│                       │                                                      │
-│                       ▼                                                      │
-│  ┌─────────────────────────────────────────────────────────────────────┐   │
-│  │ Ensemble Scoring                                                    │   │
-│  │  - Average IF and OCSVM scores                                      │   │
-│  │  - Normalize to 0-100 range                                          │   │
-│  │  - Calculate confidence (variance-based)                            │   │
-│  └────────────────────┬────────────────────────────────────────────────┘   │
-│                       │                                                      │
-│                       ▼                                                      │
-│  ┌─────────────────────────────────────────────────────────────────────┐   │
-│  │ Output                                                               │   │
-│  │  - is_anomaly: bool                                                  │   │
-│  │  - anomaly_score: float (0-100)                                     │   │
-│  │  - confidence: float (0-1)                                          │   │
-│  └─────────────────────────────────────────────────────────────────────┘   │
+│  ┌──────────────┐                                                           │
+│  │ Live Syscall │                                                           │
+│  │   Event      │                                                           │
+│  └──────┬───────┘                                                           │
+│         │                                                                   │
+│         ▼                                                                   │
+│  ┌─────────────────────────────────────────────────────────────────────┐    │
+│  │ Feature Extraction (50-D)                                           │    │
+│  │ - Extract same features as training                                 │    │
+│  └────────────────────┬────────────────────────────────────────────────┘    │
+│                       │                                                     │
+│                       ▼                                                     │
+│  ┌─────────────────────────────────────────────────────────────────────┐    │
+│  │ Load Preprocessing Models                                           │    │
+│  │  - scaler.transform(features)                                       │    │
+│  │  - pca.transform(scaled_features)                                   │    │
+│  └────────────────────┬────────────────────────────────────────────────┘    │
+│                       │                                                     │
+│                       ▼                                                     │
+│  ┌─────────────────────────────────────────────────────────────────────┐    │
+│  │ Load ML Models                                                      │    │
+│  │  - isolation_forest.decision_function(pca_features)                 │    │
+│  │  - one_class_svm.decision_function(pca_features)                    │    │
+│  └────────────────────┬────────────────────────────────────────────────┘    │
+│                       │                                                     │
+│                       ▼                                                     │
+│  ┌─────────────────────────────────────────────────────────────────────┐    │
+│  │ Ensemble Scoring                                                    │    │
+│  │  - Average IF and OCSVM scores                                      │    │
+│  │  - Normalize to 0-100 range                                         │    │
+│  │  - Calculate confidence (variance-based)                            │    │
+│  └────────────────────┬────────────────────────────────────────────────┘    │
+│                       │                                                     │
+│                       ▼                                                     │
+│  ┌─────────────────────────────────────────────────────────────────────┐    │
+│  │ Output                                                              │    │
+│  │  - is_anomaly: bool                                                 │    │
+│  │  - anomaly_score: float (0-100)                                     │    │ 
+│  │  - confidence: float (0-1)                                          │    │
+│  └─────────────────────────────────────────────────────────────────────┘    │
 │                                                                             │
 └─────────────────────────────────────────────────────────────────────────────┘
 </pre>

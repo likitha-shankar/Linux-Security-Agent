@@ -446,7 +446,7 @@
 >
 > **Q: Is the code production-ready?**
 >
-> A: This is a **research prototype**, not a hardened production system. It's stable and performs well, but it lacks enterprise features like centralized logging, SIEM integration, automatic updates, and 24/7 vendor support. For academic or small-scale deployments, yes it's ready. For enterprise production, it would need additional hardening and testing."
+> A: This is a functional prototype that's stable and performs well, but it lacks enterprise features like centralized logging, SIEM integration, automatic updates, and 24/7 vendor support. For academic or small-scale deployments, yes it's ready. For enterprise production, it would need additional hardening and testing."
 
 ---
 
