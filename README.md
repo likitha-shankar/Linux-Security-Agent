@@ -6,24 +6,16 @@
 Real-time system call monitoring and threat detection agent for Linux. Uses eBPF to capture syscalls from the kernel and ML to detect anomalies. This project was developed as part of a Master's degree program to explore kernel-level security monitoring and machine learning-based threat detection.
 
 **Status:** Functional Prototype - Research/Academic Project  
-**Classification:** Not Production Ready - See [PROJECT_STATUS.md](PROJECT_STATUS.md) for details
+**Classification:** Not Production Ready
 
-**Recent updates (November-December 2025):**
-- **✅ Port Scanning Detection Fixed**: Fixed port simulation to enable proper port scanning detection (uses connection counter for unique ports)
-- **✅ C2 Beaconing Detection Fixed**: Fixed port consistency for C2 beaconing (same port for regular intervals)
-- **✅ Auditd Configuration**: Added network syscall rules for comprehensive monitoring
-- **✅ Black Box Testing**: Comprehensive testing (November 2025) confirms all features working with real data
-- **Real Dataset Training**: Trained on ADFA-LD dataset (5,205 real syscall sequences from actual Linux systems)
-- **Automated Training Setup**: Complete automation for downloading ADFA-LD and training models (`scripts/complete_training_setup.sh`)
-- **Syscall Name Mapping**: Fixed conversion to properly map syscall numbers to names (99.97% success rate)
-- **Enhanced Anomaly Logging**: Detailed explanations showing exactly what's anomalous (ML models, top syscalls, high-risk patterns, resources, recent sequence)
-- **Complete Automation**: Full automation script for testing and agent execution (`scripts/automate_all_tests.py`)
-- **Headless Mode**: Agent can run without dashboard for automation (`--headless` flag)
-- Now captures actual syscall names (333 mapped) instead of just counting
-- ML trains on real ADFA-LD dataset instead of synthetic data
-- Added automatic memory cleanup to prevent leaks
-- Fixed thread safety issues
-- Improved container detection for Docker
+**Recent updates (Dec 2025):**
+- ✅ Port scanning detection fixed and verified (574 detections in latest run)
+- ✅ C2 beaconing logic fixed (regular interval detection; needs more tuning for production)
+- ✅ Auditd network syscall rules documented (`START_COMPLETE_DEMO.sh` configures automatically)
+- ✅ ML models trained on ADFA-LD (5,205 samples) and saved to `~/.cache/security_agent/`
+- ✅ Comprehensive demo/test scripts: `START_COMPLETE_DEMO.sh`, `scripts/simulate_attacks.py`
+- ✅ Detailed demo docs: `DEMO_GUIDE.md`, `DEMO_COMMANDS.md`, `PRESENTATION_GUIDE.md`
+- ✅ Updated dashboards and anomaly logging
 
 ## Features
 
@@ -114,42 +106,28 @@ python3 -c "from core.container_security_monitor import ContainerSecurityMonitor
 
 ## Usage
 
-### Option 0: Web Dashboard (Recommended for Easy Monitoring)
+### Option 0: Quick Start (Recommended)
 
 ```bash
-# Install web dependencies
-cd web
-pip install -r requirements.txt
-
-# Start web server
-python app.py
-
-# Open browser to http://localhost:5000
+# One-command startup (agent + dashboard + auditd rules)
+cd ~/Linux-Security-Agent
+bash START_COMPLETE_DEMO.sh
 ```
 
-**Features:**
-- 🏠 Landing page with project overview
-- 📊 Live monitoring dashboard with real-time logs
-- ▶️ Start/stop agent from web interface
-- 🚨 Visual alerts for attacks and anomalies
-- 📈 Real-time statistics
+**Dashboard access:** http://<VM_IP>:5001  
+**Demo commands:** see `DEMO_COMMANDS.md`  
+**Demo guide:** see `DEMO_GUIDE.md`
 
-See [web/README.md](web/README.md) for details.
-
-### Option 1: Simple Agent (Recommended for Testing)
+### Option 1: Simple Agent (Recommended for Testing/Demo)
 ```bash
-# Run simple agent with auditd (most reliable, requires auditd rules)
-# First, configure auditd for network syscalls:
+# Configure auditd (network syscalls)
 sudo auditctl -a always,exit -F arch=b64 -S socket -S connect -S bind -S accept -S sendto -S recvfrom -k network_syscalls
 
-# Then run agent:
-sudo python3 core/simple_agent.py --collector auditd --threshold 30
+# Run agent (auditd collector, recommended)
+sudo python3 core/simple_agent.py --collector auditd --threshold 20 --headless
 
-# Or with eBPF
-sudo python3 core/simple_agent.py --collector ebpf --threshold 30
-
-# Run in headless mode (no dashboard, for automation)
-sudo python3 core/simple_agent.py --collector auditd --threshold 30 --headless
+# Or run with dashboard
+sudo python3 core/simple_agent.py --collector auditd --threshold 20
 ```
 
 **Benefits:**
@@ -158,31 +136,10 @@ sudo python3 core/simple_agent.py --collector auditd --threshold 30 --headless
 - ✅ Clean, working dashboard
 - ✅ Easy to debug
 
-### Option 2: Enhanced Agent (Full Features)
+### Option 2: Train Models (if needed)
 ```bash
-# Run the enhanced agent with dashboard
-sudo python3 core/enhanced_security_agent.py --dashboard --threshold 30
-```
-
-### Collector selection (eBPF default, auditd fallback)
-```bash
-# eBPF (default, recommended if available)
-sudo python3 core/enhanced_security_agent.py --collector ebpf --dashboard
-
-# Auditd (fallback, most reliable if eBPF unavailable)
-sudo python3 core/enhanced_security_agent.py --collector auditd --dashboard
-```
-
-### With training
-```bash
-# Train models first on real data
-python3 core/enhanced_security_agent.py --train-models
-
-# Then run monitoring
-sudo python3 core/enhanced_security_agent.py --dashboard
-
-# Append to previous feature store when retraining
-python3 core/enhanced_security_agent.py --train-models --append
+# Train with ADFA dataset (default)
+python3 scripts/train_with_dataset.py --file datasets/adfa_training.json
 ```
 
 ### Other options
@@ -215,37 +172,12 @@ base_risk_scores:
 
 ## 🧪 Demo and Testing
 
-### Automated Testing
-```bash
-# Run complete automation (pre-flight checks, unit tests, attacks, reports)
-sudo python3 scripts/automate_all_tests.py
-
-# Or use the wrapper script
-./run_automated_tests.sh
-
-# Options:
-#   --keep-agent    Keep agent running after tests
-#   --no-unit-tests Skip unit tests
-```
-
-### Manual Testing
-```bash
-# Run comprehensive demo (normal + suspicious behavior)
-python3 demo/run_demo.py
-
-# Run individual demos
-python3 demo/normal_behavior.py
-python3 demo/suspicious_behavior.py
-
-# Test enhanced anomaly logging
-python3 scripts/test_anomaly_logging.py
-
-# See agent output demo
-python3 scripts/demo_agent_output.py
-
-# Run test suite
-python3 run_tests.py
-```
+### Demo & Testing (current)
+- **One-command demo:** `bash START_COMPLETE_DEMO.sh`
+- **Run attacks:** `python3 scripts/simulate_attacks.py`
+- **Manual port scan:** `for i in {8000..8020}; do timeout 0.3 nc -zv localhost $i; done`
+- **Logs:** `tail -f logs/security_agent_*.log | grep -E "PORT_SCANNING|HIGH RISK|ANOMALY"`
+- **Demo commands reference:** `DEMO_COMMANDS.md`
 
 ### Enhanced Anomaly Logging
 The agent now provides detailed explanations when anomalies are detected:

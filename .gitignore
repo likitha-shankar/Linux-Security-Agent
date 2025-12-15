@@ -62,5 +62,13 @@ Thumbs.db
 # Web dashboard database
 web/dashboard.db
 
+# Local presentation/demo notes (keep out of git)
+## Manual verification steps.md
+DEMO_COMMANDS.md
+DEMO_GUIDE.md
+PRESENTATION_GUIDE.md
+FINAL_TEST_SUMMARY.md
+PRESENTATION_SCRIPT.md
+
 # Evaluation reports (generated files)
 ml_evaluation_report.json
