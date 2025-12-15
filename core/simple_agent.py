@@ -237,7 +237,7 @@ class SimpleSecurityAgent:
         # Warm-up period: Suppress connection pattern detections during first few minutes
         # This prevents false positives from normal system startup activity (SSH, DNS, package checks, etc.)
         self.startup_time = time.time()
-        self.warmup_period_seconds = self.config.get('warmup_period_seconds', 180)  # 3 minutes default
+        self.warmup_period_seconds = self.config.get('warmup_period_seconds', 30)  # 30 seconds default (reduced from 180 for faster demo)
         logger.info(f"Warm-up period: {self.warmup_period_seconds}s (connection pattern detections suppressed during startup)")
         
         # Known system processes to exclude (optional, can be configured)
@@ -1488,10 +1488,15 @@ class SimpleSecurityAgent:
                     'anomalies': anomalies_count,
                     'total_syscalls': self.stats['total_syscalls'],
                     'c2_beacons': c2_beacons_count,
-                    'port_scans': port_scans_count
+                    'port_scans': port_scans_count,
+                    'risk_threshold': self.config.get('risk_threshold', 30.0)  # Include threshold for dashboard
                 },
                 'processes': sorted(processes_data, key=lambda x: x['risk_score'], reverse=True)[:50]  # Top 50
             }
+            
+            # Log state export summary for debugging
+            if high_risk_count > 0 or c2_beacons_count > 0 or port_scans_count > 0:
+                logger.info(f"📊 State export summary: processes={len(processes_data)}, high_risk={high_risk_count}, anomalies={anomalies_count}, c2_beacons={c2_beacons_count}, port_scans={port_scans_count}, syscalls={self.stats['total_syscalls']}")
             
             # Debug: Log attack counts (helps verify state file updates)
             if c2_beacons_count > 0 or port_scans_count > 0:
