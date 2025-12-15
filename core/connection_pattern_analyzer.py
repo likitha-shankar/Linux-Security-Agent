@@ -59,10 +59,10 @@ class ConnectionPatternAnalyzer:
         self.min_connections_for_beacon = self.config.get('min_connections_for_beacon', 3)  # Minimum 3 connections
         self.min_beacon_interval = self.config.get('min_beacon_interval', 2.0)  # Lowered to 2.0 seconds for better detection
         
-        # Port scanning parameters (increased thresholds to reduce false positives)
-        # Normal processes (DNS, logging, etc.) can connect to 5-10 ports, so we need higher threshold
-        self.port_scan_threshold = self.config.get('port_scan_threshold', 10)  # unique ports (increased from 5 to 10)
-        self.port_scan_timeframe = self.config.get('port_scan_timeframe', 30)  # seconds (reduced from 60 to 30 for faster detection)
+        # Port scanning parameters (balanced for detection vs false positives)
+        # Lowered threshold back to 5 for better attack detection (can be tuned via config)
+        self.port_scan_threshold = self.config.get('port_scan_threshold', 5)  # unique ports (5 for better detection)
+        self.port_scan_timeframe = self.config.get('port_scan_timeframe', 60)  # seconds (60s window for detection)
         
         # Whitelist of legitimate processes that commonly connect to multiple ports
         # These are system/daemon processes that shouldn't trigger port scan alerts
@@ -151,56 +151,72 @@ class ConnectionPatternAnalyzer:
     
     def _detect_beaconing(self, pid: int) -> Optional[Dict]:
         """
-        Detect C2 beaconing patterns (regular intervals)
+        Detect C2 beaconing patterns (regular intervals to SAME port)
         
         C2 malware often "calls home" at regular intervals (e.g., every 60 seconds)
+        IMPORTANT: C2 beaconing requires connections to the SAME destination port
         """
-        connections = list(self.connection_history[pid])
+        all_connections = list(self.connection_history[pid])
         
-        if len(connections) < self.min_connections_for_beacon:
+        if len(all_connections) < self.min_connections_for_beacon:
             return None
         
-        # Calculate time intervals between connections
-        intervals = []
-        for i in range(1, len(connections)):
-            interval = connections[i]['time'] - connections[i-1]['time']
-            intervals.append(interval)
+        # Group connections by destination (IP:port) to find beaconing patterns
+        # C2 beaconing is to the SAME destination port
+        connections_by_dest = defaultdict(list)
+        for conn in all_connections:
+            dest_key = conn['dest']  # "IP:port"
+            connections_by_dest[dest_key].append(conn)
         
-        if len(intervals) < self.min_connections_for_beacon - 1:
-            return None
-        
-        # Check for regular timing (low variance = beaconing)
-        try:
-            mean_interval = statistics.mean(intervals)
+        # Check each destination for beaconing pattern
+        for dest_key, connections in connections_by_dest.items():
+            if len(connections) < self.min_connections_for_beacon:
+                continue
             
-            # Only consider if intervals are reasonably long (>= min_beacon_interval)
-            if mean_interval < self.min_beacon_interval:
-                return None
+            # Sort by time to ensure correct order
+            connections = sorted(connections, key=lambda x: x['time'])
             
-            # Calculate variance
-            if len(intervals) >= 2:
-                variance = statistics.variance(intervals)
-                stdev = statistics.stdev(intervals)
+            # Calculate time intervals between connections to SAME destination
+            intervals = []
+            for i in range(1, len(connections)):
+                interval = connections[i]['time'] - connections[i-1]['time']
+                intervals.append(interval)
+            
+            if len(intervals) < self.min_connections_for_beacon - 1:
+                continue
+            
+            # Check for regular timing (low variance = beaconing)
+            try:
+                mean_interval = statistics.mean(intervals)
                 
-                # Low variance indicates regular beaconing
-                # Lowered threshold: mean_interval >= 3.0 (was 5.0) for better detection
-                if stdev < self.beacon_threshold_variance and mean_interval >= self.min_beacon_interval:
-                    return {
-                        'type': 'C2_BEACONING',
-                        'technique': 'T1071',
-                        'pid': pid,
-                        'mean_interval': mean_interval,
-                        'variance': variance,
-                        'stdev': stdev,
-                        'connections': len(connections),
-                        'destination': connections[-1]['dest'],
-                        'risk_score': 85,
-                        'explanation': f'Regular beaconing detected: {mean_interval:.1f}s intervals (±{stdev:.1f}s)',
-                        'confidence': 0.9,
-                        'severity': 'HIGH'
-                    }
-        except statistics.StatisticsError:
-            pass
+                # Only consider if intervals are reasonably long (>= min_beacon_interval)
+                if mean_interval < self.min_beacon_interval:
+                    continue
+                
+                # Calculate variance
+                if len(intervals) >= 2:
+                    variance = statistics.variance(intervals)
+                    stdev = statistics.stdev(intervals)
+                    
+                    # Low variance indicates regular beaconing
+                    # Lowered threshold: mean_interval >= 3.0 (was 5.0) for better detection
+                    if stdev < self.beacon_threshold_variance and mean_interval >= self.min_beacon_interval:
+                        return {
+                            'type': 'C2_BEACONING',
+                            'technique': 'T1071',
+                            'pid': pid,
+                            'mean_interval': mean_interval,
+                            'variance': variance,
+                            'stdev': stdev,
+                            'connections': len(connections),
+                            'destination': dest_key,
+                            'risk_score': 85,
+                            'explanation': f'Regular beaconing detected: {mean_interval:.1f}s intervals (±{stdev:.1f}s) to {dest_key}',
+                            'confidence': 0.9,
+                            'severity': 'HIGH'
+                        }
+            except statistics.StatisticsError:
+                continue
         
         return None
     
@@ -281,8 +297,8 @@ class ConnectionPatternAnalyzer:
         if timeframe < self.port_scan_timeframe and unique_ports >= self.port_scan_threshold:
             ports_per_second = unique_ports / max(timeframe, 1)
             
-            # Require minimum rate of 0.5 ports/second (reduces false positives from slow legitimate connections)
-            if ports_per_second < 0.5:
+            # Require minimum rate of 0.1 ports/second (reduces false positives but allows slower scans)
+            if ports_per_second < 0.1:
                 return None
             
             return {
@@ -322,8 +338,8 @@ class ConnectionPatternAnalyzer:
         if timeframe < self.port_scan_timeframe and unique_ports >= self.port_scan_threshold:
             ports_per_second = unique_ports / max(timeframe, 1)
             
-            # Require minimum rate of 0.5 ports/second (reduces false positives from slow legitimate connections)
-            if ports_per_second < 0.5:
+            # Require minimum rate of 0.1 ports/second (reduces false positives but allows slower scans)
+            if ports_per_second < 0.1:
                 return None
             
             return {

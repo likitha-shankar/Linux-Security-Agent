@@ -1215,6 +1215,31 @@ class SimpleSecurityAgent:
                             logger.warning(f"   ├─ Process Activity:")
                             logger.warning(f"   │  Total Syscalls: {proc.get('total_syscalls', 0)} | Recent: {len(recent_syscalls)}")
                             
+                            # Log top syscalls and risky syscalls
+                            if top_syscalls:
+                                top_str = ", ".join([f"{sc}({count})" for sc, count in top_syscalls])
+                                logger.warning(f"   │  Top Syscalls: {top_str}")
+                            if detected_risky:
+                                logger.warning(f"   │  ⚠️  High-Risk Syscalls Detected: {', '.join(detected_risky)}")
+                            
+                            # Get process info for resource logging
+                            try:
+                                process_info = self._get_process_info(pid)
+                            except:
+                                process_info = None
+                            
+                            if process_info:
+                                logger.warning(f"   │  Resources: CPU={process_info.get('cpu_percent', 0):.1f}% "
+                                             f"Memory={process_info.get('memory_percent', 0):.1f}% "
+                                             f"Threads={process_info.get('num_threads', 0)}")
+                            if recent_syscalls:
+                                recent_str = ", ".join(recent_syscalls[-10:])  # Last 10 syscalls
+                                if len(recent_str) > 80:
+                                    recent_str = recent_str[:77] + "..."
+                                logger.warning(f"   └─ Recent Sequence: {recent_str}")
+                            else:
+                                logger.warning(f"   └─ No recent syscalls recorded")
+                            
                             # Automated response for anomalies (if enabled and risk is high enough)
                             if self.response_handler and self.response_handler.enabled:
                                 # Only take action if both anomaly AND risk are high
@@ -1230,22 +1255,8 @@ class SimpleSecurityAgent:
                                     if action:
                                         logger.warning(f"   🛡️  Response action taken: {action.value}")
                         
-                        if top_syscalls:
-                            top_str = ", ".join([f"{sc}({count})" for sc, count in top_syscalls])
-                            logger.warning(f"   │  Top Syscalls: {top_str}")
-                        if detected_risky:
-                            logger.warning(f"   │  ⚠️  High-Risk Syscalls Detected: {', '.join(detected_risky)}")
-                        if process_info:
-                            logger.warning(f"   │  Resources: CPU={process_info.get('cpu_percent', 0):.1f}% "
-                                         f"Memory={process_info.get('memory_percent', 0):.1f}% "
-                                         f"Threads={process_info.get('num_threads', 0)}")
-                        if recent_syscalls:
-                            recent_str = ", ".join(recent_syscalls[-10:])  # Last 10 syscalls
-                            if len(recent_str) > 80:
-                                recent_str = recent_str[:77] + "..."
-                            logger.warning(f"   └─ Recent Sequence: {recent_str}")
-                        else:
-                            logger.warning(f"   └─ No recent syscalls recorded")
+                        # Update cooldown
+                        self.alert_cooldown[pid] = current_time
                         
                         # Update cooldown
                         self.alert_cooldown[pid] = current_time

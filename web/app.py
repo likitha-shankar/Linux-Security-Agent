@@ -195,20 +195,48 @@ def api_status():
     
     # Also verify with log file check (if process found, verify it's actually writing logs)
     if agent_running:
-        # Try multiple possible log file locations
+        # Try multiple possible log file locations (find latest timestamped log)
         project_root = Path(__file__).parent.parent
-        possible_log_files = [
-            project_root / 'logs' / 'security_agent.log',  # Default location
-            Path.home() / '.cache' / 'security_agent' / 'logs' / 'security_agent.log',  # Home cache
-            Path('/root/.cache/security_agent/logs/security_agent.log'),  # Root cache (when run with sudo)
+        possible_log_dirs = [
+            project_root / 'logs',
+            Path.home() / '.cache' / 'security_agent' / 'logs',
+            Path('/root/.cache/security_agent/logs'),
         ]
         
-        # Find the actual log file
+        # Find the latest timestamped log file
         log_file = None
-        for log_path in possible_log_files:
-            if log_path.exists():
-                log_file = log_path
-                break
+        latest_mtime = 0
+        
+        for log_dir in possible_log_dirs:
+            if log_dir.exists():
+                # Check symlink first
+                symlink_path = log_dir / 'security_agent.log'
+                if symlink_path.exists() and symlink_path.is_symlink():
+                    try:
+                        real_path = symlink_path.resolve()
+                        if real_path.exists():
+                            stat = real_path.stat()
+                            if stat.st_mtime > latest_mtime:
+                                log_file = real_path
+                                latest_mtime = stat.st_mtime
+                    except (OSError, ValueError):
+                        pass
+                
+                # Check timestamped files
+                for log_path in sorted(log_dir.glob('security_agent_*.log'), reverse=True):
+                    try:
+                        stat = log_path.stat()
+                        if stat.st_mtime > latest_mtime:
+                            log_file = log_path
+                            latest_mtime = stat.st_mtime
+                    except (OSError, ValueError):
+                        continue
+                
+                if log_file:
+                    break
+        
+        if log_file is None:
+            log_file = possible_log_dirs[0] / 'security_agent.log'
         
         # If log file exists and is recent (modified in last 30 seconds), agent is definitely running
         if log_file and log_file.exists():
@@ -588,23 +616,48 @@ def monitor_agent_logs():
     
     # Try multiple possible log file locations
     project_root = Path(__file__).parent.parent
-    possible_log_files = [
-        project_root / 'logs' / 'security_agent.log',  # Default location
-        Path.home() / '.cache' / 'security_agent' / 'logs' / 'security_agent.log',  # Home cache
-        Path('/root/.cache/security_agent/logs/security_agent.log'),  # Root cache (when run with sudo)
+    possible_log_dirs = [
+        project_root / 'logs',
+        Path.home() / '.cache' / 'security_agent' / 'logs',
+        Path('/root/.cache/security_agent/logs'),
     ]
     
-    # Find the actual log file
+    # Find the latest timestamped log file (using Chicago timezone naming)
+    # Log files are named: security_agent_YYYY-MM-DD_HH-MM-SS.log
     log_file = None
-    for log_path in possible_log_files:
-        if log_path.exists():
-            log_file = log_path
-            socketio.emit('log', {'type': 'info', 'message': f'Found log file: {log_file}'})
-            break
+    latest_mtime = 0
+    
+    for log_dir in possible_log_dirs:
+        if log_dir.exists():
+            # First try symlink (for backward compatibility)
+            symlink_path = log_dir / 'security_agent.log'
+            if symlink_path.exists() and symlink_path.is_symlink():
+                try:
+                    real_path = symlink_path.resolve()
+                    if real_path.exists():
+                        stat = real_path.stat()
+                        if stat.st_mtime > latest_mtime:
+                            log_file = real_path
+                            latest_mtime = stat.st_mtime
+                except (OSError, ValueError):
+                    pass
+            
+            # Also check for timestamped files (find the most recent one)
+            for log_path in sorted(log_dir.glob('security_agent_*.log'), reverse=True):
+                try:
+                    stat = log_path.stat()
+                    if stat.st_mtime > latest_mtime:
+                        log_file = log_path
+                        latest_mtime = stat.st_mtime
+                except (OSError, ValueError):
+                    continue
+            
+            if log_file:
+                break
     
     # If not found, use default location
     if log_file is None:
-        log_file = possible_log_files[0]
+        log_file = possible_log_dirs[0] / 'security_agent.log'
     
     # Wait for log file to be created (longer wait for manual starts)
     max_wait = 60
