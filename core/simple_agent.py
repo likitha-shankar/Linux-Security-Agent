@@ -1185,16 +1185,16 @@ class SimpleSecurityAgent:
                             if self.response_handler and self.response_handler.enabled:
                                 # Only take action if both anomaly AND risk are high
                                 if anomaly_score >= 70.0 and risk_score >= 70.0:
-                                reason = f"ML anomaly detected: {anomaly_score:.1f}, Risk: {risk_score:.1f}"
-                                action = self.response_handler.take_action(
-                                    pid=pid,
-                                    process_name=comm,
-                                    risk_score=risk_score,
-                                    anomaly_score=anomaly_score,
-                                    reason=reason
-                                )
-                                if action:
-                                    logger.warning(f"   🛡️  Response action taken: {action.value}")
+                                    reason = f"ML anomaly detected: {anomaly_score:.1f}, Risk: {risk_score:.1f}"
+                                    action = self.response_handler.take_action(
+                                        pid=pid,
+                                        process_name=comm,
+                                        risk_score=risk_score,
+                                        anomaly_score=anomaly_score,
+                                        reason=reason
+                                    )
+                                    if action:
+                                        logger.warning(f"   🛡️  Response action taken: {action.value}")
                         
                         if top_syscalls:
                             top_str = ", ".join([f"{sc}({count})" for sc, count in top_syscalls])
