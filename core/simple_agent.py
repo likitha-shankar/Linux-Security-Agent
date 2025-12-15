@@ -1178,13 +1178,11 @@ class SimpleSecurityAgent:
                             logger.warning(f"   ┌─ What's Anomalous:")
                             logger.warning(f"   │  {explanation}")
                             logger.warning(f"   │  Confidence: {confidence:.2f} | Risk Score: {risk_score:.1f}")
-                        else:
-                            logger.debug(f"⏳ Suppressing anomaly detection during warm-up (PID={pid}, Score={check_score:.1f})")
-                        logger.warning(f"   ├─ Process Activity:")
-                        logger.warning(f"   │  Total Syscalls: {proc.get('total_syscalls', 0)} | Recent: {len(recent_syscalls)}")
-                        
-                        # Automated response for anomalies (if enabled and risk is high enough)
-                        if self.response_handler and self.response_handler.enabled:
+                            logger.warning(f"   ├─ Process Activity:")
+                            logger.warning(f"   │  Total Syscalls: {proc.get('total_syscalls', 0)} | Recent: {len(recent_syscalls)}")
+                            
+                            # Automated response for anomalies (if enabled and risk is high enough)
+                            if self.response_handler and self.response_handler.enabled:
                             # Only take action if both anomaly AND risk are high
                             if anomaly_score >= 70.0 and risk_score >= 70.0:
                                 reason = f"ML anomaly detected: {anomaly_score:.1f}, Risk: {risk_score:.1f}"
