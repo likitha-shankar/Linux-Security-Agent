@@ -1069,10 +1069,6 @@
                         updateHighRiskFromState(state);
                         updateAttackListFromState(state);
                         
-                        // Force update of high risk and attack lists from state
-                        updateHighRiskFromState(state);
-                        updateAttackListFromState(state);
-                        
                         // Debug logging to help diagnose display issues
                         if (stats.highRisk > 0 || stats.attacks > 0) {
                             console.log(`[Dashboard] Updated stats: highRisk=${stats.highRisk}, attacks=${stats.attacks}, c2=${stateC2Beacons}, portScans=${statePortScans}`);
