@@ -1023,17 +1023,22 @@
                     
                     // Update stats from agent state (PRIORITY: Use API data directly)
                     if (state.stats) {
-                        // CRITICAL: Use API data directly, don't calculate from processes
+                        // Use API data directly
                         stats.processes = state.stats.total_processes || 0;
                         stats.highRisk = state.stats.high_risk || 0;
                         stats.anomalies = state.stats.anomalies || 0;
-                        stats.syscalls = state.stats.total_syscalls || 0;  // Use API value directly
+                        stats.syscalls = state.stats.total_syscalls || 0;
+                        // Derive attacks directly from state stats (port scans + C2 beacons)
+                        const statePortScans = state.stats.port_scans || 0;
+                        const stateC2Beacons = state.stats.c2_beacons || 0;
+                        stats.attacks = statePortScans + stateC2Beacons;
                         
                         // Update UI immediately with API data
                         document.getElementById('statProcesses').textContent = stats.processes;
                         document.getElementById('statHighRisk').textContent = stats.highRisk;
                         document.getElementById('statAnomalies').textContent = stats.anomalies;
                         document.getElementById('statSyscalls').textContent = stats.syscalls.toLocaleString();
+                        document.getElementById('statAttacks').textContent = stats.attacks;
                         
                         // Also update cumulative count for reference
                         if (stats.syscalls > cumulativeSyscallsCount) {
@@ -1041,29 +1046,21 @@
                         }
                         
                         // Update chart with current stats (for timeline visualization)
-                        // ONLY if agent is running
                         const now = new Date().toLocaleTimeString();
-                        
-                        // Add data point every sync (every 2 seconds) to show activity
                         if (activityData.labels.length === 0 || activityData.labels[activityData.labels.length - 1] !== now) {
                             activityData.labels.push(now);
-                            // Removed normal line - only track security events
                             activityData.anomalies.push(state.stats.anomalies || 0);
-                            activityData.attacks.push((state.stats.port_scans || 0) + (state.stats.c2_beacons || 0));
+                            activityData.attacks.push(statePortScans + stateC2Beacons);
                             activityData.highRisk.push(state.stats.high_risk || 0);
                             
-                            // Keep last 30 data points
                             if (activityData.labels.length > 30) {
                                 activityData.labels.shift();
-                                // Removed normal shift
                                 activityData.anomalies.shift();
                                 activityData.attacks.shift();
                                 activityData.highRisk.shift();
                             }
                             
-                            // Update chart - ensure it's initialized first
                             if (!activityChart) {
-                                // Initialize chart if not already done
                                 try {
                                     const canvas = document.getElementById('activityChart');
                                     if (canvas) {
@@ -1104,10 +1101,8 @@
                                                 maintainAspectRatio: false,
                                                 scales: {
                                                     y: {
-                                                        beginAtZero: true,
-                                                        ticks: {
-                                                            stepSize: 1
-                                                        }
+                    beginAtZero: true,
+                    ticks: { stepSize: 1 }
                                                     }
                                                 },
                                                 plugins: {
@@ -1124,15 +1119,13 @@
                                 }
                             }
                             
-                            // Update chart with new data
                             if (activityChart) {
                                 try {
                                     activityChart.data.labels = activityData.labels;
-                                    // Removed normal line (dataset 0) - now only 3 datasets
                                     activityChart.data.datasets[0].data = activityData.anomalies;
                                     activityChart.data.datasets[1].data = activityData.attacks;
                                     activityChart.data.datasets[2].data = activityData.highRisk;
-                                    activityChart.update('none'); // 'none' for no animation, faster updates
+                                    activityChart.update('none');
                                 } catch (e) {
                                     console.error('Chart update error:', e);
                                 }
@@ -1146,16 +1139,15 @@
                             const pid = String(proc.pid);
                             const existingProc = processes.get(pid) || { pid, name: 'unknown', risk: 0, anomaly: 0, syscalls: 0 };
                             
-                    // Update with state data (more accurate than log parsing)
-                    // Only use name if it's a real name (not pid_XXXXX)
-                    if (proc.name && !proc.name.startsWith('pid_') && proc.name !== 'unknown') {
-                        existingProc.name = proc.name;
-                    }
-                    existingProc.risk = proc.risk_score || 0;
-                    existingProc.anomaly = proc.anomaly_score || 0;
-                    existingProc.syscalls = proc.total_syscalls || proc.syscall_count || 0;
-                    existingProc.recentSyscalls = proc.recent_syscalls_str || (proc.recent_syscalls ? proc.recent_syscalls.join(', ') : '');
-                    existingProc.lastSeen = Date.now();
+                            // Update with state data
+                            if (proc.name && !proc.name.startsWith('pid_') && proc.name !== 'unknown') {
+                                existingProc.name = proc.name;
+                            }
+                            existingProc.risk = proc.risk_score || 0;
+                            existingProc.anomaly = proc.anomaly_score || 0;
+                            existingProc.syscalls = proc.total_syscalls || proc.syscall_count || 0;
+                            existingProc.recentSyscalls = proc.recent_syscalls_str || (proc.recent_syscalls ? proc.recent_syscalls.join(', ') : '');
+                            existingProc.lastSeen = Date.now();
                             
                             processes.set(pid, existingProc);
                         });
@@ -1169,8 +1161,11 @@
                             }
                         });
                         
+                        // Re-render lists and stats from state
                         renderProcessList();
                         calculateCurrentStats();
+                        updateHighRiskFromState(state);
+                        updateAttackListFromState(state);
                     }
                 })
                 .catch(error => {
@@ -1790,6 +1785,85 @@
                     </div>
                 `;
             }).join('');
+        }
+
+        // NEW: Build high-risk list directly from current agent state as a fallback
+        function updateHighRiskFromState(state) {
+            try {
+                if (!state || !state.processes || !Array.isArray(state.processes)) {
+                    return;
+                }
+
+                const threshold = (state.stats && state.stats.risk_threshold) || 30.0;
+                const now = new Date().toLocaleTimeString();
+                const entries = [];
+
+                state.processes.forEach(proc => {
+                    const risk = proc.risk_score || 0;
+                    if (risk >= threshold) {
+                        entries.push({
+                            pid: String(proc.pid),
+                            name: proc.name && !proc.name.startsWith('pid_') ? proc.name : `PID ${proc.pid}`,
+                            risk: risk,
+                            anomaly: proc.anomaly_score || 0,
+                            syscalls: proc.total_syscalls || proc.syscall_count || 0,
+                            recentSyscalls: proc.recent_syscalls_str || (proc.recent_syscalls ? proc.recent_syscalls.join(', ') : ''),
+                            timestamp: now,
+                            details: ''
+                        });
+                    }
+                });
+
+                // Sort by risk descending and keep top 10
+                entries.sort((a, b) => b.risk - a.risk);
+                highRiskList = entries.slice(0, 10);
+                renderHighRiskList();
+            } catch (e) {
+                console.error('Error updating high-risk list from state:', e);
+            }
+        }
+
+        // NEW: Build a simple attack list from state stats as a fallback
+        function updateAttackListFromState(state) {
+            try {
+                if (!state || !state.stats) {
+                    return;
+                }
+
+                const now = new Date().toLocaleTimeString();
+                const portScans = state.stats.port_scans || 0;
+                const c2Beacons = state.stats.c2_beacons || 0;
+                const newAttacks = [];
+
+                if (portScans > 0) {
+                    newAttacks.push({
+                        type: 'Port Scanning',
+                        pid: '—',
+                        name: 'Multiple processes',
+                        details: `Detected ${portScans} port-scanning patterns in the last 5 minutes`,
+                        timestamp: now
+                    });
+                }
+
+                if (c2Beacons > 0) {
+                    newAttacks.push({
+                        type: 'C2 Beaconing',
+                        pid: '—',
+                        name: 'Multiple processes',
+                        details: `Detected ${c2Beacons} C2 beaconing patterns in the last 5 minutes`,
+                        timestamp: now
+                    });
+                }
+
+                // If we have state-based attacks, replace the list; otherwise keep log-based entries
+                if (newAttacks.length > 0) {
+                    attackList = newAttacks;
+                }
+
+                renderAttackList();
+            } catch (e) {
+                console.error('Error updating attack list from state:', e);
+            }
         }
         
         function renderProcessList() {
