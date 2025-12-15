@@ -1975,10 +1975,14 @@
                 
                 const currentStatus = data.running;
                 
-                // Detect when agent transitions from stopped to running (started manually or via web)
+                // Detect when agent transitions between states
                 if (currentStatus && !previousAgentStatus) {
                     // Agent just started - reset all values
                     console.log('Agent started - resetting dashboard values');
+                    resetDashboardValues();
+                } else if (!currentStatus && previousAgentStatus) {
+                    // Agent just stopped - clear live data but keep UI chrome
+                    console.log('Agent stopped - clearing dashboard values');
                     resetDashboardValues();
                 }
                 
