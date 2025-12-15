@@ -67,6 +67,9 @@ sudo grep "ANOMALY DETECTED" "$LATEST_LOG" | tail -20
 # Only network-pattern attacks (port scan + C2) – good for showing T1046 / T1071 - current log only
 sudo grep -E "PORT_SCANNING|C2_BEACONING" "$LATEST_LOG" | tail -20
 
+# Debug: Check why attack counts might be 0 (shows detection flow)
+sudo grep -E "DEBUG.*Port scan|DEBUG.*C2|DEBUG.*State|Port scan detected|State export|warm-up" "$LATEST_LOG" | tail -30
+
 # Or use the symlink (always points to latest)
 sudo tail -f logs/security_agent.log | grep -E "PORT_SCANNING|C2_BEACONING"
 ```

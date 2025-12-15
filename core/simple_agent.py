@@ -1507,6 +1507,13 @@ class SimpleSecurityAgent:
                 raw_port_scan_count = self._count_recent_detections(self.recent_scan_detections)
                 c2_beacons_count = raw_c2_count
                 port_scans_count = raw_port_scan_count
+                
+                # IMPORTANT: If we have detections in history but count is 0, log a warning
+                if len(self.recent_c2_detections) > 0 and raw_c2_count == 0:
+                    logger.warning(f"⚠️ export_state: Has {len(self.recent_c2_detections)} C2 detections in history but count is 0 (may have expired beyond 5min window)")
+                if len(self.recent_scan_detections) > 0 and raw_port_scan_count == 0:
+                    logger.warning(f"⚠️ export_state: Has {len(self.recent_scan_detections)} port scan detections in history but count is 0 (may have expired beyond 5min window)")
+                
                 logger.debug(f"🔍 DEBUG export_state: Warm-up ended (time_since_startup={time_since_startup:.1f}s), raw_c2={raw_c2_count}, raw_port_scan={raw_port_scan_count}, total_c2_detections={len(self.recent_c2_detections)}, total_scan_detections={len(self.recent_scan_detections)}")
             
             state_result = {
