@@ -7,17 +7,17 @@ set -e
 cd ~/Linux-Security-Agent
 
 echo "=========================================="
-echo "COMPLETE DEMO STARTUP SCRIPT"
+echo " COMPLETE DEMO STARTUP SCRIPT"
 echo "=========================================="
 echo ""
 
 # Step 1: Verify models are trained
 echo "=== STEP 1: Checking ML Models ==="
 if [ ! -d ~/.cache/security_agent ] || [ ! -f ~/.cache/security_agent/isolation_forest.pkl ]; then
-    echo "⚠️  Models not found. Training now..."
+    echo "[INFO] Models not found. Training now..."
     python3 scripts/train_with_dataset.py --file datasets/adfa_training.json
 else
-    echo "✅ Models already trained"
+    echo "[OK]   Models already trained"
     ls -lh ~/.cache/security_agent/*.pkl | head -3
 fi
 echo ""
@@ -26,7 +26,7 @@ echo ""
 echo "=== STEP 2: Configuring eBPF and Auditd Rules ==="
 sudo auditctl -D 2>/dev/null || true
 sudo auditctl -a always,exit -F arch=b64 -S socket -S connect -S bind -S accept -S sendto -S recvfrom -k network_syscalls
-echo "✅ eBPF and Auditd rules configured"
+echo "[OK]   eBPF / auditd network rules configured"
 echo ""
 
 # Step 3: Stop any existing processes
@@ -34,7 +34,7 @@ echo "=== STEP 3: Stopping Existing Processes ==="
 sudo pkill -9 -f simple_agent.py 2>/dev/null || true
 pkill -f app.py 2>/dev/null || true
 sleep 2
-echo "✅ Cleaned up existing processes"
+echo "[OK]   Cleaned up any existing agent/dashboard processes"
 echo ""
 
 # Step 4: Start Agent
@@ -44,10 +44,12 @@ sleep 8
 
 if ps aux | grep -q '[s]imple_agent'; then
     AGENT_PID=$(ps aux | grep '[s]imple_agent' | awk '{print $2}' | head -1)
-    echo "✅ Agent started with PID: $AGENT_PID"
-    tail -5 /tmp/agent_demo.log
+    echo "[OK]   Agent started with PID: $AGENT_PID"
+    echo "------ Last 5 agent log lines (from /tmp/agent_demo.log) ------"
+    tail -5 /tmp/agent_demo.log || echo "(no agent log output yet)"
+    echo "---------------------------------------------------------------"
 else
-    echo "❌ Agent failed to start. Check /tmp/agent_demo.log"
+    echo "[ERROR] Agent failed to start. Check /tmp/agent_demo.log"
     exit 1
 fi
 echo ""
@@ -60,10 +62,11 @@ sleep 5
 
 if ps aux | grep -q '[a]pp.py'; then
     DASH_PID=$(ps aux | grep '[a]pp.py' | awk '{print $2}' | head -1)
-    echo "✅ Dashboard started with PID: $DASH_PID"
-    echo "✅ Dashboard available at: http://$(hostname -I | awk '{print $1}'):5001"
+    DASH_IP=$(hostname -I | awk '{print $1}')
+    echo "[OK]   Dashboard started with PID: $DASH_PID"
+    echo "[OK]   Dashboard available at: http://$DASH_IP:5001"
 else
-    echo "❌ Dashboard failed to start. Check /tmp/dashboard_demo.log"
+    echo "[ERROR] Dashboard failed to start. Check /tmp/dashboard_demo.log"
     exit 1
 fi
 echo ""
@@ -74,38 +77,40 @@ sleep 3
 
 # Check agent
 if ps aux | grep -q '[s]imple_agent'; then
-    echo "✅ Agent: RUNNING"
+    echo "[OK]   Agent: RUNNING"
 else
-    echo "❌ Agent: NOT RUNNING"
+    echo "[WARN] Agent: NOT RUNNING"
 fi
 
 # Check dashboard
 if ps aux | grep -q '[a]pp.py'; then
-    echo "✅ Dashboard: RUNNING"
-    curl -s http://localhost:5001/api/status | python3 -m json.tool | head -5 || echo "⚠️  Dashboard API not responding yet"
+    echo "[OK]   Dashboard: RUNNING"
+    echo "[INFO] Dashboard /api/status (first 5 lines):"
+    curl -s http://localhost:5001/api/status | python3 -m json.tool | head -5 || echo "[WARN] Dashboard API not responding yet"
 else
-    echo "❌ Dashboard: NOT RUNNING"
+    echo "[WARN] Dashboard: NOT RUNNING"
 fi
 
 # Check state file
 if [ -f /tmp/security_agent_state.json ]; then
-    echo "✅ State file: PRESENT"
+    echo "[OK]   State file: PRESENT (/tmp/security_agent_state.json)"
 else
-    echo "⚠️  State file: Not created yet (will be created when agent captures syscalls)"
+    echo "[WARN] State file: Not created yet (will be created when agent captures syscalls)"
 fi
 
 echo ""
 echo "=========================================="
-echo "✅ DEMO READY!"
+echo " DEMO READY!"
 echo "=========================================="
 echo ""
-echo "Next steps:"
-echo "1. Wait 30 seconds for normal monitoring"
-echo "2. Run: python3 scripts/simulate_attacks.py"
-echo "3. Check dashboard: http://$(hostname -I | awk '{print $1}'):5001"
-echo "4. View logs: tail -f logs/security_agent_*.log"
+echo "Next steps (run these in separate terminals):"
+echo "  1) Wait ~30 seconds for normal monitoring"
+echo "  2) Run attacks:     python3 scripts/simulate_attacks.py"
+echo "  3) Open dashboard:  http://$DASH_IP:5001"
+echo "  4) View logs:       tail -f logs/security_agent_*.log"
 echo ""
 echo "To stop everything:"
 echo "  sudo pkill -f simple_agent.py"
 echo "  pkill -f app.py"
 echo ""
+echo "[INFO] Script finished. You can now type commands in this terminal."

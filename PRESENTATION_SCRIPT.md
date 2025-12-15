@@ -222,11 +222,11 @@
 > **[Point to top section]**
 >
 > At the top, you see the **System Statistics**:
-> - Total syscalls captured - this is counting in real-time, currently at **[read number]**
-> - Active processes being monitored - **[read number]** processes
-> - High-risk events detected - **[read number]**
-> - Attacks detected - this will increment when we simulate the attack
-> - Average risk score across all processes
+> - **Processes:** how many processes are currently being monitored
+> - **High Risk:** how many processes are above the risk threshold (for example, risk ≥ 30)
+> - **Anomalies:** how many processes the ML ensemble currently flags as anomalous
+> - **Attacks:** how many **network attack patterns** were detected in the last few minutes – this is the sum of **port scans** and **C2 beaconing events** identified by the Connection Pattern Analyzer
+> - **Total Syscalls:** how many syscalls the agent has processed during this run
 >
 > **[Point to process table]**
 >
@@ -239,6 +239,12 @@
 > - Recent syscalls - you can see the actual system calls being made
 >
 > Right now you see normal system activity - systemd, bash, python. Risk scores are low, mostly in the 10-30 range. This is baseline normal behavior.
+>
+> **[If the lower panels are visible]**
+>
+> At the bottom you also see:
+> - A **Recent High-Risk** panel that shows the top high-risk processes with their risk and anomaly scores
+> - A **Recent Attacks** panel that summarizes the most recent **Port Scanning** and **C2 Beaconing** detections – for example, “Detected 132 port-scanning patterns in the last 5 minutes.”
 >
 > **[Open new terminal tab or window]**
 >

@@ -1104,7 +1104,7 @@
                                                 maintainAspectRatio: false,
                                                 scales: {
                                                     y: {
-                    beginAtZero: true,
+                                                        beginAtZero: true,
                     ticks: { stepSize: 1 }
                                                     }
                                                 },
@@ -1143,14 +1143,14 @@
                             const existingProc = processes.get(pid) || { pid, name: 'unknown', risk: 0, anomaly: 0, syscalls: 0 };
                             
                             // Update with state data
-                            if (proc.name && !proc.name.startsWith('pid_') && proc.name !== 'unknown') {
-                                existingProc.name = proc.name;
-                            }
-                            existingProc.risk = proc.risk_score || 0;
-                            existingProc.anomaly = proc.anomaly_score || 0;
-                            existingProc.syscalls = proc.total_syscalls || proc.syscall_count || 0;
-                            existingProc.recentSyscalls = proc.recent_syscalls_str || (proc.recent_syscalls ? proc.recent_syscalls.join(', ') : '');
-                            existingProc.lastSeen = Date.now();
+                    if (proc.name && !proc.name.startsWith('pid_') && proc.name !== 'unknown') {
+                        existingProc.name = proc.name;
+                    }
+                    existingProc.risk = proc.risk_score || 0;
+                    existingProc.anomaly = proc.anomaly_score || 0;
+                    existingProc.syscalls = proc.total_syscalls || proc.syscall_count || 0;
+                    existingProc.recentSyscalls = proc.recent_syscalls_str || (proc.recent_syscalls ? proc.recent_syscalls.join(', ') : '');
+                    existingProc.lastSeen = Date.now();
                             
                             processes.set(pid, existingProc);
                         });
