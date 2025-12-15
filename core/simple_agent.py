@@ -977,29 +977,41 @@ class SimpleSecurityAgent:
                             if pattern_type == 'C2_BEACONING':
                                 # Track with timestamp for recent count
                                 detection_time = time.time()
+                                time_since_startup = detection_time - self.startup_time
+                                logger.info(f"🔍 DEBUG: C2 detection - time_since_startup={time_since_startup:.1f}s, warmup={self.warmup_period_seconds}s, in_warmup={time_since_startup < self.warmup_period_seconds}")
                                 self.recent_c2_detections.append(detection_time)
                                 count = self._count_recent_detections(self.recent_c2_detections)
                                 self.stats['c2_beacons'] = count
                                 logger.warning(f"   C2 beaconing detected (recent count: {count}, total detections in history: {len(self.recent_c2_detections)})")
                                 # Force immediate state file update so dashboard shows attack quickly
                                 try:
+                                    state_before = self.export_state()
+                                    logger.info(f"🔍 DEBUG: State BEFORE write - c2_beacons={state_before.get('stats', {}).get('c2_beacons', 0)}, port_scans={state_before.get('stats', {}).get('port_scans', 0)}")
                                     self._write_state_file()
+                                    state_after = self.export_state()
+                                    logger.info(f"🔍 DEBUG: State AFTER write - c2_beacons={state_after.get('stats', {}).get('c2_beacons', 0)}, port_scans={state_after.get('stats', {}).get('port_scans', 0)}")
                                     logger.info(f"✅ State file updated immediately with C2 beacon count: {count}")
                                 except Exception as e:
-                                    logger.error(f"❌ Could not force state file write: {e}")
+                                    logger.error(f"❌ Could not force state file write: {e}", exc_info=True)
                             elif pattern_type == 'PORT_SCANNING':
                                 # Track with timestamp for recent count
                                 detection_time = time.time()
+                                time_since_startup = detection_time - self.startup_time
+                                logger.info(f"🔍 DEBUG: Port scan detection - time_since_startup={time_since_startup:.1f}s, warmup={self.warmup_period_seconds}s, in_warmup={time_since_startup < self.warmup_period_seconds}")
                                 self.recent_scan_detections.append(detection_time)
                                 count = self._count_recent_detections(self.recent_scan_detections)
                                 self.stats['port_scans'] = count
                                 logger.warning(f"   Port scan detected (recent count: {count}, total detections in history: {len(self.recent_scan_detections)})")
                                 # Force immediate state file update so dashboard shows attack quickly
                                 try:
+                                    state_before = self.export_state()
+                                    logger.info(f"🔍 DEBUG: State BEFORE write - c2_beacons={state_before.get('stats', {}).get('c2_beacons', 0)}, port_scans={state_before.get('stats', {}).get('port_scans', 0)}")
                                     self._write_state_file()
+                                    state_after = self.export_state()
+                                    logger.info(f"🔍 DEBUG: State AFTER write - c2_beacons={state_after.get('stats', {}).get('c2_beacons', 0)}, port_scans={state_after.get('stats', {}).get('port_scans', 0)}")
                                     logger.info(f"✅ State file updated immediately with port scan count: {count}")
                                 except Exception as e:
-                                    logger.error(f"❌ Could not force state file write: {e}")
+                                    logger.error(f"❌ Could not force state file write: {e}", exc_info=True)
                     except AttributeError as e:
                         logger.debug(f"Connection pattern analysis AttributeError for PID {pid}: {e}")
                         logger.debug(f"   Traceback: {traceback.format_exc()}")
@@ -1458,11 +1470,15 @@ class SimpleSecurityAgent:
                 anomalies_count = 0
                 c2_beacons_count = 0
                 port_scans_count = 0
+                logger.debug(f"🔍 DEBUG export_state: In warm-up (time_since_startup={time_since_startup:.1f}s < {self.warmup_period_seconds}s), suppressing counts")
             else:
                 high_risk_count = sum(1 for p in processes_data if p['risk_score'] >= self.config.get('risk_threshold', 30.0))
                 anomalies_count = sum(1 for p in processes_data if p['anomaly_score'] >= 30.0)
-                c2_beacons_count = self._count_recent_detections(self.recent_c2_detections)
-                port_scans_count = self._count_recent_detections(self.recent_scan_detections)
+                raw_c2_count = self._count_recent_detections(self.recent_c2_detections)
+                raw_port_scan_count = self._count_recent_detections(self.recent_scan_detections)
+                c2_beacons_count = raw_c2_count
+                port_scans_count = raw_port_scan_count
+                logger.debug(f"🔍 DEBUG export_state: Warm-up ended (time_since_startup={time_since_startup:.1f}s), raw_c2={raw_c2_count}, raw_port_scan={raw_port_scan_count}, total_c2_detections={len(self.recent_c2_detections)}, total_scan_detections={len(self.recent_scan_detections)}")
             
             state_result = {
                 'timestamp': current_time,
@@ -1482,7 +1498,13 @@ class SimpleSecurityAgent:
                 logger.info(f"📊 State export: c2_beacons={c2_beacons_count}, port_scans={port_scans_count}, total_attacks={c2_beacons_count + port_scans_count}")
             elif len(self.recent_c2_detections) > 0 or len(self.recent_scan_detections) > 0:
                 # Log if we have detections but counts are 0 (might be expired or warm-up issue)
-                logger.debug(f"State export: Has {len(self.recent_c2_detections)} C2 detections and {len(self.recent_scan_detections)} scan detections, but counts are 0 (may be expired or warm-up)")
+                time_since_startup = current_time - self.startup_time
+                in_warmup = time_since_startup < self.warmup_period_seconds
+                logger.warning(f"⚠️ State export: Has {len(self.recent_c2_detections)} C2 detections and {len(self.recent_scan_detections)} scan detections, but counts are 0!")
+                logger.warning(f"   Warm-up status: in_warmup={in_warmup}, time_since_startup={time_since_startup:.1f}s, warmup_period={self.warmup_period_seconds}s")
+                # If we have detections but warm-up is suppressing them, that's a problem!
+                if in_warmup and (len(self.recent_c2_detections) > 0 or len(self.recent_scan_detections) > 0):
+                    logger.error(f"❌ BUG: Attacks detected but warm-up is suppressing them! This should not happen - attacks should only be detected AFTER warm-up ends!")
             
             return state_result
     
