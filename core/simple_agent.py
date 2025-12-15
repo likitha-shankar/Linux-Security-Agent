@@ -979,11 +979,21 @@ class SimpleSecurityAgent:
                                     self.recent_c2_detections.append(time.time())
                                     self.stats['c2_beacons'] = self._count_recent_detections(self.recent_c2_detections)
                                     logger.warning(f"   C2 beaconing detected (recent count: {self.stats['c2_beacons']})")
+                                    # Force immediate state file update so dashboard shows attack quickly
+                                    try:
+                                        self._write_state_file()
+                                    except Exception as e:
+                                        logger.debug(f"Could not force state file write: {e}")
                                 elif pattern_type == 'PORT_SCANNING':
                                     # Track with timestamp for recent count
                                     self.recent_scan_detections.append(time.time())
                                     self.stats['port_scans'] = self._count_recent_detections(self.recent_scan_detections)
                                     logger.warning(f"   Port scan detected (recent count: {self.stats['port_scans']})")
+                                    # Force immediate state file update so dashboard shows attack quickly
+                                    try:
+                                        self._write_state_file()
+                                    except Exception as e:
+                                        logger.debug(f"Could not force state file write: {e}")
                     except AttributeError as e:
                         logger.debug(f"Connection pattern analysis AttributeError for PID {pid}: {e}")
                         logger.debug(f"   Traceback: {traceback.format_exc()}")
@@ -1450,7 +1460,7 @@ class SimpleSecurityAgent:
                 c2_beacons_count = self._count_recent_detections(self.recent_c2_detections)
                 port_scans_count = self._count_recent_detections(self.recent_scan_detections)
             
-            return {
+            state_result = {
                 'timestamp': current_time,
                 'stats': {
                     'total_processes': len(processes_data),
@@ -1462,6 +1472,12 @@ class SimpleSecurityAgent:
                 },
                 'processes': sorted(processes_data, key=lambda x: x['risk_score'], reverse=True)[:50]  # Top 50
             }
+            
+            # Debug: Log attack counts if non-zero (helps verify state file updates)
+            if c2_beacons_count > 0 or port_scans_count > 0:
+                logger.debug(f"State export: c2_beacons={c2_beacons_count}, port_scans={port_scans_count}, total_attacks={c2_beacons_count + port_scans_count}")
+            
+            return state_result
     
     def _write_state_file(self):
         """Write agent state to JSON file for web dashboard"""
