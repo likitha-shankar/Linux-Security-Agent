@@ -50,7 +50,7 @@ def setup_logging(log_dir=None):
         timestamp = datetime.now(_CENTRAL_TZ).strftime('%Y-%m-%d_%H-%M-%S')
     else:
         # Fallback to local time if zoneinfo is unavailable
-        timestamp = datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
+    timestamp = datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
     log_file = log_dir / f'security_agent_{timestamp}.log'
     
     # Also create a symlink to the latest log for backward compatibility
@@ -787,14 +787,14 @@ class SimpleSecurityAgent:
                                 if current_time - last_alert >= anomaly_cooldown:
                                     # Only log if warm-up period has ended
                                     if time_since_startup >= self.warmup_period_seconds:
-                                        comm = proc.get('name', 'unknown')
-                                        # Get current risk score if available, otherwise use 0
-                                        current_risk = proc.get('risk_score', 0.0)
-                                        logger.warning(f"🤖 ANOMALY DETECTED: PID={pid} Process={comm} AnomalyScore={anomaly_score:.1f} Risk={current_risk:.1f}")
-                                        logger.warning(f"   ┌─ What's Anomalous:")
-                                        logger.warning(f"   │  {anomaly_result.explanation}")
-                                        logger.warning(f"   │  Confidence: {anomaly_result.confidence:.2f}")
-                                        self.alert_cooldown[pid] = current_time
+                                    comm = proc.get('name', 'unknown')
+                                    # Get current risk score if available, otherwise use 0
+                                    current_risk = proc.get('risk_score', 0.0)
+                                    logger.warning(f"🤖 ANOMALY DETECTED: PID={pid} Process={comm} AnomalyScore={anomaly_score:.1f} Risk={current_risk:.1f}")
+                                    logger.warning(f"   ┌─ What's Anomalous:")
+                                    logger.warning(f"   │  {anomaly_result.explanation}")
+                                    logger.warning(f"   │  Confidence: {anomaly_result.confidence:.2f}")
+                                    self.alert_cooldown[pid] = current_time
                                     else:
                                         logger.debug(f"⏳ Suppressing anomaly detection during warm-up (PID={pid}, Score={anomaly_score:.1f})")
                             
@@ -804,8 +804,8 @@ class SimpleSecurityAgent:
                                            f"Explanation={anomaly_result.explanation}")
                                 # Track anomaly detection for stats (only count after warm-up)
                                 if time_since_startup >= self.warmup_period_seconds:
-                                    self.stats['anomalies'] = sum(1 for p in self.processes.values() 
-                                                                 if p.get('anomaly_score', 0) >= 70.0)
+                                self.stats['anomalies'] = sum(1 for p in self.processes.values() 
+                                                             if p.get('anomaly_score', 0) >= 70.0)
                                 else:
                                     # During warm-up, set anomalies to 0
                                     self.stats['anomalies'] = 0
@@ -962,38 +962,44 @@ class SimpleSecurityAgent:
                             elif time_since_startup >= self.warmup_period_seconds and not hasattr(self, '_warmup_ended_logged'):
                                 logger.info(f"✅ Warm-up period ended - connection pattern detections are now active")
                                 self._warmup_ended_logged = True
+                        
+                        if conn_result:
+                            connection_risk_bonus = 30.0  # Boost risk for connection patterns
+                            pattern_type = conn_result.get('type', 'UNKNOWN')
+                            explanation = conn_result.get('explanation', 'No explanation')
                             
-                            if conn_result:
-                                connection_risk_bonus = 30.0  # Boost risk for connection patterns
-                                pattern_type = conn_result.get('type', 'UNKNOWN')
-                                explanation = conn_result.get('explanation', 'No explanation')
-                                
-                                logger.warning(f"🌐 CONNECTION PATTERN DETECTED: {pattern_type} PID={pid} Process={proc['name']}")
-                                logger.warning(f"   Details: {explanation}")
-                                logger.warning(f"   Destination: {dest_ip}:{dest_port} (NOTE: Port may be simulated)")
-                                logger.warning(f"   Risk bonus added: +{connection_risk_bonus:.1f}")
-                                
-                                # Update stats
-                                if pattern_type == 'C2_BEACONING':
-                                    # Track with timestamp for recent count
-                                    self.recent_c2_detections.append(time.time())
-                                    self.stats['c2_beacons'] = self._count_recent_detections(self.recent_c2_detections)
-                                    logger.warning(f"   C2 beaconing detected (recent count: {self.stats['c2_beacons']})")
-                                    # Force immediate state file update so dashboard shows attack quickly
-                                    try:
-                                        self._write_state_file()
-                                    except Exception as e:
-                                        logger.debug(f"Could not force state file write: {e}")
-                                elif pattern_type == 'PORT_SCANNING':
-                                    # Track with timestamp for recent count
-                                    self.recent_scan_detections.append(time.time())
-                                    self.stats['port_scans'] = self._count_recent_detections(self.recent_scan_detections)
-                                    logger.warning(f"   Port scan detected (recent count: {self.stats['port_scans']})")
-                                    # Force immediate state file update so dashboard shows attack quickly
-                                    try:
-                                        self._write_state_file()
-                                    except Exception as e:
-                                        logger.debug(f"Could not force state file write: {e}")
+                            logger.warning(f"🌐 CONNECTION PATTERN DETECTED: {pattern_type} PID={pid} Process={proc['name']}")
+                            logger.warning(f"   Details: {explanation}")
+                            logger.warning(f"   Destination: {dest_ip}:{dest_port} (NOTE: Port may be simulated)")
+                            logger.warning(f"   Risk bonus added: +{connection_risk_bonus:.1f}")
+                            
+                            # Update stats
+                            if pattern_type == 'C2_BEACONING':
+                                # Track with timestamp for recent count
+                                detection_time = time.time()
+                                self.recent_c2_detections.append(detection_time)
+                                count = self._count_recent_detections(self.recent_c2_detections)
+                                self.stats['c2_beacons'] = count
+                                logger.warning(f"   C2 beaconing detected (recent count: {count}, total detections in history: {len(self.recent_c2_detections)})")
+                                # Force immediate state file update so dashboard shows attack quickly
+                                try:
+                                    self._write_state_file()
+                                    logger.info(f"✅ State file updated immediately with C2 beacon count: {count}")
+                                except Exception as e:
+                                    logger.error(f"❌ Could not force state file write: {e}")
+                            elif pattern_type == 'PORT_SCANNING':
+                                # Track with timestamp for recent count
+                                detection_time = time.time()
+                                self.recent_scan_detections.append(detection_time)
+                                count = self._count_recent_detections(self.recent_scan_detections)
+                                self.stats['port_scans'] = count
+                                logger.warning(f"   Port scan detected (recent count: {count}, total detections in history: {len(self.recent_scan_detections)})")
+                                # Force immediate state file update so dashboard shows attack quickly
+                                try:
+                                    self._write_state_file()
+                                    logger.info(f"✅ State file updated immediately with port scan count: {count}")
+                                except Exception as e:
+                                    logger.error(f"❌ Could not force state file write: {e}")
                     except AttributeError as e:
                         logger.debug(f"Connection pattern analysis AttributeError for PID {pid}: {e}")
                         logger.debug(f"   Traceback: {traceback.format_exc()}")
@@ -1065,8 +1071,8 @@ class SimpleSecurityAgent:
                     
                     # Only count high-risk processes after warm-up period
                     if time_since_startup >= self.warmup_period_seconds:
-                        self.stats['high_risk'] = sum(1 for p in self.processes.values() 
-                                                     if p['risk_score'] >= threshold)
+                    self.stats['high_risk'] = sum(1 for p in self.processes.values() 
+                                                 if p['risk_score'] >= threshold)
                     else:
                         # During warm-up, set high_risk to 0
                         self.stats['high_risk'] = 0
@@ -1077,19 +1083,19 @@ class SimpleSecurityAgent:
                     if current_time - last_alert >= self.alert_cooldown_seconds:
                         # Only log high-risk detections after warm-up period
                         if time_since_startup >= self.warmup_period_seconds:
-                            # LOG HIGH-RISK DETECTION with full details
-                            comm = proc.get('name', 'unknown')
-                            # Try to get better process name if current one is pid_XXXXX
-                            if comm.startswith('pid_'):
-                                try:
-                                    p = psutil.Process(pid)
-                                    better_name = p.name()
-                                    if better_name and not better_name.startswith('pid_'):
-                                        comm = better_name
-                                        proc['name'] = better_name  # Update stored name
-                                except (psutil.NoSuchProcess, psutil.AccessDenied):
-                                    pass
-                            logger.warning(f"🔴 HIGH RISK DETECTED: PID={pid} Process={comm} Risk={risk_score:.1f} Anomaly={anomaly_score:.1f}")
+                        # LOG HIGH-RISK DETECTION with full details
+                        comm = proc.get('name', 'unknown')
+                        # Try to get better process name if current one is pid_XXXXX
+                        if comm.startswith('pid_'):
+                            try:
+                                p = psutil.Process(pid)
+                                better_name = p.name()
+                                if better_name and not better_name.startswith('pid_'):
+                                    comm = better_name
+                                    proc['name'] = better_name  # Update stored name
+                            except (psutil.NoSuchProcess, psutil.AccessDenied):
+                                pass
+                        logger.warning(f"🔴 HIGH RISK DETECTED: PID={pid} Process={comm} Risk={risk_score:.1f} Anomaly={anomaly_score:.1f}")
                         else:
                             logger.debug(f"⏳ Suppressing high-risk detection during warm-up (PID={pid}, Risk={risk_score:.1f})")
                         logger.warning(f"   Threshold: {threshold:.1f} | Base Risk: {base_risk_score:.1f} | "
@@ -1142,33 +1148,33 @@ class SimpleSecurityAgent:
                         # Check warm-up period - suppress anomalies during startup
                         time_since_startup = time.time() - self.startup_time
                         if time_since_startup >= self.warmup_period_seconds:
-                            comm = proc.get('name', 'unknown')
-                            
-                            # Get recent syscalls for context
-                            recent_syscalls = list(proc['syscalls'])[-15:] if len(proc['syscalls']) > 0 else []
-                            syscall_counts = Counter(recent_syscalls)
-                            top_syscalls = syscall_counts.most_common(5)
-                            
-                            # Identify high-risk syscalls in recent activity
-                            high_risk_syscalls = ['ptrace', 'setuid', 'setgid', 'chroot', 'mount', 'umount', 
-                                                 'execve', 'clone', 'fork', 'chmod', 'chown', 'unlink', 'rename']
-                            detected_risky = [sc for sc, count in top_syscalls if sc in high_risk_syscalls]
-                            
-                            # Try to get better process name if current one is pid_XXXXX
-                            comm = proc.get('name', 'unknown')
-                            if comm.startswith('pid_'):
-                                try:
-                                    p = psutil.Process(pid)
-                                    better_name = p.name()
-                                    if better_name and not better_name.startswith('pid_'):
-                                        comm = better_name
-                                        proc['name'] = better_name  # Update stored name
-                                except (psutil.NoSuchProcess, psutil.AccessDenied):
-                                    pass
-                            # Enhanced anomaly logging with specific details
-                            explanation = proc.get('anomaly_explanation', 'Anomalous behavior detected')
-                            confidence = proc.get('anomaly_confidence', 0.0)
-                            logger.warning(f"🤖 ANOMALY DETECTED: PID={pid} Process={comm} AnomalyScore={anomaly_score:.1f} Risk={risk_score:.1f}")
+                        comm = proc.get('name', 'unknown')
+                        
+                        # Get recent syscalls for context
+                        recent_syscalls = list(proc['syscalls'])[-15:] if len(proc['syscalls']) > 0 else []
+                        syscall_counts = Counter(recent_syscalls)
+                        top_syscalls = syscall_counts.most_common(5)
+                        
+                        # Identify high-risk syscalls in recent activity
+                        high_risk_syscalls = ['ptrace', 'setuid', 'setgid', 'chroot', 'mount', 'umount', 
+                                             'execve', 'clone', 'fork', 'chmod', 'chown', 'unlink', 'rename']
+                        detected_risky = [sc for sc, count in top_syscalls if sc in high_risk_syscalls]
+                        
+                        # Try to get better process name if current one is pid_XXXXX
+                        comm = proc.get('name', 'unknown')
+                        if comm.startswith('pid_'):
+                            try:
+                                p = psutil.Process(pid)
+                                better_name = p.name()
+                                if better_name and not better_name.startswith('pid_'):
+                                    comm = better_name
+                                    proc['name'] = better_name  # Update stored name
+                            except (psutil.NoSuchProcess, psutil.AccessDenied):
+                                pass
+                        # Enhanced anomaly logging with specific details
+                        explanation = proc.get('anomaly_explanation', 'Anomalous behavior detected')
+                        confidence = proc.get('anomaly_confidence', 0.0)
+                        logger.warning(f"🤖 ANOMALY DETECTED: PID={pid} Process={comm} AnomalyScore={anomaly_score:.1f} Risk={risk_score:.1f}")
                         else:
                             logger.debug(f"⏳ Suppressing anomaly detection during warm-up (PID={pid}, Score={check_score:.1f})")
                         logger.warning(f"   ┌─ What's Anomalous:")
@@ -1473,9 +1479,12 @@ class SimpleSecurityAgent:
                 'processes': sorted(processes_data, key=lambda x: x['risk_score'], reverse=True)[:50]  # Top 50
             }
             
-            # Debug: Log attack counts if non-zero (helps verify state file updates)
+            # Debug: Log attack counts (helps verify state file updates)
             if c2_beacons_count > 0 or port_scans_count > 0:
-                logger.debug(f"State export: c2_beacons={c2_beacons_count}, port_scans={port_scans_count}, total_attacks={c2_beacons_count + port_scans_count}")
+                logger.info(f"📊 State export: c2_beacons={c2_beacons_count}, port_scans={port_scans_count}, total_attacks={c2_beacons_count + port_scans_count}")
+            elif len(self.recent_c2_detections) > 0 or len(self.recent_scan_detections) > 0:
+                # Log if we have detections but counts are 0 (might be expired or warm-up issue)
+                logger.debug(f"State export: Has {len(self.recent_c2_detections)} C2 detections and {len(self.recent_scan_detections)} scan detections, but counts are 0 (may be expired or warm-up)")
             
             return state_result
     
@@ -1483,6 +1492,13 @@ class SimpleSecurityAgent:
         """Write agent state to JSON file for web dashboard"""
         try:
             state = self.export_state()
+            # Log attack counts when writing state file (for debugging)
+            stats = state.get('stats', {})
+            c2_count = stats.get('c2_beacons', 0)
+            port_scan_count = stats.get('port_scans', 0)
+            if c2_count > 0 or port_scan_count > 0:
+                logger.info(f"📝 Writing state file with attacks: c2_beacons={c2_count}, port_scans={port_scan_count}")
+            
             # Always write to /tmp (accessible by all users, including when running as root)
             state_file = Path('/tmp/security_agent_state.json')
             try:
@@ -1494,7 +1510,7 @@ class SimpleSecurityAgent:
                 os.chmod(temp_file, 0o644)
                 # Atomic rename (prevents reading partial/corrupted files)
                 temp_file.replace(state_file)
-                logger.debug(f"State file written: {state_file} ({len(state.get('processes', []))} processes)")
+                logger.debug(f"State file written: {state_file} ({len(state.get('processes', []))} processes, {c2_count} C2, {port_scan_count} scans)")
             except Exception as e:
                 logger.warning(f"Error writing state file to /tmp: {e}")
                 # Fallback to user's home if /tmp fails
