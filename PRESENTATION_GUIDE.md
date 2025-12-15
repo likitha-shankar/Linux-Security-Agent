@@ -46,16 +46,6 @@ python3 app.py
 **What to Say:**
 > "Today I'll be presenting a Linux Security Agent that performs real-time syscall monitoring with machine learning-based anomaly detection. The system uses eBPF and auditd to capture system calls at the kernel level and applies both rule-based and ML-based detection to identify security threats."
 
-**Key Points:**
-- Real-time kernel-level monitoring
-- Hybrid detection (rules + ML)
-- Low overhead design
-- Research prototype
-
-**Show:**
-- Architecture diagram (if available)
-- System overview slide
-
 ---
 
 ### 2. Architecture & Technical Overview (3-4 minutes)
