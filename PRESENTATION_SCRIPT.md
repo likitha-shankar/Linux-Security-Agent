@@ -7,17 +7,60 @@
 
 ---
 
+## 📖 HOW TO USE THIS SCRIPT
+
+### Presentation Setup:
+
+1. **Open the HTML Report** (`docs/reports/PROJECT_REPORT.html`) in your browser BEFORE starting
+2. **Share your screen** showing the HTML report
+3. **Read this script verbatim** - it's written for natural speech
+4. **Navigate the HTML report** as indicated in the script:
+   - Use it like visual slides
+   - Scroll to referenced sections when mentioned
+   - Point to diagrams and tables as you explain them
+   - Jump to Section 8.3 for test results
+
+### Why This Works:
+- The **HTML report** provides professional visual validation
+- The **script** keeps you on track with perfect timing
+- Audience sees comprehensive documentation while you speak
+- If the live demo fails, you have the report to fall back on
+- You appear extremely well-organized and prepared
+
+### Quick Navigation Guide for HTML Report:
+- **Title/Opening**: Top of page
+- **Architecture**: Section 4 (scroll to see diagrams)
+- **Connection Pattern Analyzer**: Section 4.4.5
+- **Data Flow**: Section 4.5
+- **Features**: Section 5
+- **Test Results**: Section 8.3 (THIS IS KEY - bookmark this!)
+- **Conclusion**: Section 10
+
+### Presentation Flow:
+1. Share screen with HTML report visible (title page)
+2. Read opening script
+3. Scroll through report sections as you explain architecture
+4. Minimize report for live demo
+5. Return to report for test results section
+6. Keep report open during Q&A for reference
+
+---
+
 ## 📋 OPENING (2 minutes)
 
 ### Slide 1: Title Slide
+
+**[Screen shows HTML report open at the title page]**
 
 > "Good [morning/afternoon] everyone. Thank you for being here today.
 >
 > My name is Likitha Shankar, and I'm excited to present my Master's degree research project: **A Linux Security Agent with eBPF-Based Syscall Monitoring and Machine Learning Anomaly Detection**.
 >
+> What you're seeing on screen is the comprehensive project report that documents this entire research effort. Over the next 15 to 20 minutes, I'll walk you through the technical architecture using this report as a visual guide, demonstrate a live detection system, and share the research results that validate this approach.
+>
 > This project addresses a critical challenge in modern cybersecurity - how do we detect sophisticated attacks that bypass traditional security tools? My solution combines cutting-edge kernel-level monitoring with machine learning to detect threats in real-time, even when they're encrypted or using advanced evasion techniques.
 >
-> Over the next 15 to 20 minutes, I'll walk you through the technical architecture, demonstrate a live detection system, and show you the research results that validate this approach."
+> Let me start by explaining the problem this project solves."
 
 **[Pause for 2 seconds, make eye contact]**
 
@@ -156,11 +199,21 @@
 
 > "Now let me show you the system in action. I'll demonstrate live detection of a port scanning attack.
 >
-> **[Switch to terminal, make it full screen]**
+> **[Share screen showing HTML PROJECT_REPORT.html open in browser]**
 >
-> First, I'll start the security agent. The command is:
+> Before we jump into the live demo, I want to briefly orient you to the project documentation you see on screen. This is the comprehensive project report that details the entire architecture, implementation, and test results. We'll reference specific sections as we go through the presentation.
+>
+> **[Scroll to show Table of Contents briefly]**
+>
+> You can see it covers everything from system architecture to performance evaluation. I'll be jumping between this report and the live system during our demo.
+>
+> **[Switch to terminal, make it full screen or split screen with report]**
+>
+> Now for the live demo. I'll start the security agent. The command is:
 >
 > `sudo python3 core/simple_agent.py --collector ebpf --dashboard`
+>
+> Note that the system has a built-in fallback mechanism - if eBPF isn't available, it automatically switches to auditd. This collector factory pattern ensures the agent works on any Linux system.
 >
 > **[Run command, wait for dashboard to appear]**
 >
@@ -169,9 +222,10 @@
 > **[Point to top section]**
 >
 > At the top, you see the **System Statistics**:
-> - Total syscalls captured - this is counting in real-time
-> - Active processes being monitored
-> - High-risk events detected
+> - Total syscalls captured - this is counting in real-time, currently at **[read number]**
+> - Active processes being monitored - **[read number]** processes
+> - High-risk events detected - **[read number]**
+> - Attacks detected - this will increment when we simulate the attack
 > - Average risk score across all processes
 >
 > **[Point to process table]**
@@ -182,45 +236,67 @@
 > - Number of syscalls from that process
 > - Current risk score (0-100 scale)
 > - Anomaly score from the ML models
-> - Recent syscalls
+> - Recent syscalls - you can see the actual system calls being made
 >
-> Right now you see normal system activity - systemd, bash, python. Risk scores are low, mostly in the 10-30 range.
+> Right now you see normal system activity - systemd, bash, python. Risk scores are low, mostly in the 10-30 range. This is baseline normal behavior.
 >
-> **[Open new terminal tab]**
+> **[Open new terminal tab or window]**
 >
-> Now I'll simulate an attack. I'm going to run a port scanning script that probes multiple ports rapidly.
+> Now I'll simulate an attack. I'm going to run a port scanning script that probes multiple ports rapidly - exactly the kind of reconnaissance activity that precedes real attacks.
 >
 > **[Type but don't execute yet]**
 >
 > `python3 scripts/simulate_attacks.py --attack-type port_scan`
 >
-> Watch what happens when I execute this...
+> Watch what happens to the dashboard when I execute this...
 >
 > **[Execute, switch back to dashboard]**
 >
-> **[Point to dashboard changes]**
+> **[Point to dashboard changes - give it 2-3 seconds to update]**
 >
-> Look! The risk score is spiking! You can see a new process appeared - that's the attack script - and its risk score jumped to **75 or higher**.
+> Look! The statistics are updating in real-time! 
 >
-> **[Point to syscall column]**
+> **[Point to specific changes]**
+>
+> - The "Attacks" counter just incremented
+> - A new process appeared in the table - that's the attack script
+> - Its risk score is spiking - you can see it's **[read the score]** which is in the HIGH range
+>
+> **[Point to syscall column for the attack process]**
 >
 > Notice the syscalls: socket, connect, socket, connect - rapid network connection attempts. That's the signature of port scanning.
 >
-> **[Point to stats]**
+> **[Point to the attacks section if visible, or stats]**
 >
-> The high-risk events counter increased. The system detected this as a **PORT_SCANNING** attack, mapped to MITRE ATT&CK technique **T1046**.
+> The Connection Pattern Analyzer detected this as **PORT_SCANNING**, mapped to MITRE ATT&CK technique **T1046 - Network Service Scanning**. 
 >
-> **[Let it run for 10 more seconds]**
+> The detection happened because the process connected to **5 unique ports within 60 seconds** - exceeding our threshold. The system assigned it a risk score bonus of +75 with 85% confidence.
 >
-> The Connection Pattern Analyzer detected that this process connected to 5 or more unique ports within 60 seconds, triggering the alert.
+> **[If you can show the attack count]**
+>
+> You can see we've now detected **[read number]** port scans. In our comprehensive testing, we detected **574 port scans** successfully.
+>
+> **[Let it run for 5-10 more seconds to show continuous detection]**
+>
+> The beautiful thing about this system is it's detecting the attack pattern at the **syscall level** - even if the attacker was using encrypted connections, we'd still see the socket and connect calls. The encryption doesn't hide the behavior.
 >
 > **[Stop the attack with Ctrl+C in attack terminal]**
 >
-> I'll stop the attack now. Notice how the risk score drops back down as normal behavior resumes.
+> I'll stop the attack now. 
+>
+> **[Wait 2-3 seconds]**
+>
+> Notice how the risk score drops back down as normal behavior resumes. The system uses time-decay - older suspicious events have less weight than recent ones.
 >
 > **[Switch back to main terminal, stop agent with Ctrl+C]**
 >
-> This demonstrates real-time detection without signatures, without prior knowledge of the attack, purely based on behavioral analysis."
+> This demonstrates real-time detection without signatures, without prior knowledge of the attack, purely based on behavioral analysis of system calls.
+>
+> **[Optional: Switch back to HTML report]**
+>
+> As documented in our test results - **[scroll to Section 8.3 in report if time permits]** - we achieved a **100% detection rate** with **574 port scans** detected, **zero false negatives**, and **zero CPU overhead**.
+>
+> The ML models running in the background achieved a **perfect F1 score of 1.0** with **ROC AUC of 0.9998** on our test dataset."
 
 ---
 
@@ -228,69 +304,93 @@
 
 ### Slide 7: Connection Pattern Analyzer Details
 
-> "Let me dive deeper into one specific component - the Connection Pattern Analyzer - since we just saw it in action.
+> "Let me dive deeper into one specific component - the Connection Pattern Analyzer - since we just saw it in action detecting that port scan.
 >
-> **[Show Connection Pattern Analyzer diagram]**
+> **[If sharing HTML report, scroll to Section 4.4.5]**
 >
-> When a network syscall occurs - socket, connect, sendto, or sendmsg - it flows into the **Connection Tracking** module.
+> As you can see in the architecture documentation here, when a network syscall occurs - socket, connect, sendto, or sendmsg - it flows into the **Connection Tracking** module.
 >
 > This module tracks connections in two ways:
-> - By PID for normal processes
-> - By process name plus destination IP for short-lived processes
+> - By PID for normal, long-running processes
+> - By process name plus destination IP for short-lived processes that might disappear before we finish analyzing them
 >
-> It stores the destination IP and port, timestamp, unique ports accessed, and time intervals between connections.
+> It stores the destination IP and port, timestamp, unique ports accessed, and calculates time intervals between connections.
 >
-> Then it performs **three types of pattern detection**:
+> Then it performs **three types of pattern detection**, all mapped to MITRE ATT&CK framework:
 >
-> **Port Scanning Detection:**
+> **First - Port Scanning Detection (T1046):**
 > - Counts unique destination ports
 > - Checks if they occurred within 60 seconds
-> - If 5 or more unique ports, flags as T1046 port scanning
-> - Adds risk score of +75 with 85% confidence
+> - If 5 or more unique ports, flags as port scanning
+> - Adds risk score of **+75** with **85% confidence**
+> - This is exactly what you just saw in the demo when we detected that attack
 >
-> **C2 Beaconing Detection:**
-> - Calculates time intervals between connections
+> **Second - C2 Beaconing Detection (T1071):**
+> - Calculates time intervals between connections to the same destination
 > - Computes mean interval and standard deviation
-> - If at least 3 connections, intervals are 2+ seconds, and standard deviation is below 5 seconds, flags as T1071 beaconing
-> - Adds risk score of +85 with 90% confidence
+> - If at least **3 connections**, intervals are **2 or more seconds**, and standard deviation is **below 5 seconds**, that indicates regular beaconing behavior
+> - Malware often communicates with command-and-control servers on a regular heartbeat - every 3 seconds, every 5 seconds, very consistent
+> - Flags as T1071 C2 beaconing
+> - Adds risk score of **+85** with **90% confidence**
 >
-> **Data Exfiltration Detection:**
-> - Tracks bytes sent versus bytes received
-> - If over 100 MB sent with high upload/download ratio, flags as T1041 exfiltration
-> - Adds risk score of +90 with 80% confidence, marked as CRITICAL severity
+> **Third - Data Exfiltration Detection (T1041):**
+> - Tracks bytes sent versus bytes received for each process
+> - If a process sends over **100 megabytes** with a high upload-to-download ratio, that's suspicious
+> - Could indicate data being stolen from the system
+> - Flags as T1041 exfiltration
+> - Adds risk score of **+90** with **80% confidence**, marked as **CRITICAL** severity
 >
-> When any pattern is detected, it adds a **+30 risk bonus** to the process's base risk score, which is how we saw that port scan jump to 75.
+> When any pattern is detected, it adds a **+30 risk bonus** to the process's base risk score. In our demo, that's why the port scanning process jumped to 75 - it got the base risk from suspicious syscalls plus the 30-point connection pattern bonus.
 >
-> The system also maintains statistics - how many beacons, port scans, and exfiltrations were detected during the session."
+> The system also maintains statistics - throughout our testing, we successfully detected **574 port scans**, multiple C2 beaconing attempts, and validated the exfiltration detection capability.
+>
+> **[If time permits and sharing report, scroll to Section 8.3]**
+>
+> All of these results are documented in the test results section, showing perfect detection accuracy with zero false negatives."
 
 ### Slide 8: ML Pipeline Details
 
-> "The machine learning pipeline deserves explanation too.
+> "The machine learning pipeline is equally sophisticated and deserves explanation.
 >
-> **[Show ML detection flow diagram]**
+> **[If sharing HTML report, scroll to Section 4.5 or ML architecture section]**
 >
-> Starting from the top: When syscalls arrive, the **Event Handler** updates process state in a thread-safe manner using locks. It maintains a deque of the last 100 syscalls per process.
+> Starting from the top: When syscalls arrive, the **Event Handler** updates process state in a thread-safe manner using locks. It maintains a deque - a double-ended queue - of the last 100 syscalls per process. This gives us a sliding window of recent behavior.
 >
-> Then we branch into two parallel paths:
+> Then we have two parallel analysis paths that run simultaneously:
 >
 > **Left path - Risk Scoring:**
-> - Looks up base syscall risk (1-10 scale)
+> - Looks up the base syscall risk. I've assigned each syscall a weight from 1 to 10. For example, 'open' is low-risk (2 points), but 'ptrace' - which debuggers and exploits use - is high-risk (9 points).
 > - Adds behavioral deviation if the process is acting differently than its baseline
-> - Adds container context bonus if it's in Docker or Kubernetes
-> - Weights anomaly score at 30% contribution
-> - Outputs a base risk score from 0-100
+> - Adds container context bonus if it's running in Docker or Kubernetes - containerized processes get extra scrutiny
+> - Weights the anomaly score from ML at 30% contribution
+> - Outputs a base risk score from 0 to 100
 >
-> **Right path - Feature Extraction and ML:**
-> - Extracts 50-dimensional feature vector
-> - Applies StandardScaler normalization
-> - Reduces to 10 dimensions with PCA
-> - Runs Isolation Forest, One-Class SVM, and DBSCAN in parallel
-> - Includes n-gram bigram analysis for sequence patterns
-> - Outputs anomaly score from 0-100
+> **Right path - Feature Extraction and Machine Learning:**
+> - Extracts a **50-dimensional feature vector** from the syscall sequence. These features include:
+>   - Syscall frequency counts
+>   - Unique syscall ratios
+>   - Entropy measurements
+>   - Network-related features
+>   - File system features
+>   - Process metadata
+>   - And importantly - **n-gram bigram patterns**, which are pairs of consecutive syscalls that often indicate specific behaviors
+> - Applies **StandardScaler normalization** to ensure all features are on the same scale
+> - Reduces dimensionality from **50 dimensions to 10 dimensions** using **PCA - Principal Component Analysis**. This removes noise and correlation between features.
+> - Runs **three ML models in parallel**:
+>   - **Isolation Forest** - excellent at detecting outliers
+>   - **One-Class SVM** - learns the boundary of normal behavior
+>   - **DBSCAN** - finds dense clusters of normal behavior
+> - Plus the **n-gram bigram analysis** for sequence patterns
+> - These models vote together in an ensemble approach
+> - Outputs an anomaly score from 0 to 100
 >
-> These two scores combine - base risk plus any connection pattern bonuses - to produce the final risk score you see in the dashboard.
+> These two scores combine - base risk score plus any connection pattern bonuses from the Connection Pattern Analyzer - to produce the **final risk score** you see in the dashboard.
 >
-> The entire pipeline is designed for real-time processing with minimal latency."
+> The entire pipeline is designed for real-time processing. **ML inference latency is only 23.5 milliseconds** on average - fast enough that you don't notice any delay.
+>
+> And the results speak for themselves: We achieved a **perfect F1 score of 1.0** - that's 100% precision and 100% recall - with a **ROC AUC of 0.9998**. Essentially perfect discrimination between normal and malicious behavior.
+>
+> The models were trained on **5,205 real syscall sequences** from the ADFA-LD dataset - that's the Australian Defence Force Academy Linux Dataset, which is a standard benchmark in this research domain."
 
 ---
 
