@@ -778,27 +778,37 @@ class SimpleSecurityAgent:
                                               f"Confidence={anomaly_result.confidence:.2f}")
                             
                             # IMMEDIATELY log anomaly if detected (outside the len==20 check so it always runs)
+                            # Suppress during warm-up period to avoid false positives from startup
+                            time_since_startup = time.time() - self.startup_time
                             if anomaly_result and anomaly_result.is_anomaly and anomaly_score >= 60.0:
                                 current_time = time.time()
                                 last_alert = self.alert_cooldown.get(pid, 0)
                                 anomaly_cooldown = 5.0  # 5 seconds between anomaly logs
                                 if current_time - last_alert >= anomaly_cooldown:
-                                    comm = proc.get('name', 'unknown')
-                                    # Get current risk score if available, otherwise use 0
-                                    current_risk = proc.get('risk_score', 0.0)
-                                    logger.warning(f"🤖 ANOMALY DETECTED: PID={pid} Process={comm} AnomalyScore={anomaly_score:.1f} Risk={current_risk:.1f}")
-                                    logger.warning(f"   ┌─ What's Anomalous:")
-                                    logger.warning(f"   │  {anomaly_result.explanation}")
-                                    logger.warning(f"   │  Confidence: {anomaly_result.confidence:.2f}")
-                                    self.alert_cooldown[pid] = current_time
+                                    # Only log if warm-up period has ended
+                                    if time_since_startup >= self.warmup_period_seconds:
+                                        comm = proc.get('name', 'unknown')
+                                        # Get current risk score if available, otherwise use 0
+                                        current_risk = proc.get('risk_score', 0.0)
+                                        logger.warning(f"🤖 ANOMALY DETECTED: PID={pid} Process={comm} AnomalyScore={anomaly_score:.1f} Risk={current_risk:.1f}")
+                                        logger.warning(f"   ┌─ What's Anomalous:")
+                                        logger.warning(f"   │  {anomaly_result.explanation}")
+                                        logger.warning(f"   │  Confidence: {anomaly_result.confidence:.2f}")
+                                        self.alert_cooldown[pid] = current_time
+                                    else:
+                                        logger.debug(f"⏳ Suppressing anomaly detection during warm-up (PID={pid}, Score={anomaly_score:.1f})")
                             
                             if anomaly_result and anomaly_result.is_anomaly:
                                 # Don't increment cumulative - will calculate current count dynamically
                                 logger.debug(f"Anomaly detected: PID={pid} Score={anomaly_score:.1f} "
                                            f"Explanation={anomaly_result.explanation}")
-                                # Track anomaly detection for stats
-                                self.stats['anomalies'] = sum(1 for p in self.processes.values() 
-                                                             if p.get('anomaly_score', 0) >= 70.0)
+                                # Track anomaly detection for stats (only count after warm-up)
+                                if time_since_startup >= self.warmup_period_seconds:
+                                    self.stats['anomalies'] = sum(1 for p in self.processes.values() 
+                                                                 if p.get('anomaly_score', 0) >= 70.0)
+                                else:
+                                    # During warm-up, set anomalies to 0
+                                    self.stats['anomalies'] = 0
                         except ValueError as e:
                             logger.warning(f"⚠️  ML detection ValueError for PID {pid}: {e}")
                             logger.debug(f"   This may indicate insufficient features or data. Traceback: {traceback.format_exc()}")
@@ -1038,26 +1048,38 @@ class SimpleSecurityAgent:
                 # Update high risk count and LOG detections (with rate limiting)
                 threshold = self.config.get('risk_threshold', 30.0)
                 if risk_score >= threshold:
-                    self.stats['high_risk'] = sum(1 for p in self.processes.values() 
-                                                 if p['risk_score'] >= threshold)
+                    # Check warm-up period
+                    time_since_startup = time.time() - self.startup_time
+                    
+                    # Only count high-risk processes after warm-up period
+                    if time_since_startup >= self.warmup_period_seconds:
+                        self.stats['high_risk'] = sum(1 for p in self.processes.values() 
+                                                     if p['risk_score'] >= threshold)
+                    else:
+                        # During warm-up, set high_risk to 0
+                        self.stats['high_risk'] = 0
                     
                     # Rate limiting: only log if enough time has passed since last alert
                     current_time = time.time()
                     last_alert = self.alert_cooldown.get(pid, 0)
                     if current_time - last_alert >= self.alert_cooldown_seconds:
-                        # LOG HIGH-RISK DETECTION with full details
-                        comm = proc.get('name', 'unknown')
-                        # Try to get better process name if current one is pid_XXXXX
-                        if comm.startswith('pid_'):
-                            try:
-                                p = psutil.Process(pid)
-                                better_name = p.name()
-                                if better_name and not better_name.startswith('pid_'):
-                                    comm = better_name
-                                    proc['name'] = better_name  # Update stored name
-                            except (psutil.NoSuchProcess, psutil.AccessDenied):
-                                pass
-                        logger.warning(f"🔴 HIGH RISK DETECTED: PID={pid} Process={comm} Risk={risk_score:.1f} Anomaly={anomaly_score:.1f}")
+                        # Only log high-risk detections after warm-up period
+                        if time_since_startup >= self.warmup_period_seconds:
+                            # LOG HIGH-RISK DETECTION with full details
+                            comm = proc.get('name', 'unknown')
+                            # Try to get better process name if current one is pid_XXXXX
+                            if comm.startswith('pid_'):
+                                try:
+                                    p = psutil.Process(pid)
+                                    better_name = p.name()
+                                    if better_name and not better_name.startswith('pid_'):
+                                        comm = better_name
+                                        proc['name'] = better_name  # Update stored name
+                                except (psutil.NoSuchProcess, psutil.AccessDenied):
+                                    pass
+                            logger.warning(f"🔴 HIGH RISK DETECTED: PID={pid} Process={comm} Risk={risk_score:.1f} Anomaly={anomaly_score:.1f}")
+                        else:
+                            logger.debug(f"⏳ Suppressing high-risk detection during warm-up (PID={pid}, Risk={risk_score:.1f})")
                         logger.warning(f"   Threshold: {threshold:.1f} | Base Risk: {base_risk_score:.1f} | "
                                      f"Connection Bonus: {connection_risk_bonus:.1f} | Total Syscalls: {proc.get('total_syscalls', 0)}")
                         logger.warning(f"   Recent syscalls: {', '.join(list(proc['syscalls'])[-10:])}")
@@ -1105,33 +1127,38 @@ class SimpleSecurityAgent:
                     # Use shorter cooldown for anomalies (5 seconds) vs high-risk (30 seconds)
                     anomaly_cooldown = 5.0  # 5 seconds between anomaly logs
                     if current_time - last_alert >= anomaly_cooldown:
-                        comm = proc.get('name', 'unknown')
-                        
-                        # Get recent syscalls for context
-                        recent_syscalls = list(proc['syscalls'])[-15:] if len(proc['syscalls']) > 0 else []
-                        syscall_counts = Counter(recent_syscalls)
-                        top_syscalls = syscall_counts.most_common(5)
-                        
-                        # Identify high-risk syscalls in recent activity
-                        high_risk_syscalls = ['ptrace', 'setuid', 'setgid', 'chroot', 'mount', 'umount', 
-                                             'execve', 'clone', 'fork', 'chmod', 'chown', 'unlink', 'rename']
-                        detected_risky = [sc for sc, count in top_syscalls if sc in high_risk_syscalls]
-                        
-                        # Try to get better process name if current one is pid_XXXXX
-                        comm = proc.get('name', 'unknown')
-                        if comm.startswith('pid_'):
-                            try:
-                                p = psutil.Process(pid)
-                                better_name = p.name()
-                                if better_name and not better_name.startswith('pid_'):
-                                    comm = better_name
-                                    proc['name'] = better_name  # Update stored name
-                            except (psutil.NoSuchProcess, psutil.AccessDenied):
-                                pass
-                        # Enhanced anomaly logging with specific details
-                        explanation = proc.get('anomaly_explanation', 'Anomalous behavior detected')
-                        confidence = proc.get('anomaly_confidence', 0.0)
-                        logger.warning(f"🤖 ANOMALY DETECTED: PID={pid} Process={comm} AnomalyScore={anomaly_score:.1f} Risk={risk_score:.1f}")
+                        # Check warm-up period - suppress anomalies during startup
+                        time_since_startup = time.time() - self.startup_time
+                        if time_since_startup >= self.warmup_period_seconds:
+                            comm = proc.get('name', 'unknown')
+                            
+                            # Get recent syscalls for context
+                            recent_syscalls = list(proc['syscalls'])[-15:] if len(proc['syscalls']) > 0 else []
+                            syscall_counts = Counter(recent_syscalls)
+                            top_syscalls = syscall_counts.most_common(5)
+                            
+                            # Identify high-risk syscalls in recent activity
+                            high_risk_syscalls = ['ptrace', 'setuid', 'setgid', 'chroot', 'mount', 'umount', 
+                                                 'execve', 'clone', 'fork', 'chmod', 'chown', 'unlink', 'rename']
+                            detected_risky = [sc for sc, count in top_syscalls if sc in high_risk_syscalls]
+                            
+                            # Try to get better process name if current one is pid_XXXXX
+                            comm = proc.get('name', 'unknown')
+                            if comm.startswith('pid_'):
+                                try:
+                                    p = psutil.Process(pid)
+                                    better_name = p.name()
+                                    if better_name and not better_name.startswith('pid_'):
+                                        comm = better_name
+                                        proc['name'] = better_name  # Update stored name
+                                except (psutil.NoSuchProcess, psutil.AccessDenied):
+                                    pass
+                            # Enhanced anomaly logging with specific details
+                            explanation = proc.get('anomaly_explanation', 'Anomalous behavior detected')
+                            confidence = proc.get('anomaly_confidence', 0.0)
+                            logger.warning(f"🤖 ANOMALY DETECTED: PID={pid} Process={comm} AnomalyScore={anomaly_score:.1f} Risk={risk_score:.1f}")
+                        else:
+                            logger.debug(f"⏳ Suppressing anomaly detection during warm-up (PID={pid}, Score={check_score:.1f})")
                         logger.warning(f"   ┌─ What's Anomalous:")
                         logger.warning(f"   │  {explanation}")
                         logger.warning(f"   │  Confidence: {confidence:.2f} | Risk Score: {risk_score:.1f}")
@@ -1405,15 +1432,31 @@ class SimpleSecurityAgent:
                         'time_since_update': current_time - proc.get('last_update', 0)
                     })
             
+            # Check if we're still in warm-up period
+            time_since_startup = current_time - self.startup_time
+            in_warmup = time_since_startup < self.warmup_period_seconds
+            
+            # During warm-up, suppress high-risk and anomaly counts (but still show processes and syscalls)
+            if in_warmup:
+                high_risk_count = 0
+                anomalies_count = 0
+                c2_beacons_count = 0
+                port_scans_count = 0
+            else:
+                high_risk_count = sum(1 for p in processes_data if p['risk_score'] >= self.config.get('risk_threshold', 30.0))
+                anomalies_count = sum(1 for p in processes_data if p['anomaly_score'] >= 30.0)
+                c2_beacons_count = self._count_recent_detections(self.recent_c2_detections)
+                port_scans_count = self._count_recent_detections(self.recent_scan_detections)
+            
             return {
                 'timestamp': current_time,
                 'stats': {
                     'total_processes': len(processes_data),
-                    'high_risk': sum(1 for p in processes_data if p['risk_score'] >= self.config.get('risk_threshold', 30.0)),
-                    'anomalies': sum(1 for p in processes_data if p['anomaly_score'] >= 30.0),
+                    'high_risk': high_risk_count,
+                    'anomalies': anomalies_count,
                     'total_syscalls': self.stats['total_syscalls'],
-                    'c2_beacons': self._count_recent_detections(self.recent_c2_detections),
-                    'port_scans': self._count_recent_detections(self.recent_scan_detections)
+                    'c2_beacons': c2_beacons_count,
+                    'port_scans': port_scans_count
                 },
                 'processes': sorted(processes_data, key=lambda x: x['risk_score'], reverse=True)[:50]  # Top 50
             }
