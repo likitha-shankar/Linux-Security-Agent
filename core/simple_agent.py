@@ -1175,11 +1175,11 @@ class SimpleSecurityAgent:
                             explanation = proc.get('anomaly_explanation', 'Anomalous behavior detected')
                             confidence = proc.get('anomaly_confidence', 0.0)
                             logger.warning(f"🤖 ANOMALY DETECTED: PID={pid} Process={comm} AnomalyScore={anomaly_score:.1f} Risk={risk_score:.1f}")
+                            logger.warning(f"   ┌─ What's Anomalous:")
+                            logger.warning(f"   │  {explanation}")
+                            logger.warning(f"   │  Confidence: {confidence:.2f} | Risk Score: {risk_score:.1f}")
                         else:
                             logger.debug(f"⏳ Suppressing anomaly detection during warm-up (PID={pid}, Score={check_score:.1f})")
-                        logger.warning(f"   ┌─ What's Anomalous:")
-                        logger.warning(f"   │  {explanation}")
-                        logger.warning(f"   │  Confidence: {confidence:.2f} | Risk Score: {risk_score:.1f}")
                         logger.warning(f"   ├─ Process Activity:")
                         logger.warning(f"   │  Total Syscalls: {proc.get('total_syscalls', 0)} | Recent: {len(recent_syscalls)}")
                         
