@@ -804,8 +804,8 @@ class SimpleSecurityAgent:
                                            f"Explanation={anomaly_result.explanation}")
                                 # Track anomaly detection for stats (only count after warm-up)
                                 if time_since_startup >= self.warmup_period_seconds:
-                                self.stats['anomalies'] = sum(1 for p in self.processes.values() 
-                                                             if p.get('anomaly_score', 0) >= 70.0)
+                                    self.stats['anomalies'] = sum(1 for p in self.processes.values() 
+                                                                 if p.get('anomaly_score', 0) >= 70.0)
                                 else:
                                     # During warm-up, set anomalies to 0
                                     self.stats['anomalies'] = 0
@@ -1071,8 +1071,8 @@ class SimpleSecurityAgent:
                     
                     # Only count high-risk processes after warm-up period
                     if time_since_startup >= self.warmup_period_seconds:
-                    self.stats['high_risk'] = sum(1 for p in self.processes.values() 
-                                                 if p['risk_score'] >= threshold)
+                        self.stats['high_risk'] = sum(1 for p in self.processes.values() 
+                                                     if p['risk_score'] >= threshold)
                     else:
                         # During warm-up, set high_risk to 0
                         self.stats['high_risk'] = 0
@@ -1083,28 +1083,28 @@ class SimpleSecurityAgent:
                     if current_time - last_alert >= self.alert_cooldown_seconds:
                         # Only log high-risk detections after warm-up period
                         if time_since_startup >= self.warmup_period_seconds:
-                        # LOG HIGH-RISK DETECTION with full details
-                        comm = proc.get('name', 'unknown')
-                        # Try to get better process name if current one is pid_XXXXX
-                        if comm.startswith('pid_'):
-                            try:
-                                p = psutil.Process(pid)
-                                better_name = p.name()
-                                if better_name and not better_name.startswith('pid_'):
-                                    comm = better_name
-                                    proc['name'] = better_name  # Update stored name
-                            except (psutil.NoSuchProcess, psutil.AccessDenied):
-                                pass
-                        logger.warning(f"🔴 HIGH RISK DETECTED: PID={pid} Process={comm} Risk={risk_score:.1f} Anomaly={anomaly_score:.1f}")
+                            # LOG HIGH-RISK DETECTION with full details
+                            comm = proc.get('name', 'unknown')
+                            # Try to get better process name if current one is pid_XXXXX
+                            if comm.startswith('pid_'):
+                                try:
+                                    p = psutil.Process(pid)
+                                    better_name = p.name()
+                                    if better_name and not better_name.startswith('pid_'):
+                                        comm = better_name
+                                        proc['name'] = better_name  # Update stored name
+                                except (psutil.NoSuchProcess, psutil.AccessDenied):
+                                    pass
+                            logger.warning(f"🔴 HIGH RISK DETECTED: PID={pid} Process={comm} Risk={risk_score:.1f} Anomaly={anomaly_score:.1f}")
+                            logger.warning(f"   Threshold: {threshold:.1f} | Base Risk: {base_risk_score:.1f} | "
+                                         f"Connection Bonus: {connection_risk_bonus:.1f} | Total Syscalls: {proc.get('total_syscalls', 0)}")
+                            logger.warning(f"   Recent syscalls: {', '.join(list(proc['syscalls'])[-10:])}")
+                            if process_info:
+                                logger.warning(f"   Process resources: CPU={process_info.get('cpu_percent', 0):.1f}% "
+                                             f"Memory={process_info.get('memory_percent', 0):.1f}% "
+                                             f"Threads={process_info.get('num_threads', 0)}")
                         else:
                             logger.debug(f"⏳ Suppressing high-risk detection during warm-up (PID={pid}, Risk={risk_score:.1f})")
-                        logger.warning(f"   Threshold: {threshold:.1f} | Base Risk: {base_risk_score:.1f} | "
-                                     f"Connection Bonus: {connection_risk_bonus:.1f} | Total Syscalls: {proc.get('total_syscalls', 0)}")
-                        logger.warning(f"   Recent syscalls: {', '.join(list(proc['syscalls'])[-10:])}")
-                        if process_info:
-                            logger.warning(f"   Process resources: CPU={process_info.get('cpu_percent', 0):.1f}% "
-                                         f"Memory={process_info.get('memory_percent', 0):.1f}% "
-                                         f"Threads={process_info.get('num_threads', 0)}")
                         
                         # Automated response (if enabled and configured)
                         if self.response_handler and self.response_handler.enabled:
@@ -1148,33 +1148,33 @@ class SimpleSecurityAgent:
                         # Check warm-up period - suppress anomalies during startup
                         time_since_startup = time.time() - self.startup_time
                         if time_since_startup >= self.warmup_period_seconds:
-                        comm = proc.get('name', 'unknown')
-                        
-                        # Get recent syscalls for context
-                        recent_syscalls = list(proc['syscalls'])[-15:] if len(proc['syscalls']) > 0 else []
-                        syscall_counts = Counter(recent_syscalls)
-                        top_syscalls = syscall_counts.most_common(5)
-                        
-                        # Identify high-risk syscalls in recent activity
-                        high_risk_syscalls = ['ptrace', 'setuid', 'setgid', 'chroot', 'mount', 'umount', 
-                                             'execve', 'clone', 'fork', 'chmod', 'chown', 'unlink', 'rename']
-                        detected_risky = [sc for sc, count in top_syscalls if sc in high_risk_syscalls]
-                        
-                        # Try to get better process name if current one is pid_XXXXX
-                        comm = proc.get('name', 'unknown')
-                        if comm.startswith('pid_'):
-                            try:
-                                p = psutil.Process(pid)
-                                better_name = p.name()
-                                if better_name and not better_name.startswith('pid_'):
-                                    comm = better_name
-                                    proc['name'] = better_name  # Update stored name
-                            except (psutil.NoSuchProcess, psutil.AccessDenied):
-                                pass
-                        # Enhanced anomaly logging with specific details
-                        explanation = proc.get('anomaly_explanation', 'Anomalous behavior detected')
-                        confidence = proc.get('anomaly_confidence', 0.0)
-                        logger.warning(f"🤖 ANOMALY DETECTED: PID={pid} Process={comm} AnomalyScore={anomaly_score:.1f} Risk={risk_score:.1f}")
+                            comm = proc.get('name', 'unknown')
+                            
+                            # Get recent syscalls for context
+                            recent_syscalls = list(proc['syscalls'])[-15:] if len(proc['syscalls']) > 0 else []
+                            syscall_counts = Counter(recent_syscalls)
+                            top_syscalls = syscall_counts.most_common(5)
+                            
+                            # Identify high-risk syscalls in recent activity
+                            high_risk_syscalls = ['ptrace', 'setuid', 'setgid', 'chroot', 'mount', 'umount', 
+                                                 'execve', 'clone', 'fork', 'chmod', 'chown', 'unlink', 'rename']
+                            detected_risky = [sc for sc, count in top_syscalls if sc in high_risk_syscalls]
+                            
+                            # Try to get better process name if current one is pid_XXXXX
+                            comm = proc.get('name', 'unknown')
+                            if comm.startswith('pid_'):
+                                try:
+                                    p = psutil.Process(pid)
+                                    better_name = p.name()
+                                    if better_name and not better_name.startswith('pid_'):
+                                        comm = better_name
+                                        proc['name'] = better_name  # Update stored name
+                                except (psutil.NoSuchProcess, psutil.AccessDenied):
+                                    pass
+                            # Enhanced anomaly logging with specific details
+                            explanation = proc.get('anomaly_explanation', 'Anomalous behavior detected')
+                            confidence = proc.get('anomaly_confidence', 0.0)
+                            logger.warning(f"🤖 ANOMALY DETECTED: PID={pid} Process={comm} AnomalyScore={anomaly_score:.1f} Risk={risk_score:.1f}")
                         else:
                             logger.debug(f"⏳ Suppressing anomaly detection during warm-up (PID={pid}, Score={check_score:.1f})")
                         logger.warning(f"   ┌─ What's Anomalous:")
