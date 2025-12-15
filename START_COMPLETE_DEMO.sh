@@ -98,6 +98,28 @@ else
     echo "[WARN] State file: Not created yet (will be created when agent captures syscalls)"
 fi
 
+# Step 7: Display log file information
+echo ""
+echo "=== STEP 7: Log Files ==="
+sleep 2  # Give agent time to create log file
+
+# Find the latest log file
+LATEST_LOG=$(ls -t logs/security_agent_*.log 2>/dev/null | head -1)
+if [ -n "$LATEST_LOG" ] && [ -f "$LATEST_LOG" ]; then
+    echo "[OK]   Latest log file: $LATEST_LOG"
+    echo "[INFO] Log file size: $(du -h "$LATEST_LOG" | cut -f1)"
+    echo ""
+    echo "------ Recent log entries (last 10 lines) ------"
+    tail -10 "$LATEST_LOG" 2>/dev/null || echo "(log file exists but empty)"
+    echo "------------------------------------------------"
+    echo ""
+    echo "[INFO] To view live logs: tail -f $LATEST_LOG"
+    echo "[INFO] To view in dashboard: Open http://$DASH_IP:5001 and check 'Live Logs' section"
+else
+    echo "[INFO] Log file not created yet (will appear in logs/ directory)"
+    echo "[INFO] Log files location: logs/security_agent_YYYY-MM-DD_HH-MM-SS.log"
+fi
+
 echo ""
 echo "=========================================="
 echo " DEMO READY!"
@@ -107,7 +129,14 @@ echo "Next steps (run these in separate terminals):"
 echo "  1) Wait ~30 seconds for normal monitoring"
 echo "  2) Run attacks:     python3 scripts/simulate_attacks.py"
 echo "  3) Open dashboard:  http://$DASH_IP:5001"
-echo "  4) View logs:       tail -f logs/security_agent_*.log"
+echo "  4) View live logs:  tail -f $LATEST_LOG"
+echo "  5) View attacks:    sudo grep -E 'PORT_SCANNING|C2_BEACONING' $LATEST_LOG"
+echo ""
+echo "Log file commands:"
+echo "  - Live tail:        tail -f $LATEST_LOG"
+echo "  - View attacks:     sudo grep -E 'PORT_SCANNING|C2_BEACONING' logs/security_agent_*.log"
+echo "  - View high-risk:   sudo grep 'HIGH RISK DETECTED' logs/security_agent_*.log"
+echo "  - View anomalies:   sudo grep 'ANOMALY DETECTED' logs/security_agent_*.log"
 echo ""
 echo "To stop everything:"
 echo "  sudo pkill -f simple_agent.py"
