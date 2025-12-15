@@ -630,48 +630,41 @@ def monitor_agent_logs():
     # Track the current file size when monitoring starts
     # Only read entries added AFTER monitoring starts (to avoid showing old attacks/anomalies)
     monitoring_start_time = time.time()
-    initial_file_size = 0
     if log_file.exists():
         try:
-            initial_file_size = log_file.stat().st_size
             # Check if log file was modified recently (within last 2 minutes)
             # If it's older, assume it's from a previous run and don't read existing content
             file_mtime = log_file.stat().st_mtime
             file_age_seconds = monitoring_start_time - file_mtime
-            
-            # Only read existing content if file was modified within last 2 minutes
-            # This means the agent was just started
+
             if file_age_seconds < 120:  # 2 minutes
                 # Read only the last few lines (last 50) to show recent startup messages
                 # but not old attacks/anomalies
-                try:
-            with open(log_file, 'r', encoding='utf-8', errors='ignore') as f:
-                all_lines = f.readlines()
-                        # Only take last 50 lines (should be startup messages, not attacks)
-                        existing_lines = [l.strip() for l in all_lines[-50:] if l.strip()]
-                        
-                        # Filter out attack/anomaly entries from existing content
-                        # Only show info/startup messages
-                        filtered_lines = []
-                        for line in existing_lines:
-                            # Skip attack/anomaly entries from existing content
-                            if 'HIGH RISK DETECTED' not in line and 'ANOMALY DETECTED' not in line:
-                                filtered_lines.append(line)
-                        
-                        # Send filtered startup messages to buffer
-                        for line in filtered_lines:
-        if line:
-            log_entry = parse_log_line(line)
-                                if log_entry and log_entry.get('type') != 'attack' and log_entry.get('type') != 'anomaly':
-                log_buffer.append(log_entry)
-            socketio.emit('log', log_entry)
-                except Exception as e:
-                    socketio.emit('log', {'type': 'info', 'message': f'Starting fresh monitoring (skipping old log entries)'})
+                with open(log_file, 'r', encoding='utf-8', errors='ignore') as f:
+                    all_lines = f.readlines()
+
+                # Only take last 50 lines (should be startup messages, not attacks)
+                existing_lines = [l.strip() for l in all_lines[-50:] if l.strip()]
+
+                # Filter out attack/anomaly entries from existing content
+                # Only show info/startup messages
+                filtered_lines = []
+                for line in existing_lines:
+                    if 'HIGH RISK DETECTED' not in line and 'ANOMALY DETECTED' not in line:
+                        filtered_lines.append(line)
+
+                # Send filtered startup messages to buffer
+                for line in filtered_lines:
+                    if line:
+                        log_entry = parse_log_line(line)
+                        if log_entry and log_entry.get('type') not in ('attack', 'anomaly'):
+                            log_buffer.append(log_entry)
+                            socketio.emit('log', log_entry)
             else:
                 # Log file is old (from previous run), don't read existing content
                 socketio.emit('log', {'type': 'info', 'message': f'Starting fresh monitoring (log file is {int(file_age_seconds/60)} minutes old)'})
-        except Exception as e:
-            socketio.emit('log', {'type': 'info', 'message': f'Starting fresh monitoring'})
+        except Exception:
+            socketio.emit('log', {'type': 'info', 'message': 'Starting fresh monitoring'})
     
     # Now monitor for new lines
     try:
