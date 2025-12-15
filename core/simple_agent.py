@@ -998,10 +998,18 @@ class SimpleSecurityAgent:
                                 detection_time = time.time()
                                 time_since_startup = detection_time - self.startup_time
                                 logger.info(f"🔍 DEBUG: Port scan detection - time_since_startup={time_since_startup:.1f}s, warmup={self.warmup_period_seconds}s, in_warmup={time_since_startup < self.warmup_period_seconds}")
+                                
+                                # Add to detection list
                                 self.recent_scan_detections.append(detection_time)
+                                logger.info(f"🔍 DEBUG: Added to recent_scan_detections. Total in history: {len(self.recent_scan_detections)}")
+                                
+                                # Count recent detections
                                 count = self._count_recent_detections(self.recent_scan_detections)
+                                logger.info(f"🔍 DEBUG: _count_recent_detections returned: {count} (current_time={time.time()}, detection_time={detection_time}, age={time.time() - detection_time:.1f}s)")
+                                
                                 self.stats['port_scans'] = count
                                 logger.warning(f"   Port scan detected (recent count: {count}, total detections in history: {len(self.recent_scan_detections)})")
+                                
                                 # Force immediate state file update so dashboard shows attack quickly
                                 try:
                                     state_before = self.export_state()
@@ -1248,9 +1256,16 @@ class SimpleSecurityAgent:
     def _count_recent_detections(self, detection_times: deque, window_seconds: int = 300) -> int:
         """Count detections in the last window_seconds (default 5 minutes)"""
         if not detection_times:
+            logger.debug(f"🔍 DEBUG _count_recent_detections: Empty detection_times deque")
             return 0
         current_time = time.time()
-        return sum(1 for ts in detection_times if current_time - ts < window_seconds)
+        count = sum(1 for ts in detection_times if current_time - ts < window_seconds)
+        logger.debug(f"🔍 DEBUG _count_recent_detections: window={window_seconds}s, total_in_deque={len(detection_times)}, recent_count={count}, current_time={current_time}")
+        if len(detection_times) > 0:
+            oldest = min(detection_times)
+            newest = max(detection_times)
+            logger.debug(f"🔍 DEBUG _count_recent_detections: oldest={oldest} (age={current_time - oldest:.1f}s), newest={newest} (age={current_time - newest:.1f}s)")
+        return count
     
     def create_dashboard(self) -> Panel:
         """Create dashboard view"""
