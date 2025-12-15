@@ -352,6 +352,28 @@
             box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
         }
         
+        .btn-success {
+            background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+            color: white;
+            border-color: #28a745;
+        }
+        
+        .btn-success:hover {
+            background: linear-gradient(135deg, #218838 0%, #1aa179 100%);
+            box-shadow: 0 4px 12px rgba(40, 167, 69, 0.3);
+        }
+        
+        .btn-danger {
+            background: linear-gradient(135deg, #dc3545 0%, #c82333 100%);
+            color: white;
+            border-color: #dc3545;
+        }
+        
+        .btn-danger:hover {
+            background: linear-gradient(135deg, #c82333 0%, #bd2130 100%);
+            box-shadow: 0 4px 12px rgba(220, 53, 69, 0.3);
+        }
+        
         .btn.active {
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             color: white;
@@ -647,10 +669,10 @@
                 <div class="status-dot" id="statusDot"></div>
                 <span id="statusText">Checking...</span>
             </div>
-            <button id="startAgentBtn" class="btn" style="background: #28a745; color: white; padding: 8px 16px; border: none; border-radius: 4px; cursor: pointer; font-weight: 600; display: none;" onclick="startAgent()">
+            <button id="startAgentBtn" class="btn btn-success" style="display: none;" onclick="startAgent()">
                 <i class="fas fa-play"></i> Start Agent
             </button>
-            <button id="stopAgentBtn" class="btn" style="background: #dc3545; color: white; padding: 8px 16px; border: none; border-radius: 4px; cursor: pointer; font-weight: 600; display: none;" onclick="stopAgent()">
+            <button id="stopAgentBtn" class="btn btn-danger" style="display: none;" onclick="stopAgent()">
                 <i class="fas fa-stop"></i> Stop Agent
             </button>
         </div>
@@ -1042,6 +1064,14 @@
                         document.getElementById('statAnomalies').textContent = stats.anomalies;
                         document.getElementById('statSyscalls').textContent = stats.syscalls.toLocaleString();
                         document.getElementById('statAttacks').textContent = stats.attacks;
+                        
+                        // Force update of high risk and attack lists from state
+                        updateHighRiskFromState(state);
+                        updateAttackListFromState(state);
+                        
+                        // Force update of high risk and attack lists from state
+                        updateHighRiskFromState(state);
+                        updateAttackListFromState(state);
                         
                         // Debug logging to help diagnose display issues
                         if (stats.highRisk > 0 || stats.attacks > 0) {
