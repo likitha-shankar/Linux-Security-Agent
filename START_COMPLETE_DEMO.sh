@@ -23,10 +23,10 @@ fi
 echo ""
 
 # Step 2: Configure auditd
-echo "=== STEP 2: Configuring Auditd Rules ==="
+echo "=== STEP 2: Configuring eBPF and Auditd Rules ==="
 sudo auditctl -D 2>/dev/null || true
 sudo auditctl -a always,exit -F arch=b64 -S socket -S connect -S bind -S accept -S sendto -S recvfrom -k network_syscalls
-echo "✅ Auditd rules configured"
+echo "✅ eBPF and Auditd rules configured"
 echo ""
 
 # Step 3: Stop any existing processes
