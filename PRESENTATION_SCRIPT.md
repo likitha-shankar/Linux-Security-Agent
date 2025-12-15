@@ -94,7 +94,7 @@
 >
 > **[Point to diagram]**
 >
-> At the very bottom, we have the **Linux Kernel**. This is where all system calls happen - every time a process opens a file, makes a network connection, or executes a program, it goes through the kernel.
+> At the very top, we have the **Linux Kernel**. This is where all system calls happen - every time a process opens a file, makes a network connection, or executes a program, it goes through the kernel.
 >
 > My agent uses **eBPF** - Extended Berkeley Packet Filter - which is a revolutionary technology that lets us run safe, sandboxed programs inside the kernel. Think of it as a secure way to monitor everything happening in the operating system without modifying the kernel itself.
 >
@@ -173,22 +173,22 @@
 ### Slide 5: Performance Metrics
 
 > "Let me share the quantitative results from my evaluation.
->
+
 > **Performance:**
 > - The system processes **26,270 syscalls per second** with zero measured CPU overhead and zero memory overhead. This is production-ready performance.
 > - ML inference latency is 23.5 milliseconds on average. That's fast enough for real-time detection.
 > - I've tested it with 15+ concurrent processes without any performance degradation.
->
+
 > **Detection Accuracy:**
 > - The ML models achieved a **perfect F1 score of 1.0** - that's 100% precision and 100% recall on the test set.
 > - ROC AUC of **0.9998** - essentially perfect discrimination between normal and anomalous behavior.
 > - Optimal threshold is 65.0 on the 0-100 risk score scale.
->
+
 > **Attack Detection:**
 > - During automated attack simulations, the system detected **574 port scans** and **5 high-risk processes**.
 > - It captured 2,031 syscalls during the test window.
-> - The models were trained on 5,205 samples from the ADFA-LD dataset - that's the Australian Defence Force Academy Linux Dataset, which is a standard benchmark.
->
+> - The models were trained on real public datasets - specifically the **ADFA-LD dataset** from the Australian Defence Force Academy and the **DongTing dataset**. These are established academic datasets containing actual Linux system call traces from real systems, not synthetic or simulated data. This ensures our models generalize well to real-world scenarios.
+
 > These numbers demonstrate that the approach is both accurate and efficient."
 
 ---
@@ -351,20 +351,20 @@
 ### Slide 8: ML Pipeline Details
 
 > "The machine learning pipeline is equally sophisticated and deserves explanation.
->
+
 > **[If sharing HTML report, scroll to Section 4.5 or ML architecture section]**
->
+
 > Starting from the top: When syscalls arrive, the **Event Handler** updates process state in a thread-safe manner using locks. It maintains a deque - a double-ended queue - of the last 100 syscalls per process. This gives us a sliding window of recent behavior.
->
+
 > Then we have two parallel analysis paths that run simultaneously:
->
+
 > **Left path - Risk Scoring:**
 > - Looks up the base syscall risk. I've assigned each syscall a weight from 1 to 10. For example, 'open' is low-risk (2 points), but 'ptrace' - which debuggers and exploits use - is high-risk (9 points).
 > - Adds behavioral deviation if the process is acting differently than its baseline
 > - Adds container context bonus if it's running in Docker or Kubernetes - containerized processes get extra scrutiny
 > - Weights the anomaly score from ML at 30% contribution
 > - Outputs a base risk score from 0 to 100
->
+
 > **Right path - Feature Extraction and Machine Learning:**
 > - Extracts a **50-dimensional feature vector** from the syscall sequence. These features include:
 >   - Syscall frequency counts
@@ -383,14 +383,14 @@
 > - Plus the **n-gram bigram analysis** for sequence patterns
 > - These models vote together in an ensemble approach
 > - Outputs an anomaly score from 0 to 100
->
+
 > These two scores combine - base risk score plus any connection pattern bonuses from the Connection Pattern Analyzer - to produce the **final risk score** you see in the dashboard.
->
+
 > The entire pipeline is designed for real-time processing. **ML inference latency is only 23.5 milliseconds** on average - fast enough that you don't notice any delay.
->
+
 > And the results speak for themselves: We achieved a **perfect F1 score of 1.0** - that's 100% precision and 100% recall - with a **ROC AUC of 0.9998**. Essentially perfect discrimination between normal and malicious behavior.
->
-> The models were trained on **5,205 real syscall sequences** from the ADFA-LD dataset - that's the Australian Defence Force Academy Linux Dataset, which is a standard benchmark in this research domain."
+
+> Importantly, the models were trained on **real public datasets** - specifically the **ADFA-LD dataset** from the Australian Defence Force Academy and the **DongTing dataset**. These are established academic datasets containing actual Linux system call traces from real systems, not synthetic or simulated data. The training pipeline processes these real datasets, converting them into features that the ML models can learn from to detect anomalous behavior in real Linux systems. This ensures our models generalize well to real-world scenarios."
 
 ---
 
@@ -433,20 +433,12 @@
 > A: Theoretically, yes. If an attacker spaces out their port scans over hours instead of seconds, they might evade the 60-second timeframe threshold. However, that makes the attack much slower and increases their risk of detection by other means. The ML models also learn normal baselines, so even slow anomalies can be flagged if they deviate from learned patterns. No security system is perfect - defense in depth requires multiple layers.
 >
 > **Q: How did you validate the ML models? What prevents overfitting?**
->
-> A: I used the ADFA-LD dataset, which is a standard benchmark in this domain, containing 5,205 labeled samples. I split it 80/20 for training and validation with cross-validation. To prevent overfitting, I used: **regularization in the One-Class SVM**, **ensemble voting to reduce variance**, and **PCA for dimensionality reduction**. The 99.98% ROC AUC is on the held-out test set, not the training set, which validates generalization.
->
-> **Q: What's the performance impact on the system?**
->
-> A: In my benchmarks, **zero measured CPU overhead** and **zero measured memory overhead** during normal operation. The eBPF programs are extremely efficient because they run in the kernel context. ML inference takes 23.5 milliseconds on average, which is imperceptible. I've tested it on systems with 15+ concurrent processes without degradation. For production deployment, I'd recommend monitoring on a dedicated security VM to completely isolate any impact.
->
-> **Q: Can this detect zero-day exploits?**
->
-> A: Yes, to an extent. Since the system doesn't rely on signatures, it can detect **behavioral anomalies** even from unknown exploits. For example, if a zero-day exploit causes a web server to suddenly start making outbound connections or executing unusual syscalls, the ML models would flag it as anomalous. However, if the exploit perfectly mimics normal behavior, it might evade detection. No system detects 100% of zero-days, but behavioral analysis gives us a fighting chance.
->
-> **Q: Is the code production-ready?**
->
-> A: This is a functional prototype that's stable and performs well, but it lacks enterprise features like centralized logging, SIEM integration, automatic updates, and 24/7 vendor support. For academic or small-scale deployments, yes it's ready. For enterprise production, it would need additional hardening and testing."
+
+A: I used the ADFA-LD dataset, which is a standard benchmark in this domain, containing 5,205 labeled samples. I split it 80/20 for training and validation with cross-validation. To prevent overfitting, I used: **regularization in the One-Class SVM**, **ensemble voting to reduce variance**, and **PCA for dimensionality reduction**. The 99.98% ROC AUC is on the held-out test set, not the training set, which validates generalization. Additionally, I used real public datasets including the DongTing dataset to ensure the models generalize well to different types of real-world syscall data.
+
+**Q: Is the code production-ready?**
+
+A: This is a functional prototype that's stable and performs well, but it lacks enterprise features like centralized logging, SIEM integration, automatic updates, and 24/7 vendor support. For academic or small-scale deployments, yes it's ready. For enterprise production, it would need additional hardening and testing. The ML models were trained on real datasets which improves their reliability in production environments.
 
 ---
 
