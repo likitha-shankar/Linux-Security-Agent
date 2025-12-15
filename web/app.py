@@ -374,7 +374,14 @@ def api_get_agent_state():
                 'error': 'Agent state not available',
                 'message': 'Agent may not be running or state file not found',
                 'processes': [],
-                'stats': {'total_processes': 0, 'high_risk': 0, 'anomalies': 0, 'total_syscalls': 0}
+                'stats': {
+                    'total_processes': 0,
+                    'high_risk': 0,
+                    'anomalies': 0,
+                    'total_syscalls': 0,
+                    'c2_beacons': 0,
+                    'port_scans': 0
+                }
             }), 200  # Return 200 with empty state instead of 404
         
         # Read state file
@@ -395,7 +402,14 @@ def api_get_agent_state():
                         'error': 'Invalid state file (malformed JSON)',
                         'message': f'JSON error at position {error_pos}: {str(json_err)}',
                         'processes': [],
-                        'stats': {'total_processes': 0, 'high_risk': 0, 'anomalies': 0, 'total_syscalls': 0}
+                        'stats': {
+                            'total_processes': 0,
+                            'high_risk': 0,
+                            'anomalies': 0,
+                            'total_syscalls': 0,
+                            'c2_beacons': 0,
+                            'port_scans': 0
+                        }
                     }), 200
         except (IOError, OSError) as e:
             # Note: logger may not be available in this scope, using print for error reporting
@@ -404,7 +418,14 @@ def api_get_agent_state():
                 'error': 'Invalid state file',
                 'message': str(e),
                 'processes': [],
-                'stats': {'total_processes': 0, 'high_risk': 0, 'anomalies': 0, 'total_syscalls': 0}
+                'stats': {
+                    'total_processes': 0,
+                    'high_risk': 0,
+                    'anomalies': 0,
+                    'total_syscalls': 0,
+                    'c2_beacons': 0,
+                    'port_scans': 0
+                }
             }), 200
         
         # Check if state is stale (older than 10 seconds)
@@ -617,8 +638,8 @@ def monitor_agent_logs():
                 # Read only the last few lines (last 50) to show recent startup messages
                 # but not old attacks/anomalies
                 try:
-                    with open(log_file, 'r', encoding='utf-8', errors='ignore') as f:
-                        all_lines = f.readlines()
+            with open(log_file, 'r', encoding='utf-8', errors='ignore') as f:
+                all_lines = f.readlines()
                         # Only take last 50 lines (should be startup messages, not attacks)
                         existing_lines = [l.strip() for l in all_lines[-50:] if l.strip()]
                         
@@ -632,11 +653,11 @@ def monitor_agent_logs():
                         
                         # Send filtered startup messages to buffer
                         for line in filtered_lines:
-                            if line:
-                                log_entry = parse_log_line(line)
+        if line:
+            log_entry = parse_log_line(line)
                                 if log_entry and log_entry.get('type') != 'attack' and log_entry.get('type') != 'anomaly':
-                                    log_buffer.append(log_entry)
-                                    socketio.emit('log', log_entry)
+                log_buffer.append(log_entry)
+            socketio.emit('log', log_entry)
                 except Exception as e:
                     socketio.emit('log', {'type': 'info', 'message': f'Starting fresh monitoring (skipping old log entries)'})
             else:
