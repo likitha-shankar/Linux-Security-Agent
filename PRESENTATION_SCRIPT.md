@@ -62,8 +62,6 @@
 >
 > Let me start by explaining the problem this project solves."
 
-**[Pause for 2 seconds, make eye contact]**
-
 ---
 
 ## 🎯 PROBLEM STATEMENT (1.5 minutes)
@@ -149,7 +147,7 @@
 > **[Point to ML pipeline diagram]**
 >
 > The machine learning pipeline is sophisticated. For each process, I extract a 50-dimensional feature vector. This includes:
-> - Syscall frequency counts for 8 common syscalls
+> - Syscall frequency counts for 8-33 common syscalls
 > - Unique syscall ratio
 > - Entropy to measure diversity
 > - Network, file system, and process features
@@ -175,12 +173,12 @@
 > "Let me share the quantitative results from my evaluation.
 
 > **Performance:**
-> - The system processes **26,270 syscalls per second** with zero measured CPU overhead and zero memory overhead. This is production-ready performance.
+> - The system processes **10-20,000 events per second** with <5% measured CPU overhead and zero memory overhead. This is production-ready performance.
 > - ML inference latency is 23.5 milliseconds on average. That's fast enough for real-time detection.
 > - I've tested it with 15+ concurrent processes without any performance degradation.
 
 > **Detection Accuracy:**
-> - The ML models achieved a **perfect F1 score of 1.0** - that's 100% precision and 100% recall on the test set.
+> - The ML models achieved almost **a perfect F1 score of 1.0** - that's 100% precision and 100% recall on the test set.
 > - ROC AUC of **0.9998** - essentially perfect discrimination between normal and anomalous behavior.
 > - Optimal threshold is 65.0 on the 0-100 risk score scale.
 
@@ -484,55 +482,4 @@ A: This is a functional prototype that's stable and performs well, but it lacks 
 >
 > Thank you for your attention. I'm happy to answer any questions."
 
-**[Pause, smile, make eye contact]**
-
 ---
-
-## 💬 LIVE Q&A RESPONSES
-
-> **When someone asks a question:**
-> 
-> "That's a great question. [Repeat the question briefly] ...
->
-> [Answer using the guidance below]"
-
-### Handling Different Question Types:
-
-**If you know the answer:**
-> "Based on my testing, [give specific answer with data/examples]."
-
-**If you're unsure:**
-> "That's an interesting question. I haven't specifically tested that scenario, but my hypothesis would be [educated guess]. That would be an excellent area for future investigation."
-
-**If the question is unclear:**
-> "Just to make sure I understand correctly, are you asking about [rephrase question]?"
->
-> [Wait for confirmation, then answer]
-
-**If they challenge your approach:**
-> "You raise a valid point. [Acknowledge their concern]. In my design, I addressed this by [explain your solution]. However, I agree that [limitation], which is why I suggest [mitigation] in the future work section."
-
-**If they ask about code details:**
-> "Let me walk you through the specific implementation. [Open the relevant file if possible, or describe from memory]. The key lines are in [file name] where [explain logic]."
-
----
-
-## 🎯 CONFIDENCE BOOSTERS (Read before presenting)
-
-**Remember:**
-- You built this entire system from scratch
-- You ran the tests and got real results
-- 574 port scans detected - that's a real number
-- 26,270 syscalls/second - you measured this
-- 100% F1 score - the models achieved this
-- You understand every line of code
-
-**If you get nervous:**
-- Take a breath
-- Speak slower than you think you need to
-- It's okay to pause and think
-- Nobody expects perfection
-- They want you to succeed
-
-**You've got this! 🚀**
-

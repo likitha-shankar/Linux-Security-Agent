@@ -502,67 +502,51 @@ def monitor_agent_logs():
         if not log_file.exists():
             return
     
-    # First, read existing log content and send to buffer
-    # Only send recent entries (from today) to avoid showing stale data
-    existing_lines = []
+    # Track the current file size when monitoring starts
+    # Only read entries added AFTER monitoring starts (to avoid showing old attacks/anomalies)
+    monitoring_start_time = time.time()
+    initial_file_size = 0
     if log_file.exists():
         try:
-            from datetime import datetime, timedelta
-            cutoff_time = datetime.now() - timedelta(hours=1)  # Only show last 1 hour of logs
-            current_date = datetime.now().date()  # Today's date
+            initial_file_size = log_file.stat().st_size
+            # Check if log file was modified recently (within last 2 minutes)
+            # If it's older, assume it's from a previous run and don't read existing content
+            file_mtime = log_file.stat().st_mtime
+            file_age_seconds = monitoring_start_time - file_mtime
             
-            with open(log_file, 'r', encoding='utf-8', errors='ignore') as f:
-                all_lines = f.readlines()
-                # Filter to only recent lines (last hour OR today's date)
-                for line in all_lines[-1000:]:  # Check last 1000 lines
-                    line = line.strip()
-                    if not line:
-                        continue
-                    
-                    # Try to parse timestamp from log line
-                    # Format: "2025-12-09 18:30:45,123 - ..."
-                    try:
-                        # Extract date/time from log line
-                        if len(line) > 19 and line[4] == '-' and line[7] == '-':
-                            date_str = line[:19]  # "2025-12-09 18:30:45"
-                            log_time = datetime.strptime(date_str, '%Y-%m-%d %H:%M:%S')
-                            log_date = log_time.date()
-                            
-                            # Only include if:
-                            # 1. From today AND within last hour, OR
-                            # 2. From today (even if older than 1 hour, but not from past days)
-                            if log_date == current_date:
-                                if log_time >= cutoff_time:
-                                    existing_lines.append(line)
-                                elif len(existing_lines) < 200:  # Allow some today's data even if >1 hour old
-                                    existing_lines.append(line)
-                    except (ValueError, IndexError):
-                        # If we can't parse timestamp, skip old-looking entries
-                        # Only include if it looks recent (has current date pattern)
-                        if str(current_date) in line or len(existing_lines) < 50:
-                            existing_lines.append(line)
-                
-                # If no recent lines found, just take last 50 lines from today
-                if not existing_lines and all_lines:
-                    # Filter to only today's lines
-                    for line in all_lines[-200:]:
-                        if str(current_date) in line[:10] if len(line) > 10 else False:
-                            existing_lines.append(line.strip())
-                    # If still nothing, take last 20 lines as fallback
-                    if not existing_lines:
-                        existing_lines = [l.strip() for l in all_lines[-20:] if l.strip()]
+            # Only read existing content if file was modified within last 2 minutes
+            # This means the agent was just started
+            if file_age_seconds < 120:  # 2 minutes
+                # Read only the last few lines (last 50) to show recent startup messages
+                # but not old attacks/anomalies
+                try:
+                    with open(log_file, 'r', encoding='utf-8', errors='ignore') as f:
+                        all_lines = f.readlines()
+                        # Only take last 50 lines (should be startup messages, not attacks)
+                        existing_lines = [l.strip() for l in all_lines[-50:] if l.strip()]
+                        
+                        # Filter out attack/anomaly entries from existing content
+                        # Only show info/startup messages
+                        filtered_lines = []
+                        for line in existing_lines:
+                            # Skip attack/anomaly entries from existing content
+                            if 'HIGH RISK DETECTED' not in line and 'ANOMALY DETECTED' not in line:
+                                filtered_lines.append(line)
+                        
+                        # Send filtered startup messages to buffer
+                        for line in filtered_lines:
+                            if line:
+                                log_entry = parse_log_line(line)
+                                if log_entry and log_entry.get('type') != 'attack' and log_entry.get('type') != 'anomaly':
+                                    log_buffer.append(log_entry)
+                                    socketio.emit('log', log_entry)
+                except Exception as e:
+                    socketio.emit('log', {'type': 'info', 'message': f'Starting fresh monitoring (skipping old log entries)'})
+            else:
+                # Log file is old (from previous run), don't read existing content
+                socketio.emit('log', {'type': 'info', 'message': f'Starting fresh monitoring (log file is {int(file_age_seconds/60)} minutes old)'})
         except Exception as e:
-            logger.warning(f"Error reading log file: {e}")
-            socketio.emit('log', {'type': 'error', 'message': f'Error reading log file: {e}'})
-    
-    # Send existing lines to buffer and emit to clients
-    for line in existing_lines:
-        if line:
-            log_entry = parse_log_line(line)
-            if log_entry:  # Only add if parsing succeeded
-                log_buffer.append(log_entry)
-                # Emit to connected clients
-            socketio.emit('log', log_entry)
+            socketio.emit('log', {'type': 'info', 'message': f'Starting fresh monitoring'})
     
     # Now monitor for new lines
     try:
@@ -601,7 +585,7 @@ def monitor_agent_logs():
                     time.sleep(0.5)  # Wait for new lines
     except Exception as e:
         socketio.emit('log', {'type': 'error', 'message': f'Error monitoring log file: {e}'})
-        logger.error(f"Error in log monitoring: {e}")
+        print(f"Error in log monitoring: {e}")
 
 def parse_log_line(line):
     """Parse log line into structured format"""
