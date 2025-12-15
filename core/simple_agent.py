@@ -942,7 +942,9 @@ class SimpleSecurityAgent:
                                 process_name=process_name  # Enable process name tracking for C2
                             )
                             
-                            logger.info(f"🔍 Connection analysis result for PID {pid}: {conn_result}")
+                            # Only log result if it's a detection (after warm-up check)
+                            if conn_result:
+                                logger.debug(f"🔍 Connection analysis result for PID {pid}: {conn_result}")
                         else:
                             logger.warning(f"⚠️  Skipping connection analysis for PID {pid}: dest_port is 0 (no port available)")
                             conn_result = None

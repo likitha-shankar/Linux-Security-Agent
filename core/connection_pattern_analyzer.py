@@ -59,9 +59,22 @@ class ConnectionPatternAnalyzer:
         self.min_connections_for_beacon = self.config.get('min_connections_for_beacon', 3)  # Minimum 3 connections
         self.min_beacon_interval = self.config.get('min_beacon_interval', 2.0)  # Lowered to 2.0 seconds for better detection
         
-        # Port scanning parameters (lowered thresholds for better detection)
-        self.port_scan_threshold = self.config.get('port_scan_threshold', 5)  # unique ports (lowered from 10 to 5)
-        self.port_scan_timeframe = self.config.get('port_scan_timeframe', 60)  # seconds
+        # Port scanning parameters (increased thresholds to reduce false positives)
+        # Normal processes (DNS, logging, etc.) can connect to 5-10 ports, so we need higher threshold
+        self.port_scan_threshold = self.config.get('port_scan_threshold', 10)  # unique ports (increased from 5 to 10)
+        self.port_scan_timeframe = self.config.get('port_scan_timeframe', 30)  # seconds (reduced from 60 to 30 for faster detection)
+        
+        # Whitelist of legitimate processes that commonly connect to multiple ports
+        # These are system/daemon processes that shouldn't trigger port scan alerts
+        self.whitelisted_processes = {
+            'systemd', 'systemctl', 'groupadd', 'useradd', 'usermod',
+            'flb-out-stackdr', 'fluent-bit', 'fluentd',
+            'sshd', 'rsyslog', 'syslog', 'journald',
+            'dnsmasq', 'resolvconf', 'networkd', 'NetworkManager',
+            'apt', 'apt-get', 'yum', 'dnf', 'zypper', 'pacman',
+            'curl', 'wget', 'ping', 'nslookup', 'dig',
+            'docker', 'containerd', 'kubelet', 'kube-proxy'
+        }
         
         # Data transfer tracking
         self.bytes_sent = defaultdict(int)
@@ -93,6 +106,10 @@ class ConnectionPatternAnalyzer:
         """
         if timestamp is None:
             timestamp = time.time()
+        
+        # Skip detection for whitelisted legitimate processes
+        if process_name and process_name.lower() in [p.lower() for p in self.whitelisted_processes]:
+            return None
         
         self.stats['total_connections_analyzed'] += 1
         
@@ -260,8 +277,13 @@ class ConnectionPatternAnalyzer:
         timeframe = newest - oldest
         
         # Port scan: Many unique ports in short time
+        # Also require minimum rate (ports per second) to reduce false positives
         if timeframe < self.port_scan_timeframe and unique_ports >= self.port_scan_threshold:
             ports_per_second = unique_ports / max(timeframe, 1)
+            
+            # Require minimum rate of 0.5 ports/second (reduces false positives from slow legitimate connections)
+            if ports_per_second < 0.5:
+                return None
             
             return {
                 'type': 'PORT_SCANNING',
@@ -271,7 +293,7 @@ class ConnectionPatternAnalyzer:
                 'timeframe': timeframe,
                 'rate': ports_per_second,
                 'risk_score': 75,
-                'explanation': f'Port scanning: {unique_ports} ports in {timeframe:.1f}s',
+                'explanation': f'Port scanning: {unique_ports} ports in {timeframe:.1f}s ({ports_per_second:.2f} ports/sec)',
                 'confidence': 0.85,
                 'severity': 'HIGH'
             }
@@ -300,6 +322,10 @@ class ConnectionPatternAnalyzer:
         if timeframe < self.port_scan_timeframe and unique_ports >= self.port_scan_threshold:
             ports_per_second = unique_ports / max(timeframe, 1)
             
+            # Require minimum rate of 0.5 ports/second (reduces false positives from slow legitimate connections)
+            if ports_per_second < 0.5:
+                return None
+            
             return {
                 'type': 'PORT_SCANNING',
                 'technique': 'T1046',
@@ -309,7 +335,7 @@ class ConnectionPatternAnalyzer:
                 'timeframe': timeframe,
                 'rate': ports_per_second,
                 'risk_score': 75,
-                'explanation': f'Port scanning: {unique_ports} ports in {timeframe:.1f}s',
+                'explanation': f'Port scanning: {unique_ports} ports in {timeframe:.1f}s ({ports_per_second:.2f} ports/sec)',
                 'confidence': 0.85,
                 'severity': 'HIGH'
             }
