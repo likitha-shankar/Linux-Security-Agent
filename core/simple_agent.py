@@ -946,7 +946,7 @@ class SimpleSecurityAgent:
                             if conn_result:
                                 logger.debug(f"🔍 Connection analysis result for PID {pid}: {conn_result}")
                         else:
-                            logger.warning(f"⚠️  Skipping connection analysis for PID {pid}: dest_port is 0 (no port available)")
+                            logger.debug(f"⚠️  Skipping connection analysis for PID {pid}: dest_port is 0 (no port available)")
                             conn_result = None
                         
                         if conn_result:
