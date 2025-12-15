@@ -39,17 +39,59 @@ echo ""
 
 # Step 4: Start Agent
 echo "=== STEP 4: Starting Security Agent ==="
-sudo nohup python3 core/simple_agent.py --collector auditd --threshold 20 --headless >/tmp/agent_demo.log 2>&1 &
-sleep 8
 
+# First, try to run agent directly to capture any immediate errors
+echo "[INFO] Testing agent startup (checking for errors)..."
+if sudo python3 core/simple_agent.py --collector auditd --threshold 20 --headless --help >/dev/null 2>&1; then
+    echo "[OK]   Agent script is valid"
+else
+    echo "[WARN] Agent script test failed, but continuing..."
+fi
+
+# Start agent in background
+echo "[INFO] Starting agent in background..."
+sudo nohup python3 core/simple_agent.py --collector auditd --threshold 20 --headless >/tmp/agent_demo.log 2>&1 &
+AGENT_START_PID=$!
+sleep 10  # Increased wait time to allow agent to initialize
+
+# Check if process is still running
 if ps aux | grep -q '[s]imple_agent'; then
     AGENT_PID=$(ps aux | grep '[s]imple_agent' | awk '{print $2}' | head -1)
     echo "[OK]   Agent started with PID: $AGENT_PID"
-    echo "------ Last 5 agent log lines (from /tmp/agent_demo.log) ------"
-    tail -5 /tmp/agent_demo.log || echo "(no agent log output yet)"
+    echo ""
+    echo "------ Last 10 agent log lines (from /tmp/agent_demo.log) ------"
+    if [ -f /tmp/agent_demo.log ]; then
+        tail -10 /tmp/agent_demo.log || echo "(log file exists but empty)"
+    else
+        echo "[WARN] Log file /tmp/agent_demo.log not found"
+        echo "[INFO] Checking if agent created log file in logs/ directory..."
+        LATEST_LOG=$(ls -t logs/security_agent_*.log 2>/dev/null | head -1)
+        if [ -n "$LATEST_LOG" ] && [ -f "$LATEST_LOG" ]; then
+            echo "[INFO] Found log file: $LATEST_LOG"
+            tail -10 "$LATEST_LOG" 2>/dev/null || echo "(log file exists but empty)"
+        fi
+    fi
     echo "---------------------------------------------------------------"
 else
-    echo "[ERROR] Agent failed to start. Check /tmp/agent_demo.log"
+    echo "[ERROR] Agent failed to start or exited immediately"
+    echo ""
+    echo "------ Error details ------"
+    if [ -f /tmp/agent_demo.log ]; then
+        echo "Contents of /tmp/agent_demo.log:"
+        cat /tmp/agent_demo.log
+    else
+        echo "[ERROR] Log file /tmp/agent_demo.log not found"
+        echo "[INFO] Trying to run agent directly to see error:"
+        echo "Running: sudo python3 core/simple_agent.py --collector auditd --threshold 20 --headless"
+        sudo timeout 5 python3 core/simple_agent.py --collector auditd --threshold 20 --headless 2>&1 | head -20 || true
+    fi
+    echo "----------------------------"
+    echo ""
+    echo "[TROUBLESHOOTING]"
+    echo "1. Check Python dependencies: pip3 install -r requirements.txt"
+    echo "2. Check if auditd is available: sudo auditctl -l"
+    echo "3. Try running manually: sudo python3 core/simple_agent.py --collector auditd --threshold 20 --headless"
+    echo "4. Check system logs: sudo dmesg | tail -20"
     exit 1
 fi
 echo ""
