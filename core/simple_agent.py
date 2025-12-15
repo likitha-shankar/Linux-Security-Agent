@@ -787,14 +787,14 @@ class SimpleSecurityAgent:
                                 if current_time - last_alert >= anomaly_cooldown:
                                     # Only log if warm-up period has ended
                                     if time_since_startup >= self.warmup_period_seconds:
-                                    comm = proc.get('name', 'unknown')
-                                    # Get current risk score if available, otherwise use 0
-                                    current_risk = proc.get('risk_score', 0.0)
-                                    logger.warning(f"🤖 ANOMALY DETECTED: PID={pid} Process={comm} AnomalyScore={anomaly_score:.1f} Risk={current_risk:.1f}")
-                                    logger.warning(f"   ┌─ What's Anomalous:")
-                                    logger.warning(f"   │  {anomaly_result.explanation}")
-                                    logger.warning(f"   │  Confidence: {anomaly_result.confidence:.2f}")
-                                    self.alert_cooldown[pid] = current_time
+                                        comm = proc.get('name', 'unknown')
+                                        # Get current risk score if available, otherwise use 0
+                                        current_risk = proc.get('risk_score', 0.0)
+                                        logger.warning(f"🤖 ANOMALY DETECTED: PID={pid} Process={comm} AnomalyScore={anomaly_score:.1f} Risk={current_risk:.1f}")
+                                        logger.warning(f"   ┌─ What's Anomalous:")
+                                        logger.warning(f"   │  {anomaly_result.explanation}")
+                                        logger.warning(f"   │  Confidence: {anomaly_result.confidence:.2f}")
+                                        self.alert_cooldown[pid] = current_time
                                     else:
                                         logger.debug(f"⏳ Suppressing anomaly detection during warm-up (PID={pid}, Score={anomaly_score:.1f})")
                             
