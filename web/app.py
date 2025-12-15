@@ -445,7 +445,14 @@ def api_get_agent_state():
         return jsonify({
             'error': str(e),
             'processes': [],
-            'stats': {'total_processes': 0, 'high_risk': 0, 'anomalies': 0, 'total_syscalls': 0}
+            'stats': {
+                'total_processes': 0,
+                'high_risk': 0,
+                'anomalies': 0,
+                'total_syscalls': 0,
+                'c2_beacons': 0,
+                'port_scans': 0
+            }
         }), 200  # Return 200 with error instead of 500
 
 @app.route('/api/agent/stop', methods=['POST'])
