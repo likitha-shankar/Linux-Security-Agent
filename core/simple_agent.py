@@ -50,7 +50,7 @@ def setup_logging(log_dir=None):
         timestamp = datetime.now(_CENTRAL_TZ).strftime('%Y-%m-%d_%H-%M-%S')
     else:
         # Fallback to local time if zoneinfo is unavailable
-    timestamp = datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
+        timestamp = datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
     log_file = log_dir / f'security_agent_{timestamp}.log'
     
     # Also create a symlink to the latest log for backward compatibility
