@@ -98,17 +98,68 @@ echo ""
 
 # Step 5: Start Web Dashboard
 echo "=== STEP 5: Starting Web Dashboard ==="
+
+# Check if port 5001 is already in use
+if ss -tlnp 2>/dev/null | grep -q ':5001' || netstat -tlnp 2>/dev/null | grep -q ':5001'; then
+    echo "[WARN] Port 5001 is already in use. Attempting to free it..."
+    pkill -9 -f app.py 2>/dev/null || true
+    sleep 2
+fi
+
+# Check Python dependencies
+echo "[INFO] Checking dashboard dependencies..."
+if ! python3 -c "import flask, flask_socketio" 2>/dev/null; then
+    echo "[INFO] Installing dashboard dependencies..."
+    pip3 install --user Flask flask-socketio python-socketio eventlet >/dev/null 2>&1 || \
+    pip3 install Flask flask-socketio python-socketio eventlet >/dev/null 2>&1 || true
+fi
+
+# Verify dependencies are available
+if ! python3 -c "import flask, flask_socketio" 2>/dev/null; then
+    echo "[ERROR] Dashboard dependencies not available. Installing..."
+    pip3 install Flask flask-socketio python-socketio eventlet 2>&1 | tail -5
+fi
+
 cd web
+echo "[INFO] Starting dashboard..."
 nohup python3 app.py >/tmp/dashboard_demo.log 2>&1 &
-sleep 5
+DASH_START_PID=$!
+sleep 8  # Increased wait time for dashboard to start
 
 if ps aux | grep -q '[a]pp.py'; then
     DASH_PID=$(ps aux | grep '[a]pp.py' | awk '{print $2}' | head -1)
     DASH_IP=$(hostname -I | awk '{print $1}')
     echo "[OK]   Dashboard started with PID: $DASH_PID"
     echo "[OK]   Dashboard available at: http://$DASH_IP:5001"
+    echo ""
+    echo "------ Last 5 dashboard log lines (from /tmp/dashboard_demo.log) ------"
+    if [ -f /tmp/dashboard_demo.log ]; then
+        tail -5 /tmp/dashboard_demo.log || echo "(no dashboard log output yet)"
+    else
+        echo "[WARN] Dashboard log file not found"
+    fi
+    echo "----------------------------------------------------------------------"
 else
-    echo "[ERROR] Dashboard failed to start. Check /tmp/dashboard_demo.log"
+    echo "[ERROR] Dashboard failed to start or exited immediately"
+    echo ""
+    echo "------ Error details ------"
+    if [ -f /tmp/dashboard_demo.log ]; then
+        echo "Contents of /tmp/dashboard_demo.log:"
+        cat /tmp/dashboard_demo.log
+    else
+        echo "[ERROR] Log file /tmp/dashboard_demo.log not found"
+        echo "[INFO] Trying to run dashboard directly to see error:"
+        cd web
+        timeout 5 python3 app.py 2>&1 | head -20 || true
+        cd ..
+    fi
+    echo "----------------------------"
+    echo ""
+    echo "[TROUBLESHOOTING]"
+    echo "1. Check Python dependencies: pip3 install Flask flask-socketio python-socketio eventlet"
+    echo "2. Check if port 5001 is in use: ss -tlnp | grep 5001"
+    echo "3. Try running manually: cd web && python3 app.py"
+    echo "4. Check Python version: python3 --version (needs 3.6+)"
     exit 1
 fi
 echo ""
