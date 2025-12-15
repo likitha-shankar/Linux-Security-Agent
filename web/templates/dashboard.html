@@ -844,7 +844,10 @@
         let highRiskDetections = new Set(); // Store "PID:timestamp" to track unique high risk detections
         // Store detailed detection information
         let highRiskList = []; // Array of {pid, name, risk, anomaly, syscalls, timestamp, details}
-        let attackList = []; // Array of {type, pid, name, details, timestamp}
+        // Log-based attack entries (from WebSocket logs)
+        let attackList = []; // Array of {type, pid, name, details, timestamp, source}
+        // State-based summary attack entries (derived from agent state)
+        let stateAttackList = []; // Array of {type, pid, name, details, timestamp, source: 'state'}
         // Track total syscalls (cumulative across all processes in this session)
         let cumulativeSyscallsCount = 0;
         // Track recent attacks (for current count - last 5 minutes)
@@ -1161,9 +1164,8 @@
                             }
                         });
                         
-                        // Re-render lists and stats from state
+                        // Re-render lists from state (top stats already set directly from state.stats)
                         renderProcessList();
-                        calculateCurrentStats();
                         updateHighRiskFromState(state);
                         updateAttackListFromState(state);
                     }
@@ -1521,7 +1523,8 @@
                         pid: pidMatch ? pidMatch[1] : 'N/A',
                         name: attackProcessName,
                         details: msg.substring(0, 150),
-                        timestamp: new Date().toLocaleTimeString()
+                        timestamp: new Date().toLocaleTimeString(),
+                        source: 'log'
                     };
                     
                     // Add to recent attacks (for current count)
@@ -1767,12 +1770,15 @@
         function renderAttackList() {
             const attackListEl = document.getElementById('attackList');
             
-            if (attackList.length === 0) {
+            // Merge state-based and log-based attacks (state first, then logs)
+            const combined = [...stateAttackList, ...attackList];
+            
+            if (combined.length === 0) {
                 attackListEl.innerHTML = '<div class="empty-state"><div class="empty-state-icon">✅</div><div class="empty-state-text">No attacks detected yet</div></div>';
                 return;
             }
             
-            attackListEl.innerHTML = attackList.slice(0, 10).map(entry => {
+            attackListEl.innerHTML = combined.slice(0, 10).map(entry => {
                 return `
                     <div class="process-item attack">
                         <div class="process-header">
@@ -1841,7 +1847,8 @@
                         pid: '—',
                         name: 'Multiple processes',
                         details: `Detected ${portScans} port-scanning patterns in the last 5 minutes`,
-                        timestamp: now
+                        timestamp: now,
+                        source: 'state'
                     });
                 }
 
@@ -1851,14 +1858,13 @@
                         pid: '—',
                         name: 'Multiple processes',
                         details: `Detected ${c2Beacons} C2 beaconing patterns in the last 5 minutes`,
-                        timestamp: now
+                        timestamp: now,
+                        source: 'state'
                     });
                 }
 
-                // If we have state-based attacks, replace the list; otherwise keep log-based entries
-                if (newAttacks.length > 0) {
-                    attackList = newAttacks;
-                }
+                // Always rebuild stateAttackList from current state (no stale entries)
+                stateAttackList = newAttacks;
 
                 renderAttackList();
             } catch (e) {
@@ -1925,6 +1931,7 @@
         
         function clearAttackList() {
             attackList = [];
+            stateAttackList = [];
             renderAttackList();
         }
         
@@ -1999,6 +2006,7 @@
             processes.clear();
             highRiskList = [];
             attackList = [];
+            stateAttackList = [];
             recentAttacks = [];
             anomalyDetections.clear();
             highRiskDetections.clear();
@@ -2216,6 +2224,7 @@
             processes.clear();
             highRiskList = [];
             attackList = [];
+            stateAttackList = [];
             recentAttacks = [];
             anomalyDetections.clear();
             highRiskDetections.clear();
