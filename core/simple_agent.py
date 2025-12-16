@@ -969,10 +969,16 @@ class SimpleSecurityAgent:
                                 time_since_last = 999.0
                                 
                                 # Check history to determine if rapid
+                                # CRITICAL: For C2, we need to check BEFORE the connection is added to history
+                                # So we check the current state, not after adding
                                 if self.connection_analyzer:
                                     # Check process name + IP history (best for C2)
-                                    if process_name in self.connection_analyzer.connection_history_by_name:
-                                        name_connections = self.connection_analyzer.connection_history_by_name[process_name]
+                                    clean_name = process_name
+                                    if process_name.startswith('(') and process_name.endswith(')'):
+                                        clean_name = process_name[1:-1]
+                                    
+                                    if clean_name in self.connection_analyzer.connection_history_by_name:
+                                        name_connections = self.connection_analyzer.connection_history_by_name[clean_name]
                                         if dest_ip in name_connections and len(name_connections[dest_ip]) > 0:
                                             last_conn = name_connections[dest_ip][-1]
                                             last_time = last_conn.get('time', 0)
@@ -980,9 +986,9 @@ class SimpleSecurityAgent:
                                             
                                             if time_since_last < 0.5:
                                                 is_rapid = True
-                                                logger.debug(f"🔍 Rapid connection (interval={time_since_last:.3f}s) - port scan")
+                                                logger.warning(f"🔍 Rapid connection (interval={time_since_last:.3f}s) - will vary port for scan")
                                             else:
-                                                logger.debug(f"🔍 Spaced connection (interval={time_since_last:.1f}s) - C2 pattern")
+                                                logger.warning(f"🔍 Spaced connection (interval={time_since_last:.1f}s) - C2 pattern, using same port")
                                     # Check PID history as fallback
                                     elif pid in self.connection_analyzer.connection_history:
                                         prev_connections = list(self.connection_analyzer.connection_history[pid])
@@ -991,6 +997,9 @@ class SimpleSecurityAgent:
                                             time_since_last = last_interval
                                             if last_interval < 0.5:
                                                 is_rapid = True
+                                                logger.warning(f"🔍 Rapid connection (PID, interval={last_interval:.3f}s)")
+                                            else:
+                                                logger.warning(f"🔍 Spaced connection (PID, interval={last_interval:.1f}s) - C2 pattern")
                                 
                                 # CRITICAL: Only vary ports if rapid (port scanning)
                                 # For spaced connections (C2), ALWAYS use same base_port
