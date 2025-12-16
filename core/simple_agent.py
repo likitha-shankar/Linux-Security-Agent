@@ -886,6 +886,11 @@ class SimpleSecurityAgent:
                         
                         # CRITICAL: Try to get REAL port FIRST before simulating
                         # This is essential for C2 detection which needs same port for same process+IP
+                        # ALWAYS try port extraction for connect syscalls (even if dest_port was set earlier)
+                        if syscall_normalized == 'connect':
+                            # For connect, we MUST try to get real port (overrides any previous value)
+                            dest_port = 0  # Reset to force real port extraction
+                        
                         if dest_port == 0 and syscall_normalized in ['socket', 'connect', 'sendto']:
                             # Step 1: Try to get real port from event_info first
                             if event_info and isinstance(event_info, dict):
