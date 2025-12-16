@@ -903,18 +903,23 @@ class SimpleSecurityAgent:
                                     if not hasattr(self, '_port_extractor'):
                                         from core.port_extractor import PortExtractor
                                         self._port_extractor = PortExtractor()
+                                        logger.debug(f"Initialized port extractor for PID {pid}")
                                     
                                     # For connect syscalls, wait for connection to establish
                                     if syscall_normalized == 'connect':
                                         import time
-                                        time.sleep(0.3)  # 300ms delay for connection to establish
+                                        logger.debug(f"Waiting for connection to establish for PID {pid}...")
+                                        time.sleep(0.5)  # 500ms delay for connection to establish
                                     
+                                    logger.debug(f"Attempting to get real port for PID {pid} from /proc/net/tcp...")
                                     result = self._port_extractor.get_destination(pid)
                                     if result:
                                         dest_ip, dest_port = result
                                         logger.warning(f"✅ Got REAL port from /proc/net/tcp for PID {pid}: {dest_ip}:{dest_port}")
+                                    else:
+                                        logger.debug(f"Port extractor returned None for PID {pid} (connection may not be established yet)")
                                 except Exception as e:
-                                    logger.debug(f"Port extraction from /proc failed for PID {pid}: {e}")
+                                    logger.warning(f"Port extraction from /proc failed for PID {pid}: {e}", exc_info=True)
                             
                             # Step 3: Try eBPF if /proc didn't work
                             if dest_port == 0:
