@@ -128,6 +128,7 @@ class ConnectionPatternAnalyzer:
         if process_name:
             self.connection_history_by_name[process_name][dest_ip].append(connection_info)
             self.port_access_history_by_name[process_name][dest_ip].add(dest_port)
+            logger.debug(f"🔍 Tracked connection: process={process_name}, dest={dest_ip}:{dest_port}, total_connections={len(self.connection_history_by_name[process_name][dest_ip])}")
         
         # Check for beaconing (try both PID and process name tracking)
         beacon_result = self._detect_beaconing(pid)
