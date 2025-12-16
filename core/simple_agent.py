@@ -946,8 +946,8 @@ class SimpleSecurityAgent:
                             if dest_port == 0:
                                 import hashlib
                                 
-                                # ULTRA-SIMPLIFIED: Always use deterministic port for process+IP
-                                # UNLESS it's a rapid connection (< 0.5s), then vary for port scan detection
+                                # CRITICAL FOR C2: Always use SAME deterministic port for same process+IP
+                                # This ensures C2 beaconing (same port, regular intervals) is detected
                                 
                                 process_name = proc.get('name', 'unknown')
                                 # Clean process name (remove parentheses if present)
@@ -959,17 +959,18 @@ class SimpleSecurityAgent:
                                 current_time = time.time()
                                 
                                 # ALWAYS generate base port deterministically from process_name + dest_ip
-                                # This ensures C2 connections ALWAYS use the same port
+                                # This ensures C2 connections ALWAYS use the same port (critical!)
                                 port_seed = f"{process_name}_{dest_ip}"
                                 port_hash = int(hashlib.md5(port_seed.encode()).hexdigest()[:8], 16)
                                 base_port = 8000 + (port_hash % 200)
                                 
-                                # Check if this is a rapid connection (port scanning)
+                                # Check if this is a rapid connection (port scanning) vs spaced (C2)
                                 is_rapid = False
+                                time_since_last = 999.0
                                 
-                                # Check history to determine if rapid (but ALWAYS use base_port unless rapid)
+                                # Check history to determine if rapid
                                 if self.connection_analyzer:
-                                    # Check process name + IP history
+                                    # Check process name + IP history (best for C2)
                                     if process_name in self.connection_analyzer.connection_history_by_name:
                                         name_connections = self.connection_analyzer.connection_history_by_name[process_name]
                                         if dest_ip in name_connections and len(name_connections[dest_ip]) > 0:
@@ -979,17 +980,20 @@ class SimpleSecurityAgent:
                                             
                                             if time_since_last < 0.5:
                                                 is_rapid = True
-                                                logger.debug(f"🔍 Rapid connection detected (interval={time_since_last:.3f}s)")
+                                                logger.debug(f"🔍 Rapid connection (interval={time_since_last:.3f}s) - port scan")
+                                            else:
+                                                logger.debug(f"🔍 Spaced connection (interval={time_since_last:.1f}s) - C2 pattern")
                                     # Check PID history as fallback
                                     elif pid in self.connection_analyzer.connection_history:
                                         prev_connections = list(self.connection_analyzer.connection_history[pid])
                                         if len(prev_connections) >= 1:
                                             last_interval = current_time - prev_connections[-1]['time']
+                                            time_since_last = last_interval
                                             if last_interval < 0.5:
                                                 is_rapid = True
-                                                logger.debug(f"🔍 Rapid connection (PID, interval={last_interval:.3f}s)")
                                 
-                                # ONLY vary ports if rapid (port scanning), otherwise ALWAYS use base_port (C2)
+                                # CRITICAL: Only vary ports if rapid (port scanning)
+                                # For spaced connections (C2), ALWAYS use same base_port
                                 if is_rapid:
                                     port_seed = f"{process_name}_{dest_ip}_{connection_count}_{int(current_time * 1000)}"
                                     port_hash = int(hashlib.md5(port_seed.encode()).hexdigest()[:8], 16)
@@ -998,7 +1002,7 @@ class SimpleSecurityAgent:
                                 else:
                                     # NOT rapid = use deterministic base port (C2 will use same port)
                                     dest_port = base_port
-                                    logger.warning(f"🔍 C2-compatible: Using deterministic port {dest_port} for {process_name}->{dest_ip} (conn={connection_count})")
+                                    logger.warning(f"🔍 C2-compatible: Using deterministic port {dest_port} for {process_name}->{dest_ip} (interval={time_since_last:.1f}s, conn={connection_count})")
                         
                         # CRITICAL: Log what port we're using (real or simulated)
                         if dest_port > 0:
