@@ -927,7 +927,7 @@ class SimpleSecurityAgent:
                                         # If < 0.5s between connections, it's rapid (port scanning)
                                         if time_since_last < 0.5:
                                             is_rapid_connection = True
-                                        elif time_since_last < 15.0:
+                                        elif time_since_last < 30.0:  # Increased window for C2 detection (up to 30s intervals)
                                             # Spaced out = C2 pattern, use same port
                                             dest_port = last_conn.get('port', 0)
                                             logger.debug(f"🔍 Using same port for C2: {dest_port} (interval={time_since_last:.1f}s)")
@@ -944,10 +944,10 @@ class SimpleSecurityAgent:
                                         last_interval = current_time - prev_connections[-1]['time']
                                         if last_interval < 0.5:
                                             is_rapid_connection = True
-                                        elif last_interval >= 2.0:
+                                        elif last_interval >= 1.5:  # Lowered to 1.5s to match min_beacon_interval
                                             # Spaced out = C2
                                             dest_port = prev_connections[-1]['port']
-                                            logger.debug(f"🔍 Using same port for C2 (PID): {dest_port}")
+                                            logger.debug(f"🔍 Using same port for C2 (PID): {dest_port} (interval={last_interval:.1f}s)")
                                         else:
                                             # Generate new port
                                             port_seed = f"{process_name}_{dest_ip}"
@@ -973,7 +973,7 @@ class SimpleSecurityAgent:
                                     prev_connections = list(self.connection_analyzer.connection_history[pid])
                                     if len(prev_connections) >= 1:
                                         last_interval = current_time - prev_connections[-1]['time']
-                                        if last_interval >= 2.0:  # Spaced out = potential C2
+                                        if last_interval >= 1.5:  # Spaced out = potential C2 (lowered to 1.5s)
                                             dest_port = prev_connections[-1]['port']
                                             logger.debug(f"🔍 Using same port for C2 pattern (PID): {dest_port} (interval: {last_interval:.1f}s)")
                                         else:
@@ -1708,7 +1708,7 @@ class SimpleSecurityAgent:
         def state_file_writer():
             """Background thread to continuously write state file"""
             last_write = time.time()
-            write_interval = 2.0  # Write every 2 seconds
+            write_interval = 5.0  # Write every 5 seconds (less frequent to avoid overwriting immediate writes)
             write_count = 0
             
             while self.running:
@@ -1716,14 +1716,15 @@ class SimpleSecurityAgent:
                     current = time.time()
                     if current - last_write >= write_interval:
                         try:
-                            self._write_state_file()
+                            # Use skip_lock=False since we're in a separate thread
+                            self._write_state_file(skip_lock=False)
                             last_write = current
                             write_count += 1
-                            if write_count % 15 == 0:  # Log every 30 seconds
+                            if write_count % 12 == 0:  # Log every 60 seconds
                                 logger.debug(f"State file written #{write_count} ({len(self.processes)} processes, {self.stats['total_syscalls']} syscalls)")
                         except Exception as e:
                             logger.error(f"State file write error: {e}", exc_info=True)
-                    time.sleep(0.5)
+                    time.sleep(1.0)  # Check every second
                 except Exception as e:
                     logger.error(f"State file writer thread error: {e}", exc_info=True)
                     time.sleep(1)

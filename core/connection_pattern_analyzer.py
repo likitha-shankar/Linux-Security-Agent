@@ -55,9 +55,9 @@ class ConnectionPatternAnalyzer:
         self.port_access_history_by_name = defaultdict(lambda: defaultdict(set))  # process_name -> dest_ip -> set of ports
         
         # Beaconing detection parameters (optimized for better detection)
-        self.beacon_threshold_variance = self.config.get('beacon_variance_threshold', 5.0)  # seconds
+        self.beacon_threshold_variance = self.config.get('beacon_variance_threshold', 8.0)  # Increased to 8.0s for better C2 detection
         self.min_connections_for_beacon = self.config.get('min_connections_for_beacon', 3)  # Minimum 3 connections
-        self.min_beacon_interval = self.config.get('min_beacon_interval', 2.0)  # Lowered to 2.0 seconds for better detection
+        self.min_beacon_interval = self.config.get('min_beacon_interval', 1.5)  # Lowered to 1.5 seconds for better detection
         
         # Port scanning parameters (balanced for detection vs false positives)
         # Lowered threshold back to 5 for better attack detection (can be tuned via config)
