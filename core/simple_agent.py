@@ -1015,26 +1015,27 @@ class SimpleSecurityAgent:
                                     dest_port = 8000 + (port_hash % 2000)  # Wider range for port scans
                                     logger.warning(f"🔍 VARYING PORT for scan: {dest_port} (process={clean_name_for_port}, rapid=True)")
                                 else:
-                                    # NOT rapid = use deterministic base port (C2 will use same port)
-                                    # CRITICAL: For C2, we MUST use the same port every time
-                                    dest_port = base_port
-                                    logger.warning(f"🔍 C2-compatible: Using deterministic port {dest_port} for {clean_name_for_port}->{dest_ip} (interval={time_since_last:.1f}s, conn={connection_count}, rapid={is_rapid}, base_port={base_port})")
+                                    # NOT rapid = check if we should reuse a previous port (C2 pattern)
+                                    port_to_use = base_port
                                     
-                                    # CRITICAL: Log when we're using the same port multiple times (C2 pattern)
-                                    if connection_count > 1:
-                                        logger.warning(f"🔍 C2 PATTERN: Process {process_name} using SAME port {dest_port} for connection #{connection_count} (C2 detection should work!)")
-                                    
-                                    # Also check if we already used this port before (confirm C2 pattern)
+                                    # CRITICAL: Check connection history to see if this process+IP used a port before
                                     if self.connection_analyzer:
-                                        clean_name = process_name
-                                        if process_name.startswith('(') and process_name.endswith(')'):
-                                            clean_name = process_name[1:-1]
-                                        if clean_name in self.connection_analyzer.connection_history_by_name:
-                                            name_connections = self.connection_analyzer.connection_history_by_name[clean_name]
-                                            if dest_ip in name_connections:
-                                                prev_ports = [c.get('port', 0) for c in name_connections[dest_ip]]
-                                                if base_port in prev_ports:
-                                                    logger.warning(f"🔍 CONFIRMED C2 PATTERN: Port {base_port} was used before for {clean_name}->{dest_ip} (connections: {len(name_connections[dest_ip])})")
+                                        if clean_name_for_port in self.connection_analyzer.connection_history_by_name:
+                                            name_connections = self.connection_analyzer.connection_history_by_name[clean_name_for_port]
+                                            if dest_ip in name_connections and len(name_connections[dest_ip]) > 0:
+                                                # Get the port from the most recent connection
+                                                last_conn = name_connections[dest_ip][-1]
+                                                prev_port = last_conn.get('port', 0)
+                                                if prev_port > 0:
+                                                    # REUSE the same port (C2 pattern!)
+                                                    port_to_use = prev_port
+                                                    logger.warning(f"🔍 C2 PATTERN: Reusing port {port_to_use} for {clean_name_for_port}->{dest_ip} (connection #{connection_count}, total_prev={len(name_connections[dest_ip])})")
+                                    
+                                    dest_port = port_to_use
+                                    if port_to_use == base_port:
+                                        logger.warning(f"🔍 C2-compatible: Using deterministic base port {dest_port} for {clean_name_for_port}->{dest_ip} (interval={time_since_last:.1f}s, conn={connection_count})")
+                                    else:
+                                        logger.warning(f"🔍 C2 PATTERN CONFIRMED: Reusing port {dest_port} for {clean_name_for_port}->{dest_ip} (connection #{connection_count})")
                         
                         # CRITICAL: Log what port we're using (real or simulated)
                         if dest_port > 0:
