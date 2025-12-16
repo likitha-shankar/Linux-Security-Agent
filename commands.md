@@ -1,3 +1,64 @@
+cd ~/Linux-Security-Agent
+git pull
+
+# === 1. START ===
+sudo pkill -f simple_agent.py || true
+pkill -f app.py || true
+sudo auditctl -D 2>/dev/null || true
+sudo auditctl -a always,exit -F arch=b64 -S socket -S connect -S bind -S accept -S sendto -S recvfrom -k network_syscalls
+sudo nohup python3 core/simple_agent.py --collector auditd --threshold 20 --headless >/tmp/agent.log 2>&1 &
+cd web && nohup python3 app.py >/tmp/dashboard.log 2>&1 &
+cd ..
+sleep 15
+echo "✅ Agent and dashboard started"
+echo "Dashboard: http://136.112.137.224:5001"
+
+# === 2. WAIT FOR WARM-UP ===
+echo "⏳ Waiting 40 seconds for warm-up..."
+sleep 40
+
+# === 3. NORMAL MONITORING ===
+echo "=== Normal monitoring ==="
+pwd
+ls -la
+ps aux | head -10
+echo "State file:"
+cat /tmp/security_agent_state.json | jq '.stats'
+sleep 5
+
+# === 4. PORT SCAN ATTACK ===
+echo "=== Port scan attack ==="
+cd ~/Linux-Security-Agent  # Ensure we're in root directory
+python3 -c "from scripts.simulate_attacks import simulate_network_scanning; simulate_network_scanning()"
+sleep 30
+LATEST_LOG=$(ls -t logs/security_agent_*.log 2>/dev/null | head -1)
+echo "Port scan detections:"
+sudo grep -i "PORT_SCANNING\|Port scan detected" "$LATEST_LOG" | tail -5
+echo "State file:"
+cat /tmp/security_agent_state.json | jq '.stats'
+
+# === 5. HIGH-RISK ATTACK ===
+echo "=== High-risk attack ==="
+cd ~/Linux-Security-Agent  # Ensure we're in root directory
+python3 -c "from scripts.simulate_attacks import simulate_privilege_escalation; simulate_privilege_escalation()"
+sleep 15
+echo "High-risk detections:"
+sudo grep -i "HIGH RISK DETECTED" "$LATEST_LOG" | tail -5
+echo "State file:"
+cat /tmp/security_agent_state.json | jq '.stats'
+
+# === 6. FINAL SUMMARY ===
+echo "=== Final Summary ==="
+echo "State file:"
+cat /tmp/security_agent_state.json | jq '.stats'
+echo ""
+echo "API:"
+curl -s http://localhost:5001/api/agent/state | jq '.stats'
+echo ""
+echo "High-risk processes:"
+cat /tmp/security_agent_state.json | jq '.processes[] | select(.risk_score >= 20) | {pid, name, risk_score}' | head -10
+
+
 ### 0. Setup / cleanup (VM)
 
 ```bash
