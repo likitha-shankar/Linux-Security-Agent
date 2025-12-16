@@ -312,24 +312,73 @@ def simulate_c2_beaconing():
     )
     
     import socket
+    import threading
+    import subprocess
     
     # C2 beaconing: same port, regular intervals
-    target_port = 8080
+    # Use a port that we'll make listen so connections actually establish
+    target_port = 8888
     beacon_count = 8
     interval = 3  # 3-second intervals
     
+    # Start a simple listener in background so connections can establish
+    # This allows /proc/net/tcp to capture the real ports
+    listener_process = None
+    try:
+        # Start netcat or python listener
+        listener_process = subprocess.Popen(
+            ['nc', '-l', '-p', str(target_port)],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL
+        )
+        time.sleep(0.5)  # Give listener time to start
+    except:
+        # If nc not available, try python listener
+        try:
+            def simple_listener():
+                s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+                s.bind(('127.0.0.1', target_port))
+                s.listen(1)
+                for _ in range(beacon_count + 2):
+                    try:
+                        conn, addr = s.accept()
+                        conn.close()
+                    except:
+                        break
+                s.close()
+            
+            listener_thread = threading.Thread(target=simple_listener, daemon=True)
+            listener_thread.start()
+            time.sleep(0.5)
+        except:
+            pass  # Continue anyway - connections will fail but syscalls still happen
+    
+    # Make connections with regular intervals
     for i in range(beacon_count):
         try:
             sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            sock.settimeout(0.1)
+            sock.settimeout(1.0)  # Longer timeout to allow connection
             sock.connect(('127.0.0.1', target_port))  # Same port each time
+            time.sleep(0.1)  # Keep connection open briefly
             sock.close()
-        except (socket.error, ConnectionRefusedError):
-            pass  # Expected - port not open
+        except (socket.error, ConnectionRefusedError, OSError):
+            pass  # Expected if listener not ready
         if i < beacon_count - 1:  # Don't sleep after last beacon
             time.sleep(interval)  # Regular intervals
     
-    print(f"{GREEN}✅ C2 beaconing pattern executed ({beacon_count} beacons, {interval}s intervals){RESET}")
+    # Cleanup listener
+    if listener_process:
+        try:
+            listener_process.terminate()
+            listener_process.wait(timeout=1)
+        except:
+            try:
+                listener_process.kill()
+            except:
+                pass
+    
+    print(f"{GREEN}✅ C2 beaconing pattern executed ({beacon_count} beacons, {interval}s intervals to port {target_port}){RESET}")
 
 def run_all_attacks():
     """Run all attack simulations"""
