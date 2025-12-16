@@ -60,8 +60,8 @@ class ConnectionPatternAnalyzer:
         self.min_beacon_interval = self.config.get('min_beacon_interval', 1.0)  # Lowered to 1.0 seconds for better detection
         
         # Port scanning parameters (more sensitive for demo)
-        self.port_scan_threshold = self.config.get('port_scan_threshold', 3)  # unique ports (lowered to 3 for better detection)
-        self.port_scan_timeframe = self.config.get('port_scan_timeframe', 120)  # seconds (120s window for detection)
+        self.port_scan_threshold = self.config.get('port_scan_threshold', 2)  # unique ports (lowered to 2 for better detection)
+        self.port_scan_timeframe = self.config.get('port_scan_timeframe', 300)  # seconds (300s window for detection - more lenient)
         
         # Whitelist of legitimate processes that commonly connect to multiple ports
         # These are system/daemon processes that shouldn't trigger port scan alerts
@@ -143,12 +143,14 @@ class ConnectionPatternAnalyzer:
             return beacon_result
         
         # Check for port scanning (try both PID and process name tracking)
+        # IMPORTANT: Always check after adding port to history
         scan_result = self._detect_port_scanning(pid, timestamp)
         if not scan_result and process_name:
             # Try detecting by process name (for short-lived processes)
             scan_result = self._detect_port_scanning_by_name(process_name, dest_ip, timestamp)
         if scan_result:
             self.stats['port_scans_detected'] += 1
+            logger.warning(f"🚨 PORT SCAN DETECTION RETURNED: {scan_result}")
             return scan_result
         
         return None
@@ -312,9 +314,9 @@ class ConnectionPatternAnalyzer:
             
             logger.info(f"   🔍 Rate check: {ports_per_second:.3f} ports/sec >= 0.1")
             
-            # Require minimum rate of 0.1 ports/second (reduces false positives but allows slower scans)
-            if ports_per_second < 0.1:
-                logger.warning(f"   ❌ Rate too low: {ports_per_second:.3f} < 0.1")
+            # Require minimum rate of 0.01 ports/second (very lenient - allows slow scans)
+            if ports_per_second < 0.01:
+                logger.warning(f"   ❌ Rate too low: {ports_per_second:.3f} < 0.01")
                 return None
             
             logger.warning(f"✅ PORT SCAN DETECTED: PID {pid}, {unique_ports} ports in {timeframe:.1f}s ({ports_per_second:.2f} ports/sec)")
