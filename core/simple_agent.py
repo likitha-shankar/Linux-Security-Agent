@@ -1013,15 +1013,15 @@ class SimpleSecurityAgent:
                                 # CRITICAL: Only vary ports if rapid (port scanning)
                                 # For spaced connections (C2), ALWAYS use same base_port
                                 if is_rapid:
-                                    port_seed = f"{process_name}_{dest_ip}_{connection_count}_{int(current_time * 1000)}"
+                                    port_seed = f"{clean_name_for_port}_{dest_ip}_{connection_count}_{int(current_time * 1000)}"
                                     port_hash = int(hashlib.md5(port_seed.encode()).hexdigest()[:8], 16)
                                     dest_port = 8000 + (port_hash % 2000)  # Wider range for port scans
-                                    logger.warning(f"🔍 VARYING PORT for scan: {dest_port} (process={process_name}, rapid=True)")
+                                    logger.warning(f"🔍 VARYING PORT for scan: {dest_port} (process={clean_name_for_port}, rapid=True)")
                                 else:
                                     # NOT rapid = use deterministic base port (C2 will use same port)
                                     # CRITICAL: For C2, we MUST use the same port every time
                                     dest_port = base_port
-                                    logger.warning(f"🔍 C2-compatible: Using deterministic port {dest_port} for {process_name}->{dest_ip} (interval={time_since_last:.1f}s, conn={connection_count}, rapid={is_rapid})")
+                                    logger.warning(f"🔍 C2-compatible: Using deterministic port {dest_port} for {clean_name_for_port}->{dest_ip} (interval={time_since_last:.1f}s, conn={connection_count}, rapid={is_rapid}, base_port={base_port})")
                                     
                                     # CRITICAL: Log when we're using the same port multiple times (C2 pattern)
                                     if connection_count > 1:
