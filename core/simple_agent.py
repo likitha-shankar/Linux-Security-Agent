@@ -1061,11 +1061,11 @@ class SimpleSecurityAgent:
                                 # Force immediate state file update so dashboard shows attack quickly
                                 # NOTE: We're already inside processes_lock (from _handle_event), so don't acquire it again
                                 try:
-                                    state_before = self.export_state()
+                                    state_before = self.export_state(skip_lock=True)
                                     logger.info(f"🔍 DEBUG: State BEFORE write - c2_beacons={state_before.get('stats', {}).get('c2_beacons', 0)}, port_scans={state_before.get('stats', {}).get('port_scans', 0)}")
-                                    self._write_state_file()
+                                    self._write_state_file(skip_lock=True)
                                     # Verify the write by reading back
-                                    state_after = self.export_state()
+                                    state_after = self.export_state(skip_lock=True)
                                     actual_c2_beacons = state_after.get('stats', {}).get('c2_beacons', 0)
                                     logger.info(f"🔍 DEBUG: State AFTER write - c2_beacons={actual_c2_beacons}, port_scans={state_after.get('stats', {}).get('port_scans', 0)}")
                                     if actual_c2_beacons != count:
