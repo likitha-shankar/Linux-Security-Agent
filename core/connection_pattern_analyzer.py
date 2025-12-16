@@ -150,10 +150,11 @@ class ConnectionPatternAnalyzer:
             logger.warning(f"✅ C2 BEACONING RETURNED from analyze_connection: {beacon_result.get('type')} for PID {pid}")
             return beacon_result
         else:
-            # Log why C2 wasn't detected
+            # Log why C2 wasn't detected (WARNING level so it's visible)
             pid_conns = len(self.connection_history[pid]) if pid in self.connection_history else 0
             name_conns = len(self.connection_history_by_name.get(process_name, {}).get(dest_ip, [])) if process_name else 0
-            logger.debug(f"🔍 No C2 detected: PID {pid} has {pid_conns} connections, {process_name}->{dest_ip} has {name_conns} connections")
+            if name_conns >= 3 or pid_conns >= 3:
+                logger.warning(f"🔍 No C2 detected yet: PID {pid} has {pid_conns} connections, {process_name}->{dest_ip} has {name_conns} connections (should check intervals)")
         
         # Check for port scanning (try both PID and process name tracking)
         scan_result = self._detect_port_scanning(pid, timestamp)
