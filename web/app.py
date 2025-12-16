@@ -252,7 +252,10 @@ def api_status():
     # If monitoring is active but we haven't detected agent, start monitoring thread
     if agent_running and not monitoring_active:
         monitoring_active = True
+        print(f"[API STATUS] Agent detected, starting log monitoring thread...")
         threading.Thread(target=monitor_agent_logs, daemon=True).start()
+        # Give it a moment to start
+        time.sleep(0.5)
     
     status = {
         'running': agent_running,
