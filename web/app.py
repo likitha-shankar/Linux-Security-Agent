@@ -340,28 +340,28 @@ def api_get_agent_state():
         # First, check if agent is currently running.
         # If not running, we should return a fully reset/empty state so the
         # dashboard cards all go to zero when the agent is stopped.
-        # Check if agent is running - use state file mtime as primary check (more reliable)
+        # Check if agent is running - prefer pgrep, fallback to state file existence
         agent_running = False
-        state_file_path = Path('/tmp/security_agent_state.json')
+        try:
+            result = subprocess.run(['pgrep', '-f', 'simple_agent.py'],
+                                    capture_output=True, text=True, timeout=2)
+            if result.returncode == 0 and result.stdout.strip():
+                agent_running = True
+                print(f"[API] Agent detected via pgrep: PID {result.stdout.strip()}")
+        except Exception as e:
+            print(f"[API] pgrep check failed: {e}")
         
-        if state_file_path.exists():
+        # If pgrep didn't find it, check if state file exists (agent might have just started)
+        # We'll read the state file regardless of age - if it exists, it has valid data
+        state_file_path = Path('/tmp/security_agent_state.json')
+        if not agent_running and state_file_path.exists():
+            # State file exists = agent was running at some point
+            # For demo purposes, show the state even if agent stopped recently
+            agent_running = True
             import time
             mtime = state_file_path.stat().st_mtime
             age = time.time() - mtime
-            if age < 120:  # State file updated in last 2 minutes = agent running
-                agent_running = True
-                print(f"[API] Agent detected via state file mtime (age={age:.1f}s)")
-        
-        # Also try pgrep as secondary check
-        if not agent_running:
-            try:
-                result = subprocess.run(['pgrep', '-f', 'simple_agent.py'],
-                                        capture_output=True, text=True, timeout=2)
-                if result.returncode == 0 and result.stdout.strip():
-                    agent_running = True
-                    print(f"[API] Agent detected via pgrep: PID {result.stdout.strip()}")
-            except Exception as e:
-                print(f"[API] pgrep check failed: {e}")
+            print(f"[API] Agent state file exists (age={age:.1f}s), assuming agent running or recently stopped")
 
         # If agent is NOT running, reset state and (optionally) clean up stale state files
         if not agent_running:
