@@ -128,7 +128,12 @@ class ConnectionPatternAnalyzer:
         if process_name:
             self.connection_history_by_name[process_name][dest_ip].append(connection_info)
             self.port_access_history_by_name[process_name][dest_ip].add(dest_port)
-            logger.debug(f"🔍 Tracked connection: process={process_name}, dest={dest_ip}:{dest_port}, total_connections={len(self.connection_history_by_name[process_name][dest_ip])}")
+            total_conns = len(self.connection_history_by_name[process_name][dest_ip])
+            logger.warning(f"🔍 Tracked connection: process={process_name}, dest={dest_ip}:{dest_port}, total_connections={total_conns}")
+            
+            # Log when we have enough connections for C2 detection
+            if total_conns >= self.min_connections_for_beacon:
+                logger.warning(f"🔍 Process {process_name} has {total_conns} connections to {dest_ip}:{dest_port} - checking for C2...")
         
         # Check for beaconing (try both PID and process name tracking)
         beacon_result = self._detect_beaconing(pid)
@@ -165,10 +170,10 @@ class ConnectionPatternAnalyzer:
         """
         all_connections = list(self.connection_history[pid])
         
-        logger.debug(f"🔍 _detect_beaconing called for PID {pid}: {len(all_connections)} total connections")
+        logger.warning(f"🔍 _detect_beaconing called for PID {pid}: {len(all_connections)} total connections")
         
         if len(all_connections) < self.min_connections_for_beacon:
-            logger.debug(f"🔍 Not enough connections for C2: {len(all_connections)} < {self.min_connections_for_beacon}")
+            logger.warning(f"🔍 Not enough connections for C2: {len(all_connections)} < {self.min_connections_for_beacon}")
             return None
         
         # Group connections by destination (IP:port) to find beaconing patterns
