@@ -167,17 +167,15 @@
 >
 > **Finally**, the ML models have been pre-trained on the ADFA-LD dataset - that's 5,205 real syscall sequences from normal and attack scenarios. The models are stored in the user cache directory and loaded automatically when the agent starts.
 >
-> All of this is running on a production-grade cloud VM, which demonstrates that this system can be deployed in real-world environments. The agent is currently monitoring the system in real-time, and we're ready to demonstrate live attack detection.
+> All of this is running on a production-grade cloud VM.
 >
-> Now let's see it in action."
-
 ---
 
 ## 💻 LIVE DEMONSTRATION (5-6 minutes)
 
 ### Slide 6: Demo Time
 
-> "Now let me show you the system in action. I'll demonstrate live detection of a port scanning attack.
+I'll demonstrate live detection of a port scanning attack.
 >
 > **[Switch to dashboard view - show web dashboard at http://[VM_IP]:5001]**
 >
