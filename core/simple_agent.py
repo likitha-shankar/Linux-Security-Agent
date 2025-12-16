@@ -1071,8 +1071,8 @@ class SimpleSecurityAgent:
                                     if actual_c2_beacons != count:
                                         logger.error(f"❌ STATE FILE MISMATCH: Expected c2_beacons={count}, got {actual_c2_beacons}. Retrying write...")
                                         # Retry once more
-                                        self._write_state_file()
-                                        state_retry = self.export_state()
+                                        self._write_state_file(skip_lock=True)
+                                        state_retry = self.export_state(skip_lock=True)
                                         retry_c2_beacons = state_retry.get('stats', {}).get('c2_beacons', 0)
                                         logger.info(f"🔍 DEBUG: After retry - c2_beacons={retry_c2_beacons}")
                                     else:
@@ -1109,7 +1109,7 @@ class SimpleSecurityAgent:
                                     if actual_port_scans != count:
                                         logger.error(f"❌ STATE FILE MISMATCH: Expected port_scans={count}, got {actual_port_scans}. Retrying write...")
                                         # Retry once more
-                                        self._write_state_file()
+                                        self._write_state_file(skip_lock=True)
                                         state_retry = self.export_state(skip_lock=True)
                                         retry_port_scans = state_retry.get('stats', {}).get('port_scans', 0)
                                         logger.info(f"🔍 DEBUG: After retry - port_scans={retry_port_scans}")
