@@ -955,15 +955,15 @@ class SimpleSecurityAgent:
                                             dest_port = 8000 + (port_hash % 200)
                                             logger.debug(f"🔍 Generated port (PID history): {dest_port}")
                                 
-                                # CRITICAL FIX: For port scan detection, we MUST vary ports
-                                # Strategy: After increment, connection_count >= 1 means 2nd+ connection
-                                # OR if rapid connection, ALWAYS vary ports
-                                if connection_count >= 1 or is_rapid_connection:
-                                    # Vary ports using connection count + timestamp for uniqueness
+                                # CRITICAL FIX: Only vary ports if it's a rapid connection (port scanning)
+                                # For spaced connections (C2), keep same port
+                                if is_rapid_connection:
+                                    # Rapid connection = port scanning, vary ports
                                     port_seed = f"{process_name}_{dest_ip}_{connection_count}_{int(current_time * 1000)}"
                                     port_hash = int(hashlib.md5(port_seed.encode()).hexdigest()[:8], 16)
                                     dest_port = 8000 + (port_hash % 2000)  # Wider range (2000 ports) for port scans
-                                    logger.warning(f"🔍 VARYING PORT for scan detection: {dest_port} (process={process_name}, conn={connection_count}, rapid={is_rapid_connection})")
+                                    logger.warning(f"🔍 VARYING PORT for scan detection: {dest_port} (process={process_name}, conn={connection_count}, rapid=True)")
+                                # If not rapid and dest_port still 0, we already set it above for C2 pattern
                                 elif dest_port == 0:
                                     # First connection, no history - generate initial port
                                     port_seed = f"{process_name}_{dest_ip}"
@@ -976,12 +976,15 @@ class SimpleSecurityAgent:
                                         if last_interval >= 1.5:  # Spaced out = potential C2 (lowered to 1.5s)
                                             dest_port = prev_connections[-1]['port']
                                             logger.debug(f"🔍 Using same port for C2 pattern (PID): {dest_port} (interval: {last_interval:.1f}s)")
-                                        else:
-                                            # Rapid connections = port scanning, ALWAYS vary ports
+                                        elif last_interval < 0.5:  # Rapid connections = port scanning, vary ports
                                             port_seed = f"{pid}_{dest_ip}_{connection_count}_{int(current_time * 1000)}"
                                             port_hash = int(hashlib.md5(port_seed.encode()).hexdigest()[:8], 16)
                                             dest_port = 8000 + (port_hash % 2000)  # Wider range
                                             logger.info(f"🔍 Varying port for scan pattern (PID): {dest_port} (connection #{connection_count}, interval={last_interval:.3f}s)")
+                                        else:
+                                            # Medium interval (0.5-1.5s) - use same port (might be C2)
+                                            dest_port = prev_connections[-1]['port']
+                                            logger.debug(f"🔍 Using same port (medium interval): {dest_port} (interval: {last_interval:.1f}s)")
                                     else:
                                         # First connection - use consistent port
                                         port_seed = f"{process_name}_{dest_ip}"
