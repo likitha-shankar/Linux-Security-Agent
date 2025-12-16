@@ -104,16 +104,35 @@ int kprobe__sys_connect(struct pt_regs *ctx, int sockfd, struct sockaddr *addr, 
 }
 """
         try:
-            self.bpf = BPF(text=ebpf_code)
-            # Attach kprobe
-            self.bpf.attach_kprobe(event="__x64_sys_connect", fn_name="kprobe__sys_connect")
-            # Also try alternative name (some kernels use different names)
+            # Suppress stderr during compilation (macro warnings are harmless)
+            import os
+            import sys
+            devnull = open(os.devnull, 'w')
+            old_stderr = sys.stderr
+            sys.stderr = devnull
+            
             try:
-                self.bpf.attach_kprobe(event="sys_connect", fn_name="kprobe__sys_connect")
-            except:
-                pass  # Ignore if already attached or doesn't exist
+                self.bpf = BPF(text=ebpf_code)
+                # Try different syscall names (kernel version dependent)
+                attached = False
+                for event_name in ["__x64_sys_connect", "sys_connect", "__se_sys_connect", "__do_sys_connect"]:
+                    try:
+                        self.bpf.attach_kprobe(event=event_name, fn_name="kprobe__sys_connect")
+                        logger.debug(f"Attached kprobe to {event_name}")
+                        attached = True
+                        break
+                    except Exception as e:
+                        logger.debug(f"Failed to attach to {event_name}: {e}")
+                        continue
+                
+                if not attached:
+                    raise Exception("Could not attach kprobe to any connect syscall variant")
+            finally:
+                sys.stderr.close()
+                sys.stderr = old_stderr
+                devnull.close()
         except Exception as e:
-            logger.debug(f"eBPF program load error: {e}")
+            logger.warning(f"eBPF program load error: {e}")
             raise
     
     def get_destination(self, pid: int) -> Optional[Tuple[str, int]]:
