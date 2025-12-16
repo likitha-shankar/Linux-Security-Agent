@@ -903,77 +903,59 @@ class SimpleSecurityAgent:
                             if dest_port == 0:
                                 import hashlib
                                 
-                                # SIMPLIFIED: Port simulation strategy
-                                # For C2 beaconing: Use SAME deterministic port for process+IP (unless rapid)
-                                # For port scanning: Vary ports for rapid connections
+                                # ULTRA-SIMPLIFIED: Always use deterministic port for process+IP
+                                # UNLESS it's a rapid connection (< 0.5s), then vary for port scan detection
                                 
                                 process_name = proc.get('name', 'unknown')
+                                # Clean process name (remove parentheses if present)
+                                if process_name.startswith('(') and process_name.endswith(')'):
+                                    process_name = process_name[1:-1]
+                                
                                 connection_count = proc.get('connection_count', 0)
                                 proc['connection_count'] = connection_count + 1
                                 current_time = time.time()
                                 
-                                # Generate base port deterministically from process_name + dest_ip
-                                # This ensures C2 connections use the same port
+                                # ALWAYS generate base port deterministically from process_name + dest_ip
+                                # This ensures C2 connections ALWAYS use the same port
                                 port_seed = f"{process_name}_{dest_ip}"
                                 port_hash = int(hashlib.md5(port_seed.encode()).hexdigest()[:8], 16)
                                 base_port = 8000 + (port_hash % 200)
                                 
-                                # Check if this is a rapid connection (port scanning) or spaced (C2)
+                                # Check if this is a rapid connection (port scanning)
                                 is_rapid = False
-                                time_since_last = 999.0
                                 
-                                # PRIORITY 1: Check process name + IP history (best for C2 detection)
-                                if self.connection_analyzer and process_name in self.connection_analyzer.connection_history_by_name:
-                                    name_connections = self.connection_analyzer.connection_history_by_name[process_name]
-                                    if dest_ip in name_connections and len(name_connections[dest_ip]) > 0:
-                                        last_conn = name_connections[dest_ip][-1]
-                                        last_time = last_conn.get('time', 0)
-                                        time_since_last = current_time - last_time
-                                        
-                                        # If < 0.5s between connections, it's rapid (port scanning)
-                                        if time_since_last < 0.5:
-                                            is_rapid = True
-                                            logger.debug(f"🔍 Rapid connection (interval={time_since_last:.3f}s) - will vary port for port scan")
-                                        elif time_since_last < 30.0:
-                                            # Spaced out = C2 pattern, use same base port
-                                            dest_port = base_port
-                                            logger.warning(f"🔍 C2 pattern: Using same port {dest_port} (interval={time_since_last:.1f}s, process={process_name})")
-                                        else:
-                                            # Too old - use base port (might be new C2 session)
-                                            dest_port = base_port
-                                            logger.debug(f"🔍 Old connection (age={time_since_last:.1f}s), using base port {dest_port}")
+                                # Check history to determine if rapid (but ALWAYS use base_port unless rapid)
+                                if self.connection_analyzer:
+                                    # Check process name + IP history
+                                    if process_name in self.connection_analyzer.connection_history_by_name:
+                                        name_connections = self.connection_analyzer.connection_history_by_name[process_name]
+                                        if dest_ip in name_connections and len(name_connections[dest_ip]) > 0:
+                                            last_conn = name_connections[dest_ip][-1]
+                                            last_time = last_conn.get('time', 0)
+                                            time_since_last = current_time - last_time
+                                            
+                                            if time_since_last < 0.5:
+                                                is_rapid = True
+                                                logger.debug(f"🔍 Rapid connection detected (interval={time_since_last:.3f}s)")
+                                    # Check PID history as fallback
+                                    elif pid in self.connection_analyzer.connection_history:
+                                        prev_connections = list(self.connection_analyzer.connection_history[pid])
+                                        if len(prev_connections) >= 1:
+                                            last_interval = current_time - prev_connections[-1]['time']
+                                            if last_interval < 0.5:
+                                                is_rapid = True
+                                                logger.debug(f"🔍 Rapid connection (PID, interval={last_interval:.3f}s)")
                                 
-                                # PRIORITY 2: Check PID history (fallback)
-                                elif self.connection_analyzer and pid in self.connection_analyzer.connection_history:
-                                    prev_connections = list(self.connection_analyzer.connection_history[pid])
-                                    if len(prev_connections) >= 1:
-                                        last_interval = current_time - prev_connections[-1]['time']
-                                        time_since_last = last_interval
-                                        
-                                        if last_interval < 0.5:
-                                            is_rapid = True
-                                            logger.debug(f"🔍 Rapid connection (PID, interval={last_interval:.3f}s) - will vary port")
-                                        elif last_interval >= 1.5:
-                                            # Spaced out = C2, use same port from history or base port
-                                            dest_port = prev_connections[-1].get('port', base_port)
-                                            if dest_port == 0:
-                                                dest_port = base_port
-                                            logger.debug(f"🔍 C2 pattern (PID): Using port {dest_port} (interval={last_interval:.1f}s)")
-                                        else:
-                                            # Medium interval - use base port (might be C2)
-                                            dest_port = base_port
-                                            logger.debug(f"🔍 Medium interval ({last_interval:.1f}s), using base port {dest_port}")
-                                
-                                # If rapid connection, vary ports for port scan detection
+                                # ONLY vary ports if rapid (port scanning), otherwise ALWAYS use base_port (C2)
                                 if is_rapid:
                                     port_seed = f"{process_name}_{dest_ip}_{connection_count}_{int(current_time * 1000)}"
                                     port_hash = int(hashlib.md5(port_seed.encode()).hexdigest()[:8], 16)
                                     dest_port = 8000 + (port_hash % 2000)  # Wider range for port scans
-                                    logger.warning(f"🔍 VARYING PORT for scan: {dest_port} (process={process_name}, conn={connection_count})")
-                                elif dest_port == 0:
-                                    # No history found - use deterministic base port (will be consistent for C2)
+                                    logger.warning(f"🔍 VARYING PORT for scan: {dest_port} (process={process_name}, rapid=True)")
+                                else:
+                                    # NOT rapid = use deterministic base port (C2 will use same port)
                                     dest_port = base_port
-                                    logger.debug(f"🔍 First connection: Using base port {dest_port} for {process_name}->{dest_ip}")
+                                    logger.warning(f"🔍 C2-compatible: Using deterministic port {dest_port} for {process_name}->{dest_ip} (conn={connection_count})")
                         
                         # CRITICAL: Only analyze if we have a valid port (not 0)
                         if dest_port > 0:
