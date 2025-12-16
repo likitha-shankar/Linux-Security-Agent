@@ -949,25 +949,22 @@ class SimpleSecurityAgent:
                                 # CRITICAL FOR C2: Always use SAME deterministic port for same process+IP
                                 # This ensures C2 beaconing (same port, regular intervals) is detected
                                 
-                                process_name = proc.get('name', 'unknown')
-                                # Clean process name (remove parentheses if present)
-                                if process_name.startswith('(') and process_name.endswith(')'):
-                                    process_name = process_name[1:-1]
+                                process_name_raw = proc.get('name', 'unknown')
+                                # Clean process name (remove parentheses if present) - do this ONCE
+                                clean_name_for_port = process_name_raw
+                                if process_name_raw.startswith('(') and process_name_raw.endswith(')'):
+                                    clean_name_for_port = process_name_raw[1:-1]
                                 
                                 connection_count = proc.get('connection_count', 0)
                                 current_time = time.time()
-                                
-                                # CRITICAL: Clean process name BEFORE calculating base port
-                                # This ensures same process always gets same base port
-                                clean_name_for_port = process_name
-                                if process_name.startswith('(') and process_name.endswith(')'):
-                                    clean_name_for_port = process_name[1:-1]
                                 
                                 # ALWAYS generate base port deterministically from CLEANED process_name + dest_ip
                                 # This ensures C2 connections ALWAYS use the same port (critical!)
                                 port_seed = f"{clean_name_for_port}_{dest_ip}"
                                 port_hash = int(hashlib.md5(port_seed.encode()).hexdigest()[:8], 16)
                                 base_port = 8000 + (port_hash % 200)
+                                
+                                logger.warning(f"🔍 Port simulation for {clean_name_for_port}: base_port={base_port}, connection_count={connection_count}")
                                 
                                 # NOW increment connection count
                                 proc['connection_count'] = connection_count + 1
