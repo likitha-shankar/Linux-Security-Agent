@@ -44,15 +44,24 @@ class PortExtractor:
                             ip_bytes = bytes.fromhex(addr_hex)
                             ip = '.'.join(str(b) for b in reversed(ip_bytes))
                             
-                            # Get inode (last field before optional fields)
-                            inode = int(parts[9])
-                            
-                            if port > 0:  # Only track connections with non-zero ports
-                                connection_map[inode] = (ip, port)
-                        except (ValueError, IndexError):
+                            # Get inode - it's usually the 10th field (index 9), but check for state first
+                            # State is in parts[3] (0A = ESTABLISHED)
+                            state = parts[3]
+                            # Inode is typically the 10th field, but let's be more robust
+                            inode_idx = 9
+                            if len(parts) > inode_idx:
+                                inode = int(parts[inode_idx])
+                                
+                                # Only track ESTABLISHED connections (state 01 = ESTABLISHED)
+                                # State codes: 01=ESTABLISHED, 02=SYN_SENT, 03=SYN_RECV, etc.
+                                if port > 0 and (state == '01' or state == '0A'):  # ESTABLISHED
+                                    connection_map[inode] = (ip, port)
+                                    logger.debug(f"Found connection: inode={inode}, {ip}:{port}, state={state}")
+                        except (ValueError, IndexError) as e:
+                            logger.debug(f"Error parsing /proc/net/tcp line: {e}")
                             continue
         except (FileNotFoundError, PermissionError) as e:
-            logger.debug(f"Could not read /proc/net/tcp: {e}")
+            logger.warning(f"Could not read /proc/net/tcp: {e}")
         
         return connection_map
     
