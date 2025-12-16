@@ -1382,21 +1382,18 @@
             // This gives a better picture of total activity, not just current active processes
             // If cumulative is 0 (just started), fall back to current active processes sum
             const displaySyscalls = cumulativeSyscallsCount > 0 ? cumulativeSyscallsCount : totalSyscalls;
-            
-            // Update stats
-            stats.processes = activeProcesses;
-            stats.highRisk = currentHighRisk;
-            stats.anomalies = currentAnomalies;
-            stats.attacks = recentAttackCount;
-            stats.syscalls = displaySyscalls;
-            
-            // Update UI
-            document.getElementById('statProcesses').textContent = stats.processes;
-            document.getElementById('statHighRisk').textContent = stats.highRisk;
-            document.getElementById('statAnomalies').textContent = stats.anomalies;
-            document.getElementById('statAttacks').textContent = stats.attacks;
-            // Use stats.syscalls directly from state API (most accurate)
-            document.getElementById('statSyscalls').textContent = (stats.syscalls || 0).toLocaleString();
+
+            // IMPORTANT:
+            // The top summary cards (Processes / High Risk / Anomalies / Attacks / Total Syscalls)
+            // are now driven EXCLUSIVELY by the /api/agent/state endpoint (see syncAgentState),
+            // using the agent's state file as the single source of truth.
+            //
+            // We keep this function only for internal log-driven bookkeeping, but we no longer
+            // overwrite the summary cards from here, otherwise the log-derived counts can
+            // diverge from the state-file-derived counts and cause mismatches.
+            //
+            // If we ever want to fall back to log-only mode (no API), we can re‑enable
+            // these updates behind a feature flag.
         }
         
         function updateStats(data) {

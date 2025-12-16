@@ -1594,21 +1594,42 @@ class SimpleSecurityAgent:
 
             if in_warmup:
                 high_risk_count = anomalies_count = c2_beacons_count = port_scans_count = 0
-                logger.debug(f"🔍 DEBUG export_state: In warm-up (time_since_startup={time_since_startup:.1f}s < {self.warmup_period_seconds}s), suppressing counts")
+                logger.debug(
+                    f"🔍 DEBUG export_state: In warm-up "
+                    f"(time_since_startup={time_since_startup:.1f}s < {self.warmup_period_seconds}s), "
+                    "suppressing counts"
+                )
             else:
-                high_risk_count = sum(1 for p in processes_data if p['risk_score'] >= self.config.get('risk_threshold', 30.0))
-                anomalies_count = sum(1 for p in processes_data if p['anomaly_score'] >= 30.0)
+                high_risk_count = sum(
+                    1 for p in processes_data
+                    if p['risk_score'] >= self.config.get('risk_threshold', 30.0)
+                )
+                anomalies_count = sum(
+                    1 for p in processes_data
+                    if p['anomaly_score'] >= 30.0
+                )
+
+                # Window-based counts (last N seconds)
                 raw_c2_count = self._count_recent_detections(self.recent_c2_detections)
                 raw_port_scan_count = self._count_recent_detections(self.recent_scan_detections)
-                c2_beacons_count = raw_c2_count
-                port_scans_count = raw_port_scan_count
 
-                if len(self.recent_c2_detections) > 0 and raw_c2_count == 0:
-                    logger.warning(f"⚠️ export_state: Has {len(self.recent_c2_detections)} C2 detections in history but count is 0")
-                if len(self.recent_scan_detections) > 0 and raw_port_scan_count == 0:
-                    logger.warning(f"⚠️ export_state: Has {len(self.recent_scan_detections)} port scan detections in history but count is 0")
+                # Exported counts: prefer recent-window counts, but if they have
+                # aged out of the window, fall back to total history so the
+                # dashboard still reflects that attacks HAVE occurred.
+                total_c2_history = len(self.recent_c2_detections)
+                total_scan_history = len(self.recent_scan_detections)
 
-                logger.info(f"🔍 DEBUG export_state: Warm-up ended (time_since_startup={time_since_startup:.1f}s), raw_c2={raw_c2_count}, raw_port_scan={raw_port_scan_count}, total_c2_detections={len(self.recent_c2_detections)}, total_scan_detections={len(self.recent_scan_detections)}")
+                c2_beacons_count = raw_c2_count if raw_c2_count > 0 else total_c2_history
+                port_scans_count = raw_port_scan_count if raw_port_scan_count > 0 else total_scan_history
+
+                logger.info(
+                    "🔍 DEBUG export_state: Warm-up ended "
+                    f"(time_since_startup={time_since_startup:.1f}s), "
+                    f"raw_c2={raw_c2_count}, raw_port_scan={raw_port_scan_count}, "
+                    f"total_c2_detections={total_c2_history}, "
+                    f"total_scan_detections={total_scan_history}, "
+                    f"exported_c2={c2_beacons_count}, exported_scans={port_scans_count}"
+                )
 
             state_result = {
                 'timestamp': current_time,
