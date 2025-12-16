@@ -137,7 +137,13 @@ class ConnectionPatternAnalyzer:
             beacon_result = self._detect_beaconing_by_name(process_name, dest_ip)
         if beacon_result:
             self.stats['beacons_detected'] += 1
+            logger.warning(f"✅ C2 BEACONING RETURNED from analyze_connection: {beacon_result.get('type')} for PID {pid}")
             return beacon_result
+        else:
+            # Log why C2 wasn't detected
+            pid_conns = len(self.connection_history[pid]) if pid in self.connection_history else 0
+            name_conns = len(self.connection_history_by_name.get(process_name, {}).get(dest_ip, [])) if process_name else 0
+            logger.debug(f"🔍 No C2 detected: PID {pid} has {pid_conns} connections, {process_name}->{dest_ip} has {name_conns} connections")
         
         # Check for port scanning (try both PID and process name tracking)
         scan_result = self._detect_port_scanning(pid, timestamp)
@@ -159,7 +165,10 @@ class ConnectionPatternAnalyzer:
         """
         all_connections = list(self.connection_history[pid])
         
+        logger.debug(f"🔍 _detect_beaconing called for PID {pid}: {len(all_connections)} total connections")
+        
         if len(all_connections) < self.min_connections_for_beacon:
+            logger.debug(f"🔍 Not enough connections for C2: {len(all_connections)} < {self.min_connections_for_beacon}")
             return None
         
         # Group connections by destination (IP:port) to find beaconing patterns
