@@ -69,6 +69,25 @@ sleep 30
 cat /tmp/security_agent_state.json | jq '.stats'
 
 
+### 0. Quick Diagnostic (During Demo - Run if something breaks)
+
+```bash
+cd ~/Linux-Security-Agent
+bash DIAGNOSE.sh
+```
+
+This will show:
+- Agent and dashboard status
+- Current state file
+- Recent network syscalls
+- Connection analysis
+- Port generation/tracking
+- Attack detections
+- Any errors
+- System resources
+
+**Copy the output and share it for instant troubleshooting!**
+
 ### 0. Test Port Scan Detection (VM)
 
 ```bash
