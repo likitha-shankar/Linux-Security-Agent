@@ -668,7 +668,8 @@ class SimpleSecurityAgent:
                         'total_syscalls': 0,  # Actual total count
                         'risk_score': 0.0,
                         'anomaly_score': 0.0,
-                        'last_update': time.time()
+                        'last_update': time.time(),
+                        'connection_count': 0  # Initialize connection counter for port scan detection
                     }
                     
                     # Now check exclusion - if excluded, we'll remove it but syscalls are already captured
@@ -1555,10 +1556,21 @@ class SimpleSecurityAgent:
         
         return self._info_panel_cache
     
-    def export_state(self) -> Dict[str, Any]:
-        """Export current agent state for web dashboard"""
+    def export_state(self, skip_lock: bool = False) -> Dict[str, Any]:
+        """Export current agent state for web dashboard
+        
+        Args:
+            skip_lock: If True, assume lock is already held (for use within locked context)
+        """
         current_time = time.time()
-        with self.processes_lock:
+        if skip_lock:
+            # Lock already held, proceed directly
+            pass
+        else:
+            # Acquire lock
+            self.processes_lock.acquire()
+        
+        try:
             # Export all processes with their current state
             processes_data = []
             for pid, proc in self.processes.items():
