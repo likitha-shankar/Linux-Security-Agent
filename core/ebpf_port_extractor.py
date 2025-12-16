@@ -67,10 +67,8 @@ struct port_event {
 // Map to store recent ports (pid -> port_event)
 BPF_HASH(port_map, u32, struct port_event);
 
-// Kprobe for connect syscall
-// BCC automatically attaches kprobe__sys_connect to sys_connect
-// We need to use PT_REGS_PARM macros to get syscall arguments
-int kprobe__sys_connect(struct pt_regs *ctx) {
+// Kprobe for connect syscall - use custom name to avoid BCC auto-attach conflicts
+int trace_connect(struct pt_regs *ctx) {
     u64 id = bpf_get_current_pid_tgid();
     u32 pid = id >> 32;
     
@@ -135,14 +133,14 @@ int kprobe__sys_connect(struct pt_regs *ctx) {
                 
                 for event_name in event_names:
                     try:
-                        self.bpf.attach_kprobe(event=event_name, fn_name="kprobe__sys_connect")
-                        logger.warning(f"✅ Attached kprobe to {event_name}")
+                        self.bpf.attach_kprobe(event=event_name, fn_name="trace_connect")
+                        logger.warning(f"✅ Attached kprobe to {event_name} -> trace_connect")
                         attached = True
                         break
                     except Exception as e:
                         attach_error = str(e)
                         attach_errors.append(f"{event_name}: {attach_error}")
-                        # Don't log every failure, just collect them
+                        logger.debug(f"Failed to attach to {event_name}: {attach_error}")
                         continue
                 
                 if not attached:
