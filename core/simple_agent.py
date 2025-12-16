@@ -884,16 +884,12 @@ class SimpleSecurityAgent:
                         else:
                             logger.debug(f"Connection event for PID {pid}: syscall={syscall} (no event_info available)")
                         
-                        # CRITICAL: Try to get REAL port FIRST before simulating
-                        # This is essential for C2 detection which needs same port for same process+IP
-                        # ALWAYS try port extraction for connect syscalls (even if dest_port was set earlier)
-                        if syscall_normalized == 'connect':
-                            # For connect, we MUST try to get real port (overrides any previous value)
-                            dest_port = 0  # Reset to force real port extraction
-                        
-                        if dest_port == 0 and syscall_normalized in ['socket', 'connect', 'sendto']:
-                            # Step 1: Try to get real port from event_info first
+                        # For socket/connect syscalls, try to extract real port from syscall arguments
+                        # If not available, use simulated port for pattern detection
+                        if dest_port == 0 and syscall_normalized in ['socket', 'connect']:
+                            # Try to get real port from event_info if available
                             if event_info and isinstance(event_info, dict):
+                                # Check for common port fields in event_info
                                 real_port = event_info.get('port') or event_info.get('dest_port') or event_info.get('dport')
                                 if real_port:
                                     try:
@@ -902,169 +898,123 @@ class SimpleSecurityAgent:
                                     except (ValueError, TypeError):
                                         pass
                             
-                            # Step 2: Try /proc/net/tcp (works for established connections)
-                            if dest_port == 0:
-                                try:
-                                    if not hasattr(self, '_port_extractor'):
-                                        from core.port_extractor import PortExtractor
-                                        self._port_extractor = PortExtractor()
-                                        logger.debug(f"Initialized port extractor for PID {pid}")
-                                    
-                                    # For connect syscalls, wait for connection to establish
-                                    if syscall_normalized == 'connect':
-                                        import time
-                                        logger.debug(f"Waiting for connection to establish for PID {pid}...")
-                                        time.sleep(0.5)  # 500ms delay for connection to establish
-                                    
-                                    logger.debug(f"Attempting to get real port for PID {pid} from /proc/net/tcp...")
-                                    result = self._port_extractor.get_destination(pid)
-                                    if result:
-                                        dest_ip, dest_port = result
-                                        logger.warning(f"✅ Got REAL port from /proc/net/tcp for PID {pid}: {dest_ip}:{dest_port}")
-                                    else:
-                                        logger.debug(f"Port extractor returned None for PID {pid} (connection may not be established yet)")
-                                except Exception as e:
-                                    logger.warning(f"Port extraction from /proc failed for PID {pid}: {e}", exc_info=True)
-                            
-                            # Step 3: Try eBPF if /proc didn't work
-                            if dest_port == 0:
-                                try:
-                                    if not hasattr(self, '_ebpf_port_extractor'):
-                                        from core.ebpf_port_extractor import EBPFPortExtractor
-                                        self._ebpf_port_extractor = EBPFPortExtractor()
-                                    
-                                    if self._ebpf_port_extractor.enabled:
-                                        result = self._ebpf_port_extractor.get_destination(pid)
-                                        if result:
-                                            dest_ip, dest_port = result
-                                            logger.warning(f"✅ Got REAL port from eBPF for PID {pid}: {dest_ip}:{dest_port}")
-                                except Exception as e:
-                                    logger.debug(f"eBPF port extraction failed for PID {pid}: {e}")
-                            
-                            # Step 4: Only simulate port if we couldn't get a real one
-                            # This ensures C2 detection works when we have real ports
+                            # CRITICAL FIX: Always generate simulated port if real port not available
+                            # This ensures port scanning detection works even without real port extraction
                             if dest_port == 0:
                                 import hashlib
                                 
-                                # CRITICAL FOR C2: Always use SAME deterministic port for same process+IP
-                                # This ensures C2 beaconing (same port, regular intervals) is detected
+                                # FIXED: Port simulation strategy for C2 beaconing detection
+                                # For C2 beaconing: Need SAME port for same process+IP (consistent)
+                                # For port scanning: Need DIFFERENT ports (varying)
                                 
-                                process_name_raw = proc.get('name', 'unknown')
-                                # Clean process name (remove parentheses if present) - do this ONCE
-                                clean_name_for_port = process_name_raw
-                                if process_name_raw.startswith('(') and process_name_raw.endswith(')'):
-                                    clean_name_for_port = process_name_raw[1:-1]
-                                
+                                process_name = proc.get('name', 'unknown')
                                 connection_count = proc.get('connection_count', 0)
+                                proc['connection_count'] = connection_count + 1
                                 current_time = time.time()
                                 
-                                # ALWAYS generate base port deterministically from CLEANED process_name + dest_ip
-                                # This ensures C2 connections ALWAYS use the same port (critical!)
-                                port_seed = f"{clean_name_for_port}_{dest_ip}"
-                                port_hash = int(hashlib.md5(port_seed.encode()).hexdigest()[:8], 16)
-                                base_port = 8000 + (port_hash % 200)
+                                # CRITICAL: For port scan detection, we MUST vary ports for rapid connections
+                                # Check connection history to determine if this is rapid (port scan) or spaced (C2)
+                                is_rapid_connection = False
                                 
-                                logger.warning(f"🔍 Port simulation for {clean_name_for_port}: base_port={base_port}, connection_count={connection_count}")
-                                
-                                # NOW increment connection count
-                                proc['connection_count'] = connection_count + 1
-                                connection_count = proc['connection_count']  # Use incremented value
-                                
-                                # Check if this is a rapid connection (port scanning) vs spaced (C2)
-                                is_rapid = False
-                                time_since_last = 999.0
-                                
-                                # Check history to determine if rapid
-                                # CRITICAL: For C2, we need to check BEFORE the connection is added to history
-                                # So we check the current state, not after adding
-                                if self.connection_analyzer:
-                                    # Check process name + IP history (best for C2)
-                                    clean_name = process_name
-                                    if process_name.startswith('(') and process_name.endswith(')'):
-                                        clean_name = process_name[1:-1]
-                                    
-                                    if clean_name in self.connection_analyzer.connection_history_by_name:
-                                        name_connections = self.connection_analyzer.connection_history_by_name[clean_name]
-                                        if dest_ip in name_connections and len(name_connections[dest_ip]) > 0:
-                                            last_conn = name_connections[dest_ip][-1]
-                                            last_time = last_conn.get('time', 0)
-                                            time_since_last = current_time - last_time
-                                            
-                                            if time_since_last < 0.5:
-                                                is_rapid = True
-                                                logger.warning(f"🔍 Rapid connection (interval={time_since_last:.3f}s) - will vary port for scan")
-                                            else:
-                                                logger.warning(f"🔍 Spaced connection (interval={time_since_last:.1f}s) - C2 pattern, using same port")
-                                    # Check PID history as fallback
-                                    elif pid in self.connection_analyzer.connection_history:
-                                        prev_connections = list(self.connection_analyzer.connection_history[pid])
-                                        if len(prev_connections) >= 1:
-                                            last_interval = current_time - prev_connections[-1]['time']
-                                            time_since_last = last_interval
-                                            if last_interval < 0.5:
-                                                is_rapid = True
-                                                logger.warning(f"🔍 Rapid connection (PID, interval={last_interval:.3f}s)")
-                                            else:
-                                                logger.warning(f"🔍 Spaced connection (PID, interval={last_interval:.1f}s) - C2 pattern")
-                                
-                                # CRITICAL: Only vary ports if rapid (port scanning)
-                                # For spaced connections (C2), ALWAYS use same base_port
-                                if is_rapid:
-                                    port_seed = f"{clean_name_for_port}_{dest_ip}_{connection_count}_{int(current_time * 1000)}"
-                                    port_hash = int(hashlib.md5(port_seed.encode()).hexdigest()[:8], 16)
-                                    dest_port = 8000 + (port_hash % 2000)  # Wider range for port scans
-                                    logger.warning(f"🔍 VARYING PORT for scan: {dest_port} (process={clean_name_for_port}, rapid=True)")
-                                else:
-                                    # NOT rapid = check if we should reuse a previous port (C2 pattern)
-                                    port_to_use = base_port
-                                    
-                                    # CRITICAL: Check connection history to see if this process+IP used a port before
-                                    if self.connection_analyzer:
-                                        logger.warning(f"🔍 Checking history for {clean_name_for_port}->{dest_ip} (connection_count={connection_count})")
-                                        if clean_name_for_port in self.connection_analyzer.connection_history_by_name:
-                                            name_connections = self.connection_analyzer.connection_history_by_name[clean_name_for_port]
-                                            logger.warning(f"🔍 Found process {clean_name_for_port} in history, checking dest_ip {dest_ip}")
-                                            if dest_ip in name_connections and len(name_connections[dest_ip]) > 0:
-                                                # Get the port from the most recent connection
-                                                last_conn = name_connections[dest_ip][-1]
-                                                prev_port = last_conn.get('port', 0)
-                                                logger.warning(f"🔍 Previous connection found: port={prev_port}, total_connections={len(name_connections[dest_ip])}")
-                                                if prev_port > 0:
-                                                    # REUSE the same port (C2 pattern!)
-                                                    port_to_use = prev_port
-                                                    logger.warning(f"🔍 C2 PATTERN: Reusing port {port_to_use} for {clean_name_for_port}->{dest_ip} (connection #{connection_count}, total_prev={len(name_connections[dest_ip])})")
-                                            else:
-                                                logger.warning(f"🔍 No connections to {dest_ip} for {clean_name_for_port}")
+                                # PRIORITY 1: Check process name + IP history
+                                if self.connection_analyzer and process_name in self.connection_analyzer.connection_history_by_name:
+                                    name_connections = self.connection_analyzer.connection_history_by_name[process_name]
+                                    if dest_ip in name_connections and len(name_connections[dest_ip]) > 0:
+                                        last_conn = name_connections[dest_ip][-1]
+                                        last_time = last_conn.get('time', 0)
+                                        time_since_last = current_time - last_time
+                                        
+                                        # If < 0.5s between connections, it's rapid (port scanning)
+                                        if time_since_last < 0.5:
+                                            is_rapid_connection = True
+                                        elif time_since_last < 15.0:
+                                            # Spaced out = C2 pattern, use same port
+                                            dest_port = last_conn.get('port', 0)
+                                            logger.debug(f"🔍 Using same port for C2: {dest_port} (interval={time_since_last:.1f}s)")
                                         else:
-                                            logger.warning(f"🔍 Process {clean_name_for_port} not in connection history yet")
-                                    
-                                    dest_port = port_to_use
-                                    if port_to_use == base_port:
-                                        logger.warning(f"🔍 C2-compatible: Using deterministic base port {dest_port} for {clean_name_for_port}->{dest_ip} (interval={time_since_last:.1f}s, conn={connection_count})")
+                                            # Too old - generate new port
+                                            port_seed = f"{process_name}_{dest_ip}"
+                                            port_hash = int(hashlib.md5(port_seed.encode()).hexdigest()[:8], 16)
+                                            dest_port = 8000 + (port_hash % 200)
+                                            logger.debug(f"🔍 Generated port (old connection): {dest_port}")
+                                # PRIORITY 2: Check PID history
+                                elif self.connection_analyzer and pid in self.connection_analyzer.connection_history:
+                                    prev_connections = list(self.connection_analyzer.connection_history[pid])
+                                    if len(prev_connections) >= 1:
+                                        last_interval = current_time - prev_connections[-1]['time']
+                                        if last_interval < 0.5:
+                                            is_rapid_connection = True
+                                        elif last_interval >= 2.0:
+                                            # Spaced out = C2
+                                            dest_port = prev_connections[-1]['port']
+                                            logger.debug(f"🔍 Using same port for C2 (PID): {dest_port}")
+                                        else:
+                                            # Generate new port
+                                            port_seed = f"{process_name}_{dest_ip}"
+                                            port_hash = int(hashlib.md5(port_seed.encode()).hexdigest()[:8], 16)
+                                            dest_port = 8000 + (port_hash % 200)
+                                            logger.debug(f"🔍 Generated port (PID history): {dest_port}")
+                                
+                                # CRITICAL FIX: For port scan detection, we MUST vary ports
+                                # Strategy: After increment, connection_count >= 1 means 2nd+ connection
+                                # OR if rapid connection, ALWAYS vary ports
+                                if connection_count >= 1 or is_rapid_connection:
+                                    # Vary ports using connection count + timestamp for uniqueness
+                                    port_seed = f"{process_name}_{dest_ip}_{connection_count}_{int(current_time * 1000)}"
+                                    port_hash = int(hashlib.md5(port_seed.encode()).hexdigest()[:8], 16)
+                                    dest_port = 8000 + (port_hash % 2000)  # Wider range (2000 ports) for port scans
+                                    logger.warning(f"🔍 VARYING PORT for scan detection: {dest_port} (process={process_name}, conn={connection_count}, rapid={is_rapid_connection})")
+                                elif dest_port == 0:
+                                    # First connection, no history - generate initial port
+                                    port_seed = f"{process_name}_{dest_ip}"
+                                    port_hash = int(hashlib.md5(port_seed.encode()).hexdigest()[:8], 16)
+                                    dest_port = 8000 + (port_hash % 200)
+                                    logger.debug(f"🔍 Generated initial port: {dest_port}")
+                                    prev_connections = list(self.connection_analyzer.connection_history[pid])
+                                    if len(prev_connections) >= 1:
+                                        last_interval = current_time - prev_connections[-1]['time']
+                                        if last_interval >= 2.0:  # Spaced out = potential C2
+                                            dest_port = prev_connections[-1]['port']
+                                            logger.debug(f"🔍 Using same port for C2 pattern (PID): {dest_port} (interval: {last_interval:.1f}s)")
+                                        else:
+                                            # Rapid connections = port scanning, ALWAYS vary ports
+                                            port_seed = f"{pid}_{dest_ip}_{connection_count}_{int(current_time * 1000)}"
+                                            port_hash = int(hashlib.md5(port_seed.encode()).hexdigest()[:8], 16)
+                                            dest_port = 8000 + (port_hash % 2000)  # Wider range
+                                            logger.info(f"🔍 Varying port for scan pattern (PID): {dest_port} (connection #{connection_count}, interval={last_interval:.3f}s)")
                                     else:
-                                        logger.warning(f"🔍 C2 PATTERN CONFIRMED: Reusing port {dest_port} for {clean_name_for_port}->{dest_ip} (connection #{connection_count})")
-                        
-                        # CRITICAL: Log what port we're using (real or simulated)
-                        if dest_port > 0:
-                            logger.debug(f"Using port {dest_port} for PID {pid} (real={dest_port > 8000 and dest_port < 10000})")
+                                        # First connection - use consistent port
+                                        port_seed = f"{process_name}_{dest_ip}"
+                                        port_hash = int(hashlib.md5(port_seed.encode()).hexdigest()[:8], 16)
+                                        dest_port = 8000 + (port_hash % 200)
+                                        logger.debug(f"🔍 Generated consistent port for {process_name}->{dest_ip}: {dest_port}")
+                                else:
+                                    # No history - for multiple connections, vary ports
+                                    if connection_count > 1:
+                                        # Multiple connections = likely port scan, vary ports
+                                        port_seed = f"{process_name}_{dest_ip}_{connection_count}_{int(current_time * 1000)}"
+                                        port_hash = int(hashlib.md5(port_seed.encode()).hexdigest()[:8], 16)
+                                        dest_port = 8000 + (port_hash % 2000)
+                                        logger.info(f"🔍 Varying port (no history, multiple connections): {dest_port} (connection #{connection_count})")
+                                    else:
+                                        # First connection - use consistent port
+                                        port_seed = f"{process_name}_{dest_ip}"
+                                        port_hash = int(hashlib.md5(port_seed.encode()).hexdigest()[:8], 16)
+                                        dest_port = 8000 + (port_hash % 200)
+                                        logger.debug(f"🔍 Generated initial port for {process_name}->{dest_ip}: {dest_port}")
                         
                         # CRITICAL: Only analyze if we have a valid port (not 0)
                         if dest_port > 0:
                             # Analyze connection pattern
                             # Pass process name to enable tracking across PID changes (for C2 beaconing)
                             process_name = proc.get('name', 'unknown')
-                            # Clean process name (remove parentheses) before passing to analyzer
-                            clean_process_name = process_name
-                            if process_name.startswith('(') and process_name.endswith(')'):
-                                clean_process_name = process_name[1:-1]
-                            
-                            logger.info(f"🔍 Analyzing connection pattern for PID {pid} ({clean_process_name}): IP={dest_ip} Port={dest_port} Syscall={syscall}")
+                            logger.info(f"🔍 Analyzing connection pattern for PID {pid} ({process_name}): IP={dest_ip} Port={dest_port} Syscall={syscall}")
                             conn_result = self.connection_analyzer.analyze_connection(
                                 pid=pid,
                                 dest_ip=dest_ip,
                                 dest_port=dest_port,
                                 timestamp=time.time(),
-                                process_name=clean_process_name  # Use cleaned name for C2 tracking
+                                process_name=process_name  # Enable process name tracking for C2
                             )
                             
                             # Only log result if it's a detection (after warm-up check)
@@ -1412,8 +1362,8 @@ class SimpleSecurityAgent:
             logger.error(f"❌ Unexpected error processing event for PID={event.pid if hasattr(event, 'pid') else 'unknown'}: {type(e).__name__}: {e}")
             logger.error(f"   Full traceback: {traceback.format_exc()}")
     
-    def _count_recent_detections(self, detection_times: deque, window_seconds: int = 300) -> int:
-        """Count detections in the last window_seconds (default 5 minutes)"""
+    def _count_recent_detections(self, detection_times: deque, window_seconds: int = 600) -> int:
+        """Count detections in the last window_seconds (default 10 minutes for demo stability)"""
         if not detection_times:
             logger.debug(f"🔍 DEBUG _count_recent_detections: Empty detection_times deque")
             return 0
@@ -1758,7 +1708,7 @@ class SimpleSecurityAgent:
         def state_file_writer():
             """Background thread to continuously write state file"""
             last_write = time.time()
-            write_interval = 5.0  # Write every 5 seconds (less frequent to avoid overwriting immediate writes)
+            write_interval = 2.0  # Write every 2 seconds
             write_count = 0
             
             while self.running:
@@ -1766,15 +1716,14 @@ class SimpleSecurityAgent:
                     current = time.time()
                     if current - last_write >= write_interval:
                         try:
-                            # Use skip_lock=False since we're in a separate thread
-                            self._write_state_file(skip_lock=False)
+                            self._write_state_file()
                             last_write = current
                             write_count += 1
-                            if write_count % 12 == 0:  # Log every 60 seconds
+                            if write_count % 15 == 0:  # Log every 30 seconds
                                 logger.debug(f"State file written #{write_count} ({len(self.processes)} processes, {self.stats['total_syscalls']} syscalls)")
                         except Exception as e:
                             logger.error(f"State file write error: {e}", exc_info=True)
-                    time.sleep(1.0)  # Check every second
+                    time.sleep(0.5)
                 except Exception as e:
                     logger.error(f"State file writer thread error: {e}", exc_info=True)
                     time.sleep(1)

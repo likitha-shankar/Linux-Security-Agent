@@ -55,14 +55,13 @@ class ConnectionPatternAnalyzer:
         self.port_access_history_by_name = defaultdict(lambda: defaultdict(set))  # process_name -> dest_ip -> set of ports
         
         # Beaconing detection parameters (optimized for better detection)
-        self.beacon_threshold_variance = self.config.get('beacon_variance_threshold', 10.0)  # Increased to 10.0s for better C2 detection
-        self.min_connections_for_beacon = self.config.get('min_connections_for_beacon', 3)  # Minimum 3 connections
+        self.beacon_threshold_variance = self.config.get('beacon_variance_threshold', 8.0)  # seconds (more lenient)
+        self.min_connections_for_beacon = self.config.get('min_connections_for_beacon', 2)  # Minimum 2 connections (more sensitive)
         self.min_beacon_interval = self.config.get('min_beacon_interval', 1.0)  # Lowered to 1.0 seconds for better detection
         
-        # Port scanning parameters (balanced for detection vs false positives)
-        # Lowered threshold back to 5 for better attack detection (can be tuned via config)
-        self.port_scan_threshold = self.config.get('port_scan_threshold', 5)  # unique ports (5 for better detection)
-        self.port_scan_timeframe = self.config.get('port_scan_timeframe', 60)  # seconds (60s window for detection)
+        # Port scanning parameters (more sensitive for demo)
+        self.port_scan_threshold = self.config.get('port_scan_threshold', 3)  # unique ports (lowered to 3 for better detection)
+        self.port_scan_timeframe = self.config.get('port_scan_timeframe', 120)  # seconds (120s window for detection)
         
         # Whitelist of legitimate processes that commonly connect to multiple ports
         # These are system/daemon processes that shouldn't trigger port scan alerts
@@ -126,19 +125,8 @@ class ConnectionPatternAnalyzer:
         
         # Also track by process name + IP (for C2 beaconing when PID changes)
         if process_name:
-            # Clean process name (remove parentheses if present)
-            clean_name = process_name
-            if process_name.startswith('(') and process_name.endswith(')'):
-                clean_name = process_name[1:-1]
-            
-            self.connection_history_by_name[clean_name][dest_ip].append(connection_info)
-            self.port_access_history_by_name[clean_name][dest_ip].add(dest_port)
-            total_conns = len(self.connection_history_by_name[clean_name][dest_ip])
-            logger.warning(f"🔍 Tracked connection: process={clean_name}, dest={dest_ip}:{dest_port}, total_connections={total_conns}")
-            
-            # Log when we have enough connections for C2 detection
-            if total_conns >= self.min_connections_for_beacon:
-                logger.warning(f"🔍 Process {clean_name} has {total_conns} connections to {dest_ip}:{dest_port} - checking for C2...")
+            self.connection_history_by_name[process_name][dest_ip].append(connection_info)
+            self.port_access_history_by_name[process_name][dest_ip].add(dest_port)
         
         # Check for beaconing (try both PID and process name tracking)
         beacon_result = self._detect_beaconing(pid)
@@ -147,14 +135,7 @@ class ConnectionPatternAnalyzer:
             beacon_result = self._detect_beaconing_by_name(process_name, dest_ip)
         if beacon_result:
             self.stats['beacons_detected'] += 1
-            logger.warning(f"✅ C2 BEACONING RETURNED from analyze_connection: {beacon_result.get('type')} for PID {pid}")
             return beacon_result
-        else:
-            # Log why C2 wasn't detected (WARNING level so it's visible)
-            pid_conns = len(self.connection_history[pid]) if pid in self.connection_history else 0
-            name_conns = len(self.connection_history_by_name.get(process_name, {}).get(dest_ip, [])) if process_name else 0
-            if name_conns >= 3 or pid_conns >= 3:
-                logger.warning(f"🔍 No C2 detected yet: PID {pid} has {pid_conns} connections, {process_name}->{dest_ip} has {name_conns} connections (should check intervals)")
         
         # Check for port scanning (try both PID and process name tracking)
         scan_result = self._detect_port_scanning(pid, timestamp)
@@ -176,10 +157,7 @@ class ConnectionPatternAnalyzer:
         """
         all_connections = list(self.connection_history[pid])
         
-        logger.warning(f"🔍 _detect_beaconing called for PID {pid}: {len(all_connections)} total connections")
-        
         if len(all_connections) < self.min_connections_for_beacon:
-            logger.warning(f"🔍 Not enough connections for C2: {len(all_connections)} < {self.min_connections_for_beacon}")
             return None
         
         # Group connections by destination (IP:port) to find beaconing patterns
@@ -220,33 +198,23 @@ class ConnectionPatternAnalyzer:
                     stdev = statistics.stdev(intervals)
                     
                     # Low variance indicates regular beaconing
-                    # Log debug info for troubleshooting
-                    logger.warning(f"🔍 C2 check: dest={dest_key}, connections={len(connections)}, mean_interval={mean_interval:.2f}s, stdev={stdev:.2f}s, threshold={self.beacon_threshold_variance}s, min_interval={self.min_beacon_interval}s")
-                    
-                    # Check if intervals are regular (low variance) and reasonably spaced
-                    if mean_interval >= self.min_beacon_interval:
-                        if stdev < self.beacon_threshold_variance:
-                            logger.warning(f"✅ C2 BEACONING DETECTED: dest={dest_key}, mean={mean_interval:.1f}s, stdev={stdev:.1f}s, connections={len(connections)}")
-                            return {
-                                'type': 'C2_BEACONING',
-                                'technique': 'T1071',
-                                'pid': pid,
-                                'mean_interval': mean_interval,
-                                'variance': variance,
-                                'stdev': stdev,
-                                'connections': len(connections),
-                                'destination': dest_key,
-                                'risk_score': 85,
-                                'explanation': f'Regular beaconing detected: {mean_interval:.1f}s intervals (±{stdev:.1f}s) to {dest_key}',
-                                'confidence': 0.9,
-                                'severity': 'HIGH'
-                            }
-                        else:
-                            logger.warning(f"🔍 C2 NOT detected: stdev={stdev:.2f}s >= threshold {self.beacon_threshold_variance}s (too irregular)")
-                    else:
-                        logger.warning(f"🔍 C2 NOT detected: mean_interval={mean_interval:.2f}s < min {self.min_beacon_interval}s (too fast)")
-            except statistics.StatisticsError as e:
-                logger.debug(f"🔍 C2 detection StatisticsError: {e}")
+                    # Lowered threshold: mean_interval >= 3.0 (was 5.0) for better detection
+                    if stdev < self.beacon_threshold_variance and mean_interval >= self.min_beacon_interval:
+                        return {
+                            'type': 'C2_BEACONING',
+                            'technique': 'T1071',
+                            'pid': pid,
+                            'mean_interval': mean_interval,
+                            'variance': variance,
+                            'stdev': stdev,
+                            'connections': len(connections),
+                            'destination': dest_key,
+                            'risk_score': 85,
+                            'explanation': f'Regular beaconing detected: {mean_interval:.1f}s intervals (±{stdev:.1f}s) to {dest_key}',
+                            'confidence': 0.9,
+                            'severity': 'HIGH'
+                        }
+            except statistics.StatisticsError:
                 continue
         
         return None
@@ -283,10 +251,7 @@ class ConnectionPatternAnalyzer:
                 stdev = statistics.stdev(intervals)
                 
                 # Low variance indicates regular beaconing
-                logger.debug(f"🔍 C2 by_name check: process={process_name}, dest_ip={dest_ip}, connections={len(connections)}, mean_interval={mean_interval:.2f}s, stdev={stdev:.2f}s")
-                
                 if stdev < self.beacon_threshold_variance and mean_interval >= self.min_beacon_interval:
-                    logger.warning(f"✅ C2 BEACONING DETECTED (by_name): process={process_name}, mean={mean_interval:.1f}s, stdev={stdev:.1f}s")
                     return {
                         'type': 'C2_BEACONING',
                         'technique': 'T1071',
@@ -302,10 +267,7 @@ class ConnectionPatternAnalyzer:
                         'confidence': 0.9,
                         'severity': 'HIGH'
                     }
-                else:
-                    logger.debug(f"🔍 C2 by_name NOT detected: stdev={stdev:.2f} >= {self.beacon_threshold_variance} OR mean={mean_interval:.2f} < {self.min_beacon_interval}")
-        except statistics.StatisticsError as e:
-            logger.debug(f"🔍 C2 by_name StatisticsError: {e}")
+        except statistics.StatisticsError:
             pass
         
         return None
