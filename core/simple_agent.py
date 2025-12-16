@@ -1000,6 +1000,10 @@ class SimpleSecurityAgent:
                                     dest_port = base_port
                                     logger.warning(f"🔍 C2-compatible: Using deterministic port {dest_port} for {process_name}->{dest_ip} (conn={connection_count})")
                         
+                        # CRITICAL: Log what port we're using (real or simulated)
+                        if dest_port > 0:
+                            logger.debug(f"Using port {dest_port} for PID {pid} (real={dest_port > 8000 and dest_port < 10000})")
+                        
                         # CRITICAL: Only analyze if we have a valid port (not 0)
                         if dest_port > 0:
                             # Analyze connection pattern
