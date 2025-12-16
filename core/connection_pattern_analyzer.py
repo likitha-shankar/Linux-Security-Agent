@@ -62,6 +62,7 @@ class ConnectionPatternAnalyzer:
         # Port scanning parameters (more sensitive for demo)
         self.port_scan_threshold = self.config.get('port_scan_threshold', 2)  # unique ports (lowered to 2 for better detection)
         self.port_scan_timeframe = self.config.get('port_scan_timeframe', 300)  # seconds (300s window for detection - more lenient)
+        self.min_ports_per_second = self.config.get('min_ports_per_second', 0.01)  # Very lenient - allows slow scans
         
         # Whitelist of legitimate processes that commonly connect to multiple ports
         # These are system/daemon processes that shouldn't trigger port scan alerts
