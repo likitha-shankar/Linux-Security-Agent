@@ -911,47 +911,62 @@ class SimpleSecurityAgent:
                                 proc['connection_count'] = connection_count + 1
                                 current_time = time.time()
                                 
-                                # PRIORITY 1: Check process name + IP history (for C2 detection across PID changes)
+                                # CRITICAL: For port scan detection, we MUST vary ports for rapid connections
+                                # Check connection history to determine if this is rapid (port scan) or spaced (C2)
+                                is_rapid_connection = False
+                                
+                                # PRIORITY 1: Check process name + IP history
                                 if self.connection_analyzer and process_name in self.connection_analyzer.connection_history_by_name:
                                     name_connections = self.connection_analyzer.connection_history_by_name[process_name]
                                     if dest_ip in name_connections and len(name_connections[dest_ip]) > 0:
                                         last_conn = name_connections[dest_ip][-1]
-                                        last_port = last_conn.get('port', 0)
                                         last_time = last_conn.get('time', 0)
                                         time_since_last = current_time - last_time
                                         
-                                        # Check if this is rapid connections (port scanning) vs spaced out (C2)
-                                        # If connections are < 0.5s apart, vary ports for port scan detection
+                                        # If < 0.5s between connections, it's rapid (port scanning)
                                         if time_since_last < 0.5:
-                                            # Rapid connections = port scanning, ALWAYS vary ports
-                                            port_seed = f"{process_name}_{dest_ip}_{connection_count}_{int(current_time * 1000)}"
-                                            port_hash = int(hashlib.md5(port_seed.encode()).hexdigest()[:8], 16)
-                                            dest_port = 8000 + (port_hash % 2000)  # Wider range for port scans
-                                            logger.info(f"🔍 Varying port for scan pattern: {dest_port} (process={process_name}, connection #{connection_count}, interval={time_since_last:.3f}s)")
-                                        elif time_since_last < 15.0 and last_port > 0:
-                                            # Spaced out connections = C2 pattern, use same port
-                                            dest_port = last_port
-                                            logger.debug(f"🔍 Using same port for C2 pattern: {dest_port} (process={process_name}, IP={dest_ip}, interval={time_since_last:.1f}s)")
+                                            is_rapid_connection = True
+                                        elif time_since_last < 15.0:
+                                            # Spaced out = C2 pattern, use same port
+                                            dest_port = last_conn.get('port', 0)
+                                            logger.debug(f"🔍 Using same port for C2: {dest_port} (interval={time_since_last:.1f}s)")
                                         else:
-                                            # Too old - generate consistent port based on process+IP
+                                            # Too old - generate new port
                                             port_seed = f"{process_name}_{dest_ip}"
                                             port_hash = int(hashlib.md5(port_seed.encode()).hexdigest()[:8], 16)
                                             dest_port = 8000 + (port_hash % 200)
-                                            logger.debug(f"🔍 Generated consistent port for {process_name}->{dest_ip}: {dest_port}")
-                                    else:
-                                        # No history for this IP - for rapid connections, vary ports from start
-                                        if connection_count > 1:
-                                            # Multiple connections = likely port scan, vary ports
-                                            port_seed = f"{process_name}_{dest_ip}_{connection_count}_{int(current_time * 1000)}"
-                                            port_hash = int(hashlib.md5(port_seed.encode()).hexdigest()[:8], 16)
-                                            dest_port = 8000 + (port_hash % 2000)
-                                            logger.info(f"🔍 Varying port for scan (no history): {dest_port} (connection #{connection_count})")
+                                            logger.debug(f"🔍 Generated port (old connection): {dest_port}")
+                                # PRIORITY 2: Check PID history
+                                elif self.connection_analyzer and pid in self.connection_analyzer.connection_history:
+                                    prev_connections = list(self.connection_analyzer.connection_history[pid])
+                                    if len(prev_connections) >= 1:
+                                        last_interval = current_time - prev_connections[-1]['time']
+                                        if last_interval < 0.5:
+                                            is_rapid_connection = True
+                                        elif last_interval >= 2.0:
+                                            # Spaced out = C2
+                                            dest_port = prev_connections[-1]['port']
+                                            logger.debug(f"🔍 Using same port for C2 (PID): {dest_port}")
                                         else:
-                                            # First connection - generate consistent port
+                                            # Generate new port
                                             port_seed = f"{process_name}_{dest_ip}"
                                             port_hash = int(hashlib.md5(port_seed.encode()).hexdigest()[:8], 16)
                                             dest_port = 8000 + (port_hash % 200)
-                                            logger.debug(f"🔍 Generated initial port for {process_name}->{dest_ip}: {dest_port}")
+                                            logger.debug(f"🔍 Generated port (PID history): {dest_port}")
+                                
+                                # If rapid connection OR multiple connections, ALWAYS vary ports for port scan detection
+                                if is_rapid_connection or connection_count > 1:
+                                    # Vary ports using connection count + timestamp for uniqueness
+                                    port_seed = f"{process_name}_{dest_ip}_{connection_count}_{int(current_time * 1000)}"
+                                    port_hash = int(hashlib.md5(port_seed.encode()).hexdigest()[:8], 16)
+                                    dest_port = 8000 + (port_hash % 2000)  # Wider range (2000 ports) for port scans
+                                    logger.info(f"🔍 VARYING PORT for scan: {dest_port} (process={process_name}, conn={connection_count}, rapid={is_rapid_connection})")
+                                elif dest_port == 0:
+                                    # First connection, no history - generate initial port
+                                    port_seed = f"{process_name}_{dest_ip}"
+                                    port_hash = int(hashlib.md5(port_seed.encode()).hexdigest()[:8], 16)
+                                    dest_port = 8000 + (port_hash % 200)
+                                    logger.debug(f"🔍 Generated initial port: {dest_port}")
                                 # PRIORITY 2: Check PID history (fallback)
                                 elif self.connection_analyzer and pid in self.connection_analyzer.connection_history:
                                     prev_connections = list(self.connection_analyzer.connection_history[pid])
