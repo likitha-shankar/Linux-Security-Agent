@@ -884,10 +884,10 @@ class SimpleSecurityAgent:
                         else:
                             logger.debug(f"Connection event for PID {pid}: syscall={syscall} (no event_info available)")
                         
-                        # NEW: Try to get real port from /proc/net/tcp if using eBPF collector
-                        # This gives us REAL ports for C2 detection!
+                        # CRITICAL: Try to get REAL port FIRST before simulating
+                        # This is essential for C2 detection which needs same port for same process+IP
                         if dest_port == 0 and syscall_normalized in ['socket', 'connect', 'sendto']:
-                            # Try to get real port from event_info first
+                            # Step 1: Try to get real port from event_info first
                             if event_info and isinstance(event_info, dict):
                                 real_port = event_info.get('port') or event_info.get('dest_port') or event_info.get('dport')
                                 if real_port:
@@ -897,41 +897,42 @@ class SimpleSecurityAgent:
                                     except (ValueError, TypeError):
                                         pass
                             
-                            # If still no port, try port extractors (gets REAL ports)
-                            # This is OPTIONAL - if it fails, we fall back to simulated ports
+                            # Step 2: Try /proc/net/tcp (works for established connections)
                             if dest_port == 0:
                                 try:
-                                    # Try /proc/net/tcp first (works for established connections)
                                     if not hasattr(self, '_port_extractor'):
                                         from core.port_extractor import PortExtractor
                                         self._port_extractor = PortExtractor()
                                     
-                                    # For connect syscalls, wait a bit for connection to establish
+                                    # For connect syscalls, wait for connection to establish
                                     if syscall_normalized == 'connect':
                                         import time
-                                        time.sleep(0.2)  # 200ms delay for connection to establish
+                                        time.sleep(0.3)  # 300ms delay for connection to establish
                                     
                                     result = self._port_extractor.get_destination(pid)
                                     if result:
                                         dest_ip, dest_port = result
                                         logger.warning(f"✅ Got REAL port from /proc/net/tcp for PID {pid}: {dest_ip}:{dest_port}")
-                                    
-                                    # Fallback to eBPF if /proc didn't work (rarely needed)
-                                    if dest_port == 0:
-                                        if not hasattr(self, '_ebpf_port_extractor'):
-                                            from core.ebpf_port_extractor import EBPFPortExtractor
-                                            self._ebpf_port_extractor = EBPFPortExtractor()
-                                        
-                                        if self._ebpf_port_extractor.enabled:
-                                            result = self._ebpf_port_extractor.get_destination(pid)
-                                            if result:
-                                                dest_ip, dest_port = result
-                                                logger.warning(f"✅ Got REAL port from eBPF for PID {pid}: {dest_ip}:{dest_port}")
                                 except Exception as e:
-                                    logger.debug(f"Port extraction failed for PID {pid}: {e}")
+                                    logger.debug(f"Port extraction from /proc failed for PID {pid}: {e}")
                             
-                            # CRITICAL FIX: Always generate simulated port if real port not available
-                            # This ensures port scanning detection works even without real port extraction
+                            # Step 3: Try eBPF if /proc didn't work
+                            if dest_port == 0:
+                                try:
+                                    if not hasattr(self, '_ebpf_port_extractor'):
+                                        from core.ebpf_port_extractor import EBPFPortExtractor
+                                        self._ebpf_port_extractor = EBPFPortExtractor()
+                                    
+                                    if self._ebpf_port_extractor.enabled:
+                                        result = self._ebpf_port_extractor.get_destination(pid)
+                                        if result:
+                                            dest_ip, dest_port = result
+                                            logger.warning(f"✅ Got REAL port from eBPF for PID {pid}: {dest_ip}:{dest_port}")
+                                except Exception as e:
+                                    logger.debug(f"eBPF port extraction failed for PID {pid}: {e}")
+                            
+                            # Step 4: Only simulate port if we couldn't get a real one
+                            # This ensures C2 detection works when we have real ports
                             if dest_port == 0:
                                 import hashlib
                                 
