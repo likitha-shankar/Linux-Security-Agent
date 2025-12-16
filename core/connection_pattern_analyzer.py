@@ -123,6 +123,11 @@ class ConnectionPatternAnalyzer:
         self.connection_history[pid].append(connection_info)
         self.port_access_history[pid].add(dest_port)
         
+        # DEBUG: Log port tracking
+        unique_count = len(self.port_access_history[pid])
+        if unique_count > 0 and unique_count % 3 == 0:  # Log every 3rd port
+            logger.debug(f"🔍 Port tracking for PID {pid}: {unique_count} unique ports tracked (latest: {dest_port})")
+        
         # Also track by process name + IP (for C2 beaconing when PID changes)
         if process_name:
             self.connection_history_by_name[process_name][dest_ip].append(connection_info)
@@ -278,12 +283,19 @@ class ConnectionPatternAnalyzer:
         """
         unique_ports = len(self.port_access_history[pid])
         
+        # DEBUG: Log detection attempt
+        if unique_ports > 0:
+            logger.debug(f"🔍 Port scan detection check for PID {pid}: unique_ports={unique_ports}, threshold={self.port_scan_threshold}")
+        
         if unique_ports < self.port_scan_threshold:
+            if unique_ports > 0:
+                logger.debug(f"   ❌ Not enough ports: {unique_ports} < {self.port_scan_threshold}")
             return None
         
         # Check if this happened in a short timeframe
         connections = list(self.connection_history[pid])
         if not connections:
+            logger.debug(f"   ❌ No connection history for PID {pid}")
             return None
         
         # Get time range
@@ -291,14 +303,21 @@ class ConnectionPatternAnalyzer:
         newest = connections[-1]['time']
         timeframe = newest - oldest
         
+        logger.debug(f"   🔍 Timeframe check: {timeframe:.1f}s < {self.port_scan_timeframe}s, unique_ports={unique_ports} >= {self.port_scan_threshold}")
+        
         # Port scan: Many unique ports in short time
         # Also require minimum rate (ports per second) to reduce false positives
         if timeframe < self.port_scan_timeframe and unique_ports >= self.port_scan_threshold:
             ports_per_second = unique_ports / max(timeframe, 1)
             
+            logger.debug(f"   🔍 Rate check: {ports_per_second:.3f} ports/sec >= 0.1")
+            
             # Require minimum rate of 0.1 ports/second (reduces false positives but allows slower scans)
             if ports_per_second < 0.1:
+                logger.debug(f"   ❌ Rate too low: {ports_per_second:.3f} < 0.1")
                 return None
+            
+            logger.warning(f"✅ PORT SCAN DETECTED: PID {pid}, {unique_ports} ports in {timeframe:.1f}s ({ports_per_second:.2f} ports/sec)")
             
             return {
                 'type': 'PORT_SCANNING',
@@ -312,6 +331,9 @@ class ConnectionPatternAnalyzer:
                 'confidence': 0.85,
                 'severity': 'HIGH'
             }
+        
+        if timeframe >= self.port_scan_timeframe:
+            logger.debug(f"   ❌ Timeframe too long: {timeframe:.1f}s >= {self.port_scan_timeframe}s")
         
         return None
     
