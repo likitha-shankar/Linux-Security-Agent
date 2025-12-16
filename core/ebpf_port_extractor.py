@@ -117,18 +117,52 @@ int kprobe__sys_connect(struct pt_regs *ctx, int sockfd, struct sockaddr *addr, 
                 self.bpf = BPF(text=ebpf_code)
                 # Try different syscall names (kernel version dependent)
                 attached = False
-                for event_name in ["__x64_sys_connect", "sys_connect", "__se_sys_connect", "__do_sys_connect"]:
+                attach_errors = []
+                
+                # Get current PID to test
+                import os
+                test_pid = os.getpid()
+                
+                for event_name in ["__x64_sys_connect", "sys_connect", "__se_sys_connect", "__do_sys_connect", "connect"]:
                     try:
                         self.bpf.attach_kprobe(event=event_name, fn_name="kprobe__sys_connect")
-                        logger.debug(f"Attached kprobe to {event_name}")
+                        logger.warning(f"✅ Attached kprobe to {event_name}")
                         attached = True
+                        
+                        # Test if it's working by making a test connection
+                        import socket
+                        test_sock = socket.socket()
+                        test_sock.settimeout(0.1)
+                        try:
+                            test_sock.connect(('127.0.0.1', 99999))  # Will fail, but triggers syscall
+                        except:
+                            pass
+                        test_sock.close()
+                        
+                        # Check if we captured anything
+                        import time
+                        time.sleep(0.2)
+                        port_map = self.bpf.get_table("port_map")
+                        found = False
+                        for k, v in port_map.items():
+                            if k.value == test_pid:
+                                logger.warning(f"✅ eBPF is capturing ports! PID={k.value}, Port={v.dest_port}")
+                                found = True
+                                break
+                        
+                        if not found:
+                            logger.debug(f"Kprobe attached to {event_name} but no ports captured yet (may need active connections)")
+                        
                         break
                     except Exception as e:
+                        attach_errors.append(f"{event_name}: {e}")
                         logger.debug(f"Failed to attach to {event_name}: {e}")
                         continue
                 
                 if not attached:
-                    raise Exception("Could not attach kprobe to any connect syscall variant")
+                    error_msg = "Could not attach kprobe to any connect syscall variant. Errors: " + "; ".join(attach_errors)
+                    logger.error(error_msg)
+                    raise Exception(error_msg)
             finally:
                 sys.stderr.close()
                 sys.stderr = old_stderr
