@@ -1026,13 +1026,18 @@ class SimpleSecurityAgent:
                             # Analyze connection pattern
                             # Pass process name to enable tracking across PID changes (for C2 beaconing)
                             process_name = proc.get('name', 'unknown')
-                            logger.info(f"🔍 Analyzing connection pattern for PID {pid} ({process_name}): IP={dest_ip} Port={dest_port} Syscall={syscall}")
+                            # Clean process name (remove parentheses) before passing to analyzer
+                            clean_process_name = process_name
+                            if process_name.startswith('(') and process_name.endswith(')'):
+                                clean_process_name = process_name[1:-1]
+                            
+                            logger.info(f"🔍 Analyzing connection pattern for PID {pid} ({clean_process_name}): IP={dest_ip} Port={dest_port} Syscall={syscall}")
                             conn_result = self.connection_analyzer.analyze_connection(
                                 pid=pid,
                                 dest_ip=dest_ip,
                                 dest_port=dest_port,
                                 timestamp=time.time(),
-                                process_name=process_name  # Enable process name tracking for C2
+                                process_name=clean_process_name  # Use cleaned name for C2 tracking
                             )
                             
                             # Only log result if it's a detection (after warm-up check)
