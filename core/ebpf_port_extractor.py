@@ -32,16 +32,18 @@ class EBPFPortExtractor:
         self.enabled = False
         
         if not BCC_AVAILABLE:
-            logger.debug("BCC not available - eBPF port extraction disabled")
+            logger.warning("BCC not available - eBPF port extraction disabled")
             return
         
         try:
             self._load_ebpf_program()
             if self.bpf:
                 self.enabled = True
-                logger.info("✅ eBPF port extractor loaded successfully")
+                logger.warning("✅ eBPF port extractor loaded successfully - REAL ports available for C2 detection!")
+            else:
+                logger.warning("eBPF program loaded but bpf is None")
         except Exception as e:
-            logger.warning(f"Failed to load eBPF port extractor: {e} (will use simulated ports)")
+            logger.warning(f"Failed to load eBPF port extractor: {e} (will use simulated ports)", exc_info=True)
             self.bpf = None
     
     def _load_ebpf_program(self):
