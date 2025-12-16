@@ -903,20 +903,26 @@ class SimpleSecurityAgent:
                             if dest_port == 0:
                                 import hashlib
                                 
-                                # FIXED: Port simulation strategy for C2 beaconing detection
-                                # For C2 beaconing: Need SAME port for same process+IP (consistent)
-                                # For port scanning: Need DIFFERENT ports (varying)
+                                # SIMPLIFIED: Port simulation strategy
+                                # For C2 beaconing: Use SAME deterministic port for process+IP (unless rapid)
+                                # For port scanning: Vary ports for rapid connections
                                 
                                 process_name = proc.get('name', 'unknown')
                                 connection_count = proc.get('connection_count', 0)
                                 proc['connection_count'] = connection_count + 1
                                 current_time = time.time()
                                 
-                                # CRITICAL: For port scan detection, we MUST vary ports for rapid connections
-                                # Check connection history to determine if this is rapid (port scan) or spaced (C2)
-                                is_rapid_connection = False
+                                # Generate base port deterministically from process_name + dest_ip
+                                # This ensures C2 connections use the same port
+                                port_seed = f"{process_name}_{dest_ip}"
+                                port_hash = int(hashlib.md5(port_seed.encode()).hexdigest()[:8], 16)
+                                base_port = 8000 + (port_hash % 200)
                                 
-                                # PRIORITY 1: Check process name + IP history (for C2 beaconing)
+                                # Check if this is a rapid connection (port scanning) or spaced (C2)
+                                is_rapid = False
+                                time_since_last = 999.0
+                                
+                                # PRIORITY 1: Check process name + IP history (best for C2 detection)
                                 if self.connection_analyzer and process_name in self.connection_analyzer.connection_history_by_name:
                                     name_connections = self.connection_analyzer.connection_history_by_name[process_name]
                                     if dest_ip in name_connections and len(name_connections[dest_ip]) > 0:
@@ -924,98 +930,50 @@ class SimpleSecurityAgent:
                                         last_time = last_conn.get('time', 0)
                                         time_since_last = current_time - last_time
                                         
-                                        logger.debug(f"🔍 Port sim: process={process_name}, dest_ip={dest_ip}, time_since_last={time_since_last:.2f}s, last_port={last_conn.get('port', 0)}")
-                                        
                                         # If < 0.5s between connections, it's rapid (port scanning)
                                         if time_since_last < 0.5:
-                                            is_rapid_connection = True
-                                            logger.debug(f"🔍 Rapid connection detected (interval={time_since_last:.3f}s)")
-                                        elif time_since_last < 30.0:  # Increased window for C2 detection (up to 30s intervals)
-                                            # Spaced out = C2 pattern, use same port
-                                            dest_port = last_conn.get('port', 0)
-                                            if dest_port > 0:
-                                                logger.warning(f"🔍 Using same port for C2: {dest_port} (interval={time_since_last:.1f}s, process={process_name})")
-                                            else:
-                                                logger.debug(f"🔍 Last connection had port=0, generating new port")
+                                            is_rapid = True
+                                            logger.debug(f"🔍 Rapid connection (interval={time_since_last:.3f}s) - will vary port for port scan")
+                                        elif time_since_last < 30.0:
+                                            # Spaced out = C2 pattern, use same base port
+                                            dest_port = base_port
+                                            logger.warning(f"🔍 C2 pattern: Using same port {dest_port} (interval={time_since_last:.1f}s, process={process_name})")
                                         else:
-                                            # Too old - generate new port
-                                            port_seed = f"{process_name}_{dest_ip}"
-                                            port_hash = int(hashlib.md5(port_seed.encode()).hexdigest()[:8], 16)
-                                            dest_port = 8000 + (port_hash % 200)
-                                            logger.debug(f"🔍 Generated port (old connection, age={time_since_last:.1f}s): {dest_port}")
-                                # PRIORITY 2: Check PID history
+                                            # Too old - use base port (might be new C2 session)
+                                            dest_port = base_port
+                                            logger.debug(f"🔍 Old connection (age={time_since_last:.1f}s), using base port {dest_port}")
+                                
+                                # PRIORITY 2: Check PID history (fallback)
                                 elif self.connection_analyzer and pid in self.connection_analyzer.connection_history:
                                     prev_connections = list(self.connection_analyzer.connection_history[pid])
                                     if len(prev_connections) >= 1:
                                         last_interval = current_time - prev_connections[-1]['time']
+                                        time_since_last = last_interval
+                                        
                                         if last_interval < 0.5:
-                                            is_rapid_connection = True
-                                        elif last_interval >= 1.5:  # Lowered to 1.5s to match min_beacon_interval
-                                            # Spaced out = C2
-                                            dest_port = prev_connections[-1]['port']
-                                            logger.debug(f"🔍 Using same port for C2 (PID): {dest_port} (interval={last_interval:.1f}s)")
+                                            is_rapid = True
+                                            logger.debug(f"🔍 Rapid connection (PID, interval={last_interval:.3f}s) - will vary port")
+                                        elif last_interval >= 1.5:
+                                            # Spaced out = C2, use same port from history or base port
+                                            dest_port = prev_connections[-1].get('port', base_port)
+                                            if dest_port == 0:
+                                                dest_port = base_port
+                                            logger.debug(f"🔍 C2 pattern (PID): Using port {dest_port} (interval={last_interval:.1f}s)")
                                         else:
-                                            # Generate new port
-                                            port_seed = f"{process_name}_{dest_ip}"
-                                            port_hash = int(hashlib.md5(port_seed.encode()).hexdigest()[:8], 16)
-                                            dest_port = 8000 + (port_hash % 200)
-                                            logger.debug(f"🔍 Generated port (PID history): {dest_port}")
+                                            # Medium interval - use base port (might be C2)
+                                            dest_port = base_port
+                                            logger.debug(f"🔍 Medium interval ({last_interval:.1f}s), using base port {dest_port}")
                                 
-                                # CRITICAL FIX: Only vary ports if it's a rapid connection (port scanning)
-                                # For spaced connections (C2), keep same port (already set above if time_since_last < 30.0)
-                                if is_rapid_connection and dest_port == 0:
-                                    # Rapid connection = port scanning, vary ports (only if dest_port wasn't set for C2 above)
+                                # If rapid connection, vary ports for port scan detection
+                                if is_rapid:
                                     port_seed = f"{process_name}_{dest_ip}_{connection_count}_{int(current_time * 1000)}"
                                     port_hash = int(hashlib.md5(port_seed.encode()).hexdigest()[:8], 16)
-                                    dest_port = 8000 + (port_hash % 2000)  # Wider range (2000 ports) for port scans
-                                    logger.warning(f"🔍 VARYING PORT for scan detection: {dest_port} (process={process_name}, conn={connection_count}, rapid=True)")
+                                    dest_port = 8000 + (port_hash % 2000)  # Wider range for port scans
+                                    logger.warning(f"🔍 VARYING PORT for scan: {dest_port} (process={process_name}, conn={connection_count})")
                                 elif dest_port == 0:
-                                    # No history found and not rapid - generate initial port
-                                    port_seed = f"{process_name}_{dest_ip}"
-                                    port_hash = int(hashlib.md5(port_seed.encode()).hexdigest()[:8], 16)
-                                    dest_port = 8000 + (port_hash % 200)
-                                    logger.debug(f"🔍 Generated initial port (no history): {dest_port}")
-                                elif dest_port == 0:
-                                    # First connection, no history - generate initial port
-                                    port_seed = f"{process_name}_{dest_ip}"
-                                    port_hash = int(hashlib.md5(port_seed.encode()).hexdigest()[:8], 16)
-                                    dest_port = 8000 + (port_hash % 200)
-                                    logger.debug(f"🔍 Generated initial port: {dest_port}")
-                                    prev_connections = list(self.connection_analyzer.connection_history[pid])
-                                    if len(prev_connections) >= 1:
-                                        last_interval = current_time - prev_connections[-1]['time']
-                                        if last_interval >= 1.5:  # Spaced out = potential C2 (lowered to 1.5s)
-                                            dest_port = prev_connections[-1]['port']
-                                            logger.debug(f"🔍 Using same port for C2 pattern (PID): {dest_port} (interval: {last_interval:.1f}s)")
-                                        elif last_interval < 0.5:  # Rapid connections = port scanning, vary ports
-                                            port_seed = f"{pid}_{dest_ip}_{connection_count}_{int(current_time * 1000)}"
-                                            port_hash = int(hashlib.md5(port_seed.encode()).hexdigest()[:8], 16)
-                                            dest_port = 8000 + (port_hash % 2000)  # Wider range
-                                            logger.info(f"🔍 Varying port for scan pattern (PID): {dest_port} (connection #{connection_count}, interval={last_interval:.3f}s)")
-                                        else:
-                                            # Medium interval (0.5-1.5s) - use same port (might be C2)
-                                            dest_port = prev_connections[-1]['port']
-                                            logger.debug(f"🔍 Using same port (medium interval): {dest_port} (interval: {last_interval:.1f}s)")
-                                    else:
-                                        # First connection - use consistent port
-                                        port_seed = f"{process_name}_{dest_ip}"
-                                        port_hash = int(hashlib.md5(port_seed.encode()).hexdigest()[:8], 16)
-                                        dest_port = 8000 + (port_hash % 200)
-                                        logger.debug(f"🔍 Generated consistent port for {process_name}->{dest_ip}: {dest_port}")
-                                else:
-                                    # No history - for multiple connections, vary ports
-                                    if connection_count > 1:
-                                        # Multiple connections = likely port scan, vary ports
-                                        port_seed = f"{process_name}_{dest_ip}_{connection_count}_{int(current_time * 1000)}"
-                                        port_hash = int(hashlib.md5(port_seed.encode()).hexdigest()[:8], 16)
-                                        dest_port = 8000 + (port_hash % 2000)
-                                        logger.info(f"🔍 Varying port (no history, multiple connections): {dest_port} (connection #{connection_count})")
-                                    else:
-                                        # First connection - use consistent port
-                                        port_seed = f"{process_name}_{dest_ip}"
-                                        port_hash = int(hashlib.md5(port_seed.encode()).hexdigest()[:8], 16)
-                                        dest_port = 8000 + (port_hash % 200)
-                                        logger.debug(f"🔍 Generated initial port for {process_name}->{dest_ip}: {dest_port}")
+                                    # No history found - use deterministic base port (will be consistent for C2)
+                                    dest_port = base_port
+                                    logger.debug(f"🔍 First connection: Using base port {dest_port} for {process_name}->{dest_ip}")
                         
                         # CRITICAL: Only analyze if we have a valid port (not 0)
                         if dest_port > 0:
