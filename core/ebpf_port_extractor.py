@@ -68,17 +68,26 @@ struct port_event {
 BPF_HASH(port_map, u32, struct port_event);
 
 // Kprobe for connect syscall
-int kprobe__sys_connect(struct pt_regs *ctx, int sockfd, struct sockaddr *addr, int addrlen) {
+// BCC automatically attaches kprobe__sys_connect to sys_connect
+// We need to use PT_REGS_PARM macros to get syscall arguments
+int kprobe__sys_connect(struct pt_regs *ctx) {
     u64 id = bpf_get_current_pid_tgid();
     u32 pid = id >> 32;
     
-    if (addrlen < 2) {
-        return 0;  // Invalid address length
+    // Get syscall arguments: sockfd (arg1), addr (arg2), addrlen (arg3)
+    int sockfd = (int)PT_REGS_PARM1(ctx);
+    struct sockaddr *addr = (struct sockaddr *)PT_REGS_PARM2(ctx);
+    int addrlen = (int)PT_REGS_PARM3(ctx);
+    
+    if (addrlen < 2 || addr == 0) {
+        return 0;  // Invalid arguments
     }
     
     // Read address family
     u16 family = 0;
-    bpf_probe_read_user(&family, sizeof(family), &addr->sa_family);
+    if (bpf_probe_read_user(&family, sizeof(family), &addr->sa_family) != 0) {
+        return 0;  // Failed to read family
+    }
     
     struct port_event event = {};
     event.pid = pid;
@@ -93,11 +102,11 @@ int kprobe__sys_connect(struct pt_regs *ctx, int sockfd, struct sockaddr *addr, 
             port_map.update(&pid, &event);
         }
     } else if (family == AF_INET6 && addrlen >= sizeof(struct sockaddr_in6)) {
-        // IPv6 - extract first 4 bytes of address (simplified)
+        // IPv6
         struct sockaddr_in6 sa6;
         if (bpf_probe_read_user(&sa6, sizeof(sa6), addr) == 0) {
             event.dest_port = bpf_ntohs(sa6.sin6_port);
-            // For IPv6, we'll use 0.0.0.0 as placeholder (can be enhanced later)
+            // For IPv6, we'll use 0.0.0.0 as placeholder
             event.dest_ip = 0;
             port_map.update(&pid, &event);
         }
