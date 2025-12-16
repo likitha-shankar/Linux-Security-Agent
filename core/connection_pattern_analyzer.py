@@ -126,14 +126,19 @@ class ConnectionPatternAnalyzer:
         
         # Also track by process name + IP (for C2 beaconing when PID changes)
         if process_name:
-            self.connection_history_by_name[process_name][dest_ip].append(connection_info)
-            self.port_access_history_by_name[process_name][dest_ip].add(dest_port)
-            total_conns = len(self.connection_history_by_name[process_name][dest_ip])
-            logger.warning(f"🔍 Tracked connection: process={process_name}, dest={dest_ip}:{dest_port}, total_connections={total_conns}")
+            # Clean process name (remove parentheses if present)
+            clean_name = process_name
+            if process_name.startswith('(') and process_name.endswith(')'):
+                clean_name = process_name[1:-1]
+            
+            self.connection_history_by_name[clean_name][dest_ip].append(connection_info)
+            self.port_access_history_by_name[clean_name][dest_ip].add(dest_port)
+            total_conns = len(self.connection_history_by_name[clean_name][dest_ip])
+            logger.warning(f"🔍 Tracked connection: process={clean_name}, dest={dest_ip}:{dest_port}, total_connections={total_conns}")
             
             # Log when we have enough connections for C2 detection
             if total_conns >= self.min_connections_for_beacon:
-                logger.warning(f"🔍 Process {process_name} has {total_conns} connections to {dest_ip}:{dest_port} - checking for C2...")
+                logger.warning(f"🔍 Process {clean_name} has {total_conns} connections to {dest_ip}:{dest_port} - checking for C2...")
         
         # Check for beaconing (try both PID and process name tracking)
         beacon_result = self._detect_beaconing(pid)
