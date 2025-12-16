@@ -631,6 +631,9 @@ def monitor_agent_logs():
     """Monitor agent log file and emit updates via WebSocket"""
     global monitoring_active, log_buffer
     
+    print(f"[LOG MONITOR] Starting log monitoring thread...")
+    socketio.emit('log', {'type': 'info', 'message': '🔍 Starting log file monitoring...'})
+    
     # Try multiple possible log file locations
     project_root = Path(__file__).parent.parent
     possible_log_dirs = [
@@ -638,6 +641,8 @@ def monitor_agent_logs():
         Path.home() / '.cache' / 'security_agent' / 'logs',
         Path('/root/.cache/security_agent/logs'),
     ]
+    
+    print(f"[LOG MONITOR] Checking log directories: {[str(d) for d in possible_log_dirs]}")
     
     # Find the latest timestamped log file (using Chicago timezone naming)
     # Log files are named: security_agent_YYYY-MM-DD_HH-MM-SS.log
@@ -675,6 +680,12 @@ def monitor_agent_logs():
     # If not found, use default location
     if log_file is None:
         log_file = possible_log_dirs[0] / 'security_agent.log'
+    
+    print(f"[LOG MONITOR] Selected log file: {log_file} (exists: {log_file.exists()})")
+    if log_file.exists():
+        socketio.emit('log', {'type': 'info', 'message': f'✅ Found log file: {log_file.name}'})
+    else:
+        socketio.emit('log', {'type': 'warning', 'message': f'⚠️ Log file not found: {log_file}'})
     
     # Wait for log file to be created (longer wait for manual starts)
     max_wait = 60
@@ -738,9 +749,14 @@ def monitor_agent_logs():
     
     # Now monitor for new lines
     try:
+        print(f"[LOG MONITOR] Opening log file for monitoring: {log_file}")
+        socketio.emit('log', {'type': 'info', 'message': f'📖 Monitoring log file: {log_file.name}'})
+        
         with open(log_file, 'r', encoding='utf-8', errors='ignore') as f:
             # Go to end of file (skip existing content we already sent)
             f.seek(0, 2)
+            print(f"[LOG MONITOR] Started tailing log file (position: {f.tell()})")
+            socketio.emit('log', {'type': 'info', 'message': '📡 Live log streaming active'})
             
             while monitoring_active:
                 line = f.readline()
