@@ -22,7 +22,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 app = Flask(__name__, template_folder='templates', static_folder=None)
 app.config['SECRET_KEY'] = 'security-agent-dashboard-2024'
-socketio = SocketIO(app, cors_allowed_origins="*")
+socketio = SocketIO(app, cors_allowed_origins="*", async_mode='threading', logger=False, engineio_logger=False)
 
 # Global state
 agent_process = None
@@ -812,7 +812,7 @@ def handle_connect():
 @socketio.on('disconnect')
 def handle_disconnect():
     """Handle client disconnection"""
-    pass
+    print(f"[SocketIO] Client disconnected: {request.sid}")
 
 if __name__ == '__main__':
     print("="*60)
