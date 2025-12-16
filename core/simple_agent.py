@@ -954,13 +954,14 @@ class SimpleSecurityAgent:
                                             dest_port = 8000 + (port_hash % 200)
                                             logger.debug(f"🔍 Generated port (PID history): {dest_port}")
                                 
-                                # If rapid connection OR multiple connections, ALWAYS vary ports for port scan detection
-                                if is_rapid_connection or connection_count > 1:
+                                # CRITICAL FIX: For port scan detection, we MUST vary ports
+                                # Strategy: If connection_count > 1 OR rapid connection, ALWAYS vary ports
+                                if connection_count > 1 or is_rapid_connection:
                                     # Vary ports using connection count + timestamp for uniqueness
                                     port_seed = f"{process_name}_{dest_ip}_{connection_count}_{int(current_time * 1000)}"
                                     port_hash = int(hashlib.md5(port_seed.encode()).hexdigest()[:8], 16)
                                     dest_port = 8000 + (port_hash % 2000)  # Wider range (2000 ports) for port scans
-                                    logger.info(f"🔍 VARYING PORT for scan: {dest_port} (process={process_name}, conn={connection_count}, rapid={is_rapid_connection})")
+                                    logger.warning(f"🔍 VARYING PORT for scan detection: {dest_port} (process={process_name}, conn={connection_count}, rapid={is_rapid_connection})")
                                 elif dest_port == 0:
                                     # First connection, no history - generate initial port
                                     port_seed = f"{process_name}_{dest_ip}"
