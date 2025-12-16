@@ -1570,7 +1570,6 @@ class SimpleSecurityAgent:
             # Acquire lock
             self.processes_lock.acquire()
         
-        try:
             # Export all processes with their current state
             processes_data = []
             for pid, proc in self.processes.items():
