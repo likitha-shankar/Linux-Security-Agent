@@ -342,10 +342,20 @@ def api_get_agent_state():
         # dashboard cards all go to zero when the agent is stopped.
         agent_running = False
         try:
+            # Try pgrep first (works if process is visible to current user)
             result = subprocess.run(['pgrep', '-f', 'simple_agent.py'],
                                     capture_output=True, text=True, timeout=2)
             if result.returncode == 0 and result.stdout.strip():
                 agent_running = True
+            else:
+                # Fallback: check if state file exists and is recent (modified in last 60 seconds)
+                # This handles cases where agent runs as root but dashboard runs as regular user
+                state_file_path = Path('/tmp/security_agent_state.json')
+                if state_file_path.exists():
+                    import time
+                    mtime = state_file_path.stat().st_mtime
+                    if time.time() - mtime < 60:  # State file updated in last 60 seconds = agent running
+                        agent_running = True
         except Exception:
             # If process check fails, fall back to file-based logic below.
             pass
