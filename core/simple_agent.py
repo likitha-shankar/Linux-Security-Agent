@@ -1671,10 +1671,14 @@ class SimpleSecurityAgent:
             if not skip_lock:
                 self.processes_lock.release()
     
-    def _write_state_file(self):
-        """Write agent state to JSON file for web dashboard"""
+    def _write_state_file(self, skip_lock: bool = False):
+        """Write agent state to JSON file for web dashboard
+        
+        Args:
+            skip_lock: If True, assume lock is already held (for use within locked context)
+        """
         try:
-            state = self.export_state()
+            state = self.export_state(skip_lock=skip_lock)
             # Log attack counts when writing state file (for debugging)
             stats = state.get('stats', {})
             c2_count = stats.get('c2_beacons', 0)
