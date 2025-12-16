@@ -347,6 +347,7 @@ def api_get_agent_state():
                                     capture_output=True, text=True, timeout=2)
             if result.returncode == 0 and result.stdout.strip():
                 agent_running = True
+                print(f"[API] Agent detected via pgrep: PID {result.stdout.strip()}")
             else:
                 # Fallback: check if state file exists and is recent (modified in last 60 seconds)
                 # This handles cases where agent runs as root but dashboard runs as regular user
@@ -354,14 +355,19 @@ def api_get_agent_state():
                 if state_file_path.exists():
                     import time
                     mtime = state_file_path.stat().st_mtime
-                    if time.time() - mtime < 60:  # State file updated in last 60 seconds = agent running
+                    age = time.time() - mtime
+                    if age < 60:  # State file updated in last 60 seconds = agent running
                         agent_running = True
-        except Exception:
+                        print(f"[API] Agent detected via state file mtime (age={age:.1f}s)")
+                    else:
+                        print(f"[API] State file too old (age={age:.1f}s), agent may be stopped")
+        except Exception as e:
             # If process check fails, fall back to file-based logic below.
-            pass
+            print(f"[API] Exception checking agent status: {e}")
 
         # If agent is NOT running, reset state and (optionally) clean up stale state files
         if not agent_running:
+            print(f"[API] Agent NOT running, returning zero state")
             project_root = Path(__file__).parent.parent
             possible_state_files = [
                 Path('/tmp/security_agent_state.json'),
@@ -429,6 +435,9 @@ def api_get_agent_state():
                 # Try to parse JSON
                 try:
                     state = json.loads(content)
+                    # Debug: log what we're returning
+                    if state.get('stats', {}).get('port_scans', 0) > 0:
+                        print(f"[API] Returning state with port_scans={state.get('stats', {}).get('port_scans', 0)}")
                 except json.JSONDecodeError as json_err:
                     # If JSON is malformed, try to fix common issues or return empty state
                     # Note: logger may not be available in this scope, using print for error reporting
