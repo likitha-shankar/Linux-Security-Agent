@@ -1354,9 +1354,17 @@
             });
             
             // Count recent attacks (last 5 minutes)
-            const recentAttackCount = recentAttacks.filter(attack => 
-                now - attack.timestamp < ATTACK_WINDOW_MS
-            ).length;
+            // Handle both number timestamps and string timestamps
+            const recentAttackCount = recentAttacks.filter(attack => {
+                if (!attack.timestamp) return false;
+                // If timestamp is a number (milliseconds), use it directly
+                if (typeof attack.timestamp === 'number') {
+                    return (now - attack.timestamp) < ATTACK_WINDOW_MS;
+                }
+                // If timestamp is a string, assume it's recent (within window)
+                // This handles log-based attacks with string timestamps
+                return true;
+            }).length;
             
             // For Total Syscalls: Use cumulative count (all processes ever seen in this session)
             // This gives a better picture of total activity, not just current active processes
@@ -1810,12 +1818,16 @@
             }
             
             attackListEl.innerHTML = combined.slice(0, 10).map(entry => {
+                // Use timeString if available, otherwise convert timestamp to string
+                const displayTime = entry.timeString || (entry.timestamp && typeof entry.timestamp === 'number' 
+                    ? new Date(entry.timestamp).toLocaleTimeString() 
+                    : (entry.timestamp || '—'));
                 return `
                     <div class="process-item attack">
                         <div class="process-header">
                             <div>
                                 <div class="process-name" style="color: #dc3545; font-weight: 600;">${escapeHtml(entry.type)}</div>
-                                <div class="process-pid" style="margin-top: 4px;">PID: ${entry.pid} | Process: ${escapeHtml(entry.name)} | ${entry.timestamp}</div>
+                                <div class="process-pid" style="margin-top: 4px;">PID: ${entry.pid} | Process: ${escapeHtml(entry.name)} | ${displayTime}</div>
                             </div>
                         </div>
                         <div style="font-size: 0.8em; color: #718096; margin-top: 6px; font-family: monospace; word-break: break-word;">${escapeHtml(entry.details)}</div>
@@ -1867,37 +1879,58 @@
                     return;
                 }
 
-                const now = new Date().toLocaleTimeString();
+                const now = new Date();
+                const nowTimeString = now.toLocaleTimeString();
                 const portScans = state.stats.port_scans || 0;
                 const c2Beacons = state.stats.c2_beacons || 0;
                 const newAttacks = [];
 
+                // Clear old state-based attacks from recentAttacks first
+                recentAttacks = recentAttacks.filter(attack => attack.source !== 'state');
+
                 if (portScans > 0) {
-                    newAttacks.push({
+                    const attackEntry = {
                         type: 'Port Scanning',
                         pid: '—',
                         name: 'Multiple processes',
                         details: `Detected ${portScans} port-scanning patterns in the last 5 minutes`,
-                        timestamp: now,
+                        timestamp: now.getTime(), // Use timestamp for filtering
+                        timeString: nowTimeString,
                         source: 'state'
-                    });
+                    };
+                    newAttacks.push(attackEntry);
+                    // Add to recentAttacks so count updates correctly
+                    recentAttacks.push(attackEntry);
                 }
 
                 if (c2Beacons > 0) {
-                    newAttacks.push({
+                    const attackEntry = {
                         type: 'C2 Beaconing',
                         pid: '—',
                         name: 'Multiple processes',
                         details: `Detected ${c2Beacons} C2 beaconing patterns in the last 5 minutes`,
-                        timestamp: now,
+                        timestamp: now.getTime(), // Use timestamp for filtering
+                        timeString: nowTimeString,
                         source: 'state'
-                    });
+                    };
+                    newAttacks.push(attackEntry);
+                    // Add to recentAttacks so count updates correctly
+                    recentAttacks.push(attackEntry);
                 }
 
                 // Always rebuild stateAttackList from current state (no stale entries)
                 stateAttackList = newAttacks;
 
+                // Clean up old attacks from recentAttacks (older than 5 minutes)
+                const ATTACK_WINDOW_MS = 5 * 60 * 1000;
+                recentAttacks = recentAttacks.filter(attack => 
+                    (now.getTime() - attack.timestamp) < ATTACK_WINDOW_MS
+                );
+
                 renderAttackList();
+                
+                // Recalculate stats to update attack count
+                calculateCurrentStats();
             } catch (e) {
                 console.error('Error updating attack list from state:', e);
             }
