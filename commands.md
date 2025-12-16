@@ -58,6 +58,33 @@ echo ""
 echo "High-risk processes:"
 cat /tmp/security_agent_state.json | jq '.processes[] | select(.risk_score >= 20) | {pid, name, risk_score}' | head -10
 
+# Run port scan attack
+cd ~/Linux-Security-Agent
+python3 -c "from scripts.simulate_attacks import simulate_network_scanning; simulate_network_scanning()"
+
+# Wait 30 seconds
+sleep 30
+
+# Check results
+cat /tmp/security_agent_state.json | jq '.stats'
+
+
+### 0. Test Port Scan Detection (VM)
+
+```bash
+cd ~/Linux-Security-Agent
+
+# Run automated test script
+bash test_port_scan_detection.sh
+
+# This script will:
+# 1. Pull latest code
+# 2. Restart agent
+# 3. Wait for warm-up
+# 4. Run port scan attack
+# 5. Check detection results
+# 6. Show debugging info if detection fails
+```
 
 ### 0. Setup / cleanup (VM)
 
