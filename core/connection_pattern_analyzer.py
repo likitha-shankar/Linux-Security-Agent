@@ -313,11 +313,11 @@ class ConnectionPatternAnalyzer:
         if timeframe < self.port_scan_timeframe and unique_ports >= self.port_scan_threshold:
             ports_per_second = unique_ports / max(timeframe, 1)
             
-            logger.info(f"   🔍 Rate check: {ports_per_second:.3f} ports/sec >= 0.1")
+            logger.info(f"   🔍 Rate check: {ports_per_second:.3f} ports/sec >= {self.min_ports_per_second}")
             
-            # Require minimum rate of 0.01 ports/second (very lenient - allows slow scans)
-            if ports_per_second < 0.01:
-                logger.warning(f"   ❌ Rate too low: {ports_per_second:.3f} < 0.01")
+            # Require minimum rate (very lenient - allows slow scans)
+            if ports_per_second < self.min_ports_per_second:
+                logger.warning(f"   ❌ Rate too low: {ports_per_second:.3f} < {self.min_ports_per_second}")
                 return None
             
             logger.warning(f"✅ PORT SCAN DETECTED: PID {pid}, {unique_ports} ports in {timeframe:.1f}s ({ports_per_second:.2f} ports/sec)")
