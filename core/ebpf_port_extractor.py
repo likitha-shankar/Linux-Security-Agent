@@ -37,14 +37,15 @@ class EBPFPortExtractor:
         
         try:
             self._load_ebpf_program()
-            if self.bpf:
+            if self.bpf is not None:
                 self.enabled = True
                 logger.warning("✅ eBPF port extractor loaded successfully - REAL ports available for C2 detection!")
             else:
-                logger.warning("eBPF program loaded but bpf is None")
+                logger.warning("eBPF program loaded but bpf is None - kprobe attachment may have failed")
         except Exception as e:
             logger.warning(f"Failed to load eBPF port extractor: {e} (will use simulated ports)", exc_info=True)
             self.bpf = None
+            self.enabled = False
     
     def _load_ebpf_program(self):
         """Load minimal eBPF program to extract ports from connect syscalls"""
@@ -116,53 +117,31 @@ int kprobe__sys_connect(struct pt_regs *ctx, int sockfd, struct sockaddr *addr, 
             try:
                 self.bpf = BPF(text=ebpf_code)
                 # Try different syscall names (kernel version dependent)
+                # Based on /proc/kallsyms, we saw: __x64_sys_connect, __sys_connect
                 attached = False
                 attach_errors = []
                 
-                # Get current PID to test
-                import os
-                test_pid = os.getpid()
+                # Try in order of likelihood
+                event_names = ["__x64_sys_connect", "__sys_connect", "sys_connect", "__se_sys_connect", "__do_sys_connect"]
                 
-                for event_name in ["__x64_sys_connect", "sys_connect", "__se_sys_connect", "__do_sys_connect", "connect"]:
+                for event_name in event_names:
                     try:
                         self.bpf.attach_kprobe(event=event_name, fn_name="kprobe__sys_connect")
                         logger.warning(f"✅ Attached kprobe to {event_name}")
                         attached = True
-                        
-                        # Test if it's working by making a test connection
-                        import socket
-                        test_sock = socket.socket()
-                        test_sock.settimeout(0.1)
-                        try:
-                            test_sock.connect(('127.0.0.1', 99999))  # Will fail, but triggers syscall
-                        except:
-                            pass
-                        test_sock.close()
-                        
-                        # Check if we captured anything
-                        import time
-                        time.sleep(0.2)
-                        port_map = self.bpf.get_table("port_map")
-                        found = False
-                        for k, v in port_map.items():
-                            if k.value == test_pid:
-                                logger.warning(f"✅ eBPF is capturing ports! PID={k.value}, Port={v.dest_port}")
-                                found = True
-                                break
-                        
-                        if not found:
-                            logger.debug(f"Kprobe attached to {event_name} but no ports captured yet (may need active connections)")
-                        
                         break
                     except Exception as e:
-                        attach_errors.append(f"{event_name}: {e}")
-                        logger.debug(f"Failed to attach to {event_name}: {e}")
+                        attach_error = str(e)
+                        attach_errors.append(f"{event_name}: {attach_error}")
+                        # Don't log every failure, just collect them
                         continue
                 
                 if not attached:
-                    error_msg = "Could not attach kprobe to any connect syscall variant. Errors: " + "; ".join(attach_errors)
+                    error_msg = f"Could not attach kprobe to any connect syscall. Tried: {', '.join(event_names)}. Errors: {'; '.join(attach_errors)}"
                     logger.error(error_msg)
-                    raise Exception(error_msg)
+                    # Don't raise - set bpf to None so we can fall back gracefully
+                    self.bpf = None
+                    return
             finally:
                 sys.stderr.close()
                 sys.stderr = old_stderr
