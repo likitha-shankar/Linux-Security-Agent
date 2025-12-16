@@ -135,10 +135,8 @@ if [ $RESULT -eq 1 ]; then
     echo ""
 fi
 
-# Cleanup
-echo -e "${BLUE}Step 9: Cleaning up...${NC}"
-sudo pkill -f simple_agent.py || true
-echo "Agent stopped"
+# Note: Agent left running for continued monitoring
+echo -e "${BLUE}Note: Agent is still running for continued monitoring${NC}"
 echo ""
 
 if [ $RESULT -eq 0 ]; then
