@@ -897,37 +897,36 @@ class SimpleSecurityAgent:
                                     except (ValueError, TypeError):
                                         pass
                             
-                            # If still no port, try eBPF port extractor (gets REAL ports from kernel)
+                            # If still no port, try port extractors (gets REAL ports)
                             # This is OPTIONAL - if it fails, we fall back to simulated ports
                             if dest_port == 0:
                                 try:
-                                    # Lazy import eBPF port extractor
-                                    if not hasattr(self, '_ebpf_port_extractor'):
-                                        from core.ebpf_port_extractor import EBPFPortExtractor
-                                        self._ebpf_port_extractor = EBPFPortExtractor()
+                                    # Try /proc/net/tcp first (works for established connections)
+                                    if not hasattr(self, '_port_extractor'):
+                                        from core.port_extractor import PortExtractor
+                                        self._port_extractor = PortExtractor()
                                     
-                                    # Try eBPF first (fastest, most accurate)
-                                    if self._ebpf_port_extractor.enabled:
-                                        result = self._ebpf_port_extractor.get_destination(pid)
-                                        if result:
-                                            dest_ip, dest_port = result
-                                            logger.warning(f"✅ Got REAL port from eBPF for PID {pid}: {dest_ip}:{dest_port}")
+                                    # For connect syscalls, wait a bit for connection to establish
+                                    if syscall_normalized == 'connect':
+                                        import time
+                                        time.sleep(0.2)  # 200ms delay for connection to establish
                                     
-                                    # Fallback to /proc/net/tcp if eBPF didn't work
+                                    result = self._port_extractor.get_destination(pid)
+                                    if result:
+                                        dest_ip, dest_port = result
+                                        logger.warning(f"✅ Got REAL port from /proc/net/tcp for PID {pid}: {dest_ip}:{dest_port}")
+                                    
+                                    # Fallback to eBPF if /proc didn't work (rarely needed)
                                     if dest_port == 0:
-                                        if not hasattr(self, '_port_extractor'):
-                                            from core.port_extractor import PortExtractor
-                                            self._port_extractor = PortExtractor()
+                                        if not hasattr(self, '_ebpf_port_extractor'):
+                                            from core.ebpf_port_extractor import EBPFPortExtractor
+                                            self._ebpf_port_extractor = EBPFPortExtractor()
                                         
-                                        # For connect syscalls, wait a bit for connection to establish
-                                        if syscall_normalized == 'connect':
-                                            import time
-                                            time.sleep(0.1)  # 100ms delay
-                                        
-                                        result = self._port_extractor.get_destination(pid)
-                                        if result:
-                                            dest_ip, dest_port = result
-                                            logger.debug(f"Got port from /proc/net/tcp for PID {pid}: {dest_ip}:{dest_port}")
+                                        if self._ebpf_port_extractor.enabled:
+                                            result = self._ebpf_port_extractor.get_destination(pid)
+                                            if result:
+                                                dest_ip, dest_port = result
+                                                logger.warning(f"✅ Got REAL port from eBPF for PID {pid}: {dest_ip}:{dest_port}")
                                 except Exception as e:
                                     logger.debug(f"Port extraction failed for PID {pid}: {e}")
                             
