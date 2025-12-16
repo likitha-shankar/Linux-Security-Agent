@@ -1020,16 +1020,23 @@ class SimpleSecurityAgent:
                                     
                                     # CRITICAL: Check connection history to see if this process+IP used a port before
                                     if self.connection_analyzer:
+                                        logger.warning(f"🔍 Checking history for {clean_name_for_port}->{dest_ip} (connection_count={connection_count})")
                                         if clean_name_for_port in self.connection_analyzer.connection_history_by_name:
                                             name_connections = self.connection_analyzer.connection_history_by_name[clean_name_for_port]
+                                            logger.warning(f"🔍 Found process {clean_name_for_port} in history, checking dest_ip {dest_ip}")
                                             if dest_ip in name_connections and len(name_connections[dest_ip]) > 0:
                                                 # Get the port from the most recent connection
                                                 last_conn = name_connections[dest_ip][-1]
                                                 prev_port = last_conn.get('port', 0)
+                                                logger.warning(f"🔍 Previous connection found: port={prev_port}, total_connections={len(name_connections[dest_ip])}")
                                                 if prev_port > 0:
                                                     # REUSE the same port (C2 pattern!)
                                                     port_to_use = prev_port
                                                     logger.warning(f"🔍 C2 PATTERN: Reusing port {port_to_use} for {clean_name_for_port}->{dest_ip} (connection #{connection_count}, total_prev={len(name_connections[dest_ip])})")
+                                            else:
+                                                logger.warning(f"🔍 No connections to {dest_ip} for {clean_name_for_port}")
+                                        else:
+                                            logger.warning(f"🔍 Process {clean_name_for_port} not in connection history yet")
                                     
                                     dest_port = port_to_use
                                     if port_to_use == base_port:
