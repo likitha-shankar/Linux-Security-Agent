@@ -55,9 +55,9 @@ class ConnectionPatternAnalyzer:
         self.port_access_history_by_name = defaultdict(lambda: defaultdict(set))  # process_name -> dest_ip -> set of ports
         
         # Beaconing detection parameters (optimized for better detection)
-        self.beacon_threshold_variance = self.config.get('beacon_variance_threshold', 8.0)  # Increased to 8.0s for better C2 detection
+        self.beacon_threshold_variance = self.config.get('beacon_variance_threshold', 10.0)  # Increased to 10.0s for better C2 detection
         self.min_connections_for_beacon = self.config.get('min_connections_for_beacon', 3)  # Minimum 3 connections
-        self.min_beacon_interval = self.config.get('min_beacon_interval', 1.5)  # Lowered to 1.5 seconds for better detection
+        self.min_beacon_interval = self.config.get('min_beacon_interval', 1.0)  # Lowered to 1.0 seconds for better detection
         
         # Port scanning parameters (balanced for detection vs false positives)
         # Lowered threshold back to 5 for better attack detection (can be tuned via config)
@@ -201,26 +201,30 @@ class ConnectionPatternAnalyzer:
                     
                     # Low variance indicates regular beaconing
                     # Log debug info for troubleshooting
-                    logger.debug(f"🔍 C2 check: dest={dest_key}, connections={len(connections)}, mean_interval={mean_interval:.2f}s, stdev={stdev:.2f}s, threshold={self.beacon_threshold_variance}s")
+                    logger.warning(f"🔍 C2 check: dest={dest_key}, connections={len(connections)}, mean_interval={mean_interval:.2f}s, stdev={stdev:.2f}s, threshold={self.beacon_threshold_variance}s, min_interval={self.min_beacon_interval}s")
                     
-                    if stdev < self.beacon_threshold_variance and mean_interval >= self.min_beacon_interval:
-                        logger.warning(f"✅ C2 BEACONING DETECTED: dest={dest_key}, mean={mean_interval:.1f}s, stdev={stdev:.1f}s, connections={len(connections)}")
-                        return {
-                            'type': 'C2_BEACONING',
-                            'technique': 'T1071',
-                            'pid': pid,
-                            'mean_interval': mean_interval,
-                            'variance': variance,
-                            'stdev': stdev,
-                            'connections': len(connections),
-                            'destination': dest_key,
-                            'risk_score': 85,
-                            'explanation': f'Regular beaconing detected: {mean_interval:.1f}s intervals (±{stdev:.1f}s) to {dest_key}',
-                            'confidence': 0.9,
-                            'severity': 'HIGH'
-                        }
+                    # Check if intervals are regular (low variance) and reasonably spaced
+                    if mean_interval >= self.min_beacon_interval:
+                        if stdev < self.beacon_threshold_variance:
+                            logger.warning(f"✅ C2 BEACONING DETECTED: dest={dest_key}, mean={mean_interval:.1f}s, stdev={stdev:.1f}s, connections={len(connections)}")
+                            return {
+                                'type': 'C2_BEACONING',
+                                'technique': 'T1071',
+                                'pid': pid,
+                                'mean_interval': mean_interval,
+                                'variance': variance,
+                                'stdev': stdev,
+                                'connections': len(connections),
+                                'destination': dest_key,
+                                'risk_score': 85,
+                                'explanation': f'Regular beaconing detected: {mean_interval:.1f}s intervals (±{stdev:.1f}s) to {dest_key}',
+                                'confidence': 0.9,
+                                'severity': 'HIGH'
+                            }
+                        else:
+                            logger.warning(f"🔍 C2 NOT detected: stdev={stdev:.2f}s >= threshold {self.beacon_threshold_variance}s (too irregular)")
                     else:
-                        logger.debug(f"🔍 C2 NOT detected: stdev={stdev:.2f} >= {self.beacon_threshold_variance} OR mean={mean_interval:.2f} < {self.min_beacon_interval}")
+                        logger.warning(f"🔍 C2 NOT detected: mean_interval={mean_interval:.2f}s < min {self.min_beacon_interval}s (too fast)")
             except statistics.StatisticsError as e:
                 logger.debug(f"🔍 C2 detection StatisticsError: {e}")
                 continue
