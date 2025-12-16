@@ -1056,25 +1056,24 @@ class SimpleSecurityAgent:
                                 logger.warning(f"   Port scan detected (recent count: {count}, total detections in history: {len(self.recent_scan_detections)})")
                                 
                                 # Force immediate state file update so dashboard shows attack quickly
-                                # Use processes_lock to ensure state is consistent
+                                # NOTE: We're already inside processes_lock (from _handle_event), so don't acquire it again
                                 try:
-                                    with self.processes_lock:
-                                        state_before = self.export_state()
-                                        logger.info(f"🔍 DEBUG: State BEFORE write - c2_beacons={state_before.get('stats', {}).get('c2_beacons', 0)}, port_scans={state_before.get('stats', {}).get('port_scans', 0)}")
+                                    state_before = self.export_state()
+                                    logger.info(f"🔍 DEBUG: State BEFORE write - c2_beacons={state_before.get('stats', {}).get('c2_beacons', 0)}, port_scans={state_before.get('stats', {}).get('port_scans', 0)}")
+                                    self._write_state_file()
+                                    # Verify the write by reading back
+                                    state_after = self.export_state()
+                                    actual_port_scans = state_after.get('stats', {}).get('port_scans', 0)
+                                    logger.info(f"🔍 DEBUG: State AFTER write - c2_beacons={state_after.get('stats', {}).get('c2_beacons', 0)}, port_scans={actual_port_scans}")
+                                    if actual_port_scans != count:
+                                        logger.error(f"❌ STATE FILE MISMATCH: Expected port_scans={count}, got {actual_port_scans}. Retrying write...")
+                                        # Retry once more
                                         self._write_state_file()
-                                        # Verify the write by reading back
-                                        state_after = self.export_state()
-                                        actual_port_scans = state_after.get('stats', {}).get('port_scans', 0)
-                                        logger.info(f"🔍 DEBUG: State AFTER write - c2_beacons={state_after.get('stats', {}).get('c2_beacons', 0)}, port_scans={actual_port_scans}")
-                                        if actual_port_scans != count:
-                                            logger.error(f"❌ STATE FILE MISMATCH: Expected port_scans={count}, got {actual_port_scans}. Retrying write...")
-                                            # Retry once more
-                                            self._write_state_file()
-                                            state_retry = self.export_state()
-                                            retry_port_scans = state_retry.get('stats', {}).get('port_scans', 0)
-                                            logger.info(f"🔍 DEBUG: After retry - port_scans={retry_port_scans}")
-                                        else:
-                                            logger.info(f"✅ State file updated immediately with port scan count: {count}")
+                                        state_retry = self.export_state()
+                                        retry_port_scans = state_retry.get('stats', {}).get('port_scans', 0)
+                                        logger.info(f"🔍 DEBUG: After retry - port_scans={retry_port_scans}")
+                                    else:
+                                        logger.info(f"✅ State file updated immediately with port scan count: {count}")
                                 except Exception as e:
                                     logger.error(f"❌ Could not force state file write: {e}", exc_info=True)
                     except AttributeError as e:
