@@ -1011,7 +1011,11 @@ class SimpleSecurityAgent:
                                 else:
                                     # NOT rapid = use deterministic base port (C2 will use same port)
                                     dest_port = base_port
-                                    logger.warning(f"🔍 C2-compatible: Using deterministic port {dest_port} for {process_name}->{dest_ip} (interval={time_since_last:.1f}s, conn={connection_count})")
+                                    logger.warning(f"🔍 C2-compatible: Using deterministic port {dest_port} for {process_name}->{dest_ip} (interval={time_since_last:.1f}s, conn={connection_count}, rapid={is_rapid})")
+                                    
+                                    # CRITICAL: Log when we're using the same port multiple times (C2 pattern)
+                                    if connection_count > 1:
+                                        logger.warning(f"🔍 C2 PATTERN: Process {process_name} using SAME port {dest_port} for connection #{connection_count} (C2 detection should work!)")
                         
                         # CRITICAL: Log what port we're using (real or simulated)
                         if dest_port > 0:
