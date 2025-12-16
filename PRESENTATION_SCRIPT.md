@@ -1,51 +1,3 @@
-# 🎤 Linux Security Agent - Complete Presentation Script
-## Master's Degree Project Presentation (15-20 minutes)
-
-**Author:** Likitha Shankar  
-**Purpose:** Verbatim script for academic presentation  
-**Duration:** 15-20 minutes with live demo
-
----
-
-## 📖 HOW TO USE THIS SCRIPT
-
-### Presentation Setup:
-
-1. **Open the HTML Report** (`docs/reports/PROJECT_REPORT.html`) in your browser BEFORE starting
-2. **Share your screen** showing the HTML report
-3. **Read this script verbatim** - it's written for natural speech
-4. **Navigate the HTML report** as indicated in the script:
-   - Use it like visual slides
-   - Scroll to referenced sections when mentioned
-   - Point to diagrams and tables as you explain them
-   - Jump to Section 8.3 for test results
-
-### Why This Works:
-- The **HTML report** provides professional visual validation
-- The **script** keeps you on track with perfect timing
-- Audience sees comprehensive documentation while you speak
-- If the live demo fails, you have the report to fall back on
-- You appear extremely well-organized and prepared
-
-### Quick Navigation Guide for HTML Report:
-- **Title/Opening**: Top of page
-- **Architecture**: Section 4 (scroll to see diagrams)
-- **Connection Pattern Analyzer**: Section 4.4.5
-- **Data Flow**: Section 4.5
-- **Features**: Section 5
-- **Test Results**: Section 8.3 (THIS IS KEY - bookmark this!)
-- **Conclusion**: Section 10
-
-### Presentation Flow:
-1. Share screen with HTML report visible (title page)
-2. Read opening script
-3. Scroll through report sections as you explain architecture
-4. Minimize report for live demo
-5. Return to report for test results section
-6. Keep report open during Q&A for reference
-
----
-
 ## 📋 OPENING (2 minutes)
 
 ### Slide 1: Title Slide
@@ -54,7 +6,7 @@
 
 > "Good [morning/afternoon] everyone. Thank you for being here today.
 >
-> My name is Likitha Shankar, and I'm excited to present my Master's degree research project: **A Linux Security Agent with eBPF-Based Syscall Monitoring and Machine Learning Anomaly Detection**.
+> My name is Likitha Shankar, and I'm excited to present my Master's degree research project: **A Linux Security Agent with real time Syscall Monitoring and Machine Learning Anomaly Detection**.
 >
 > What you're seeing on screen is the comprehensive project report that documents this entire research effort. Over the next 15 to 20 minutes, I'll walk you through the technical architecture using this report as a visual guide, demonstrate a live detection system, and share the research results that validate this approach.
 >
@@ -147,7 +99,7 @@
 > **[Point to ML pipeline diagram]**
 >
 > The machine learning pipeline is sophisticated. For each process, I extract a 50-dimensional feature vector. This includes:
-> - Syscall frequency counts for 8-33 common syscalls
+> - Syscall frequency counts for 33 common syscalls
 > - Unique syscall ratio
 > - Entropy to measure diversity
 > - Network, file system, and process features
@@ -191,27 +143,60 @@
 
 ---
 
+## 🖥️ DEMO SETUP OVERVIEW (1 minute)
+
+### Slide 5.5: Demo Environment Setup
+
+> "Before we jump into the live demonstration, let me quickly explain the environment where this system is running.
+>
+> **[If showing terminal, you can show VM info]**
+>
+> The system is deployed on a **Google Cloud Platform virtual machine** running **Ubuntu 22.04 LTS** with kernel version **6.8.0-1044-gcp**. This is an **e2-medium instance** with 2 vCPUs and 4 GB of RAM.
+>
+> **[Point to key tools if showing terminal]**
+>
+> The VM has been configured with several critical tools:
+>
+> **First**, we have **eBPF/BCC tools** installed - that's the Berkeley Compiler Collection that allows us to compile and load eBPF programs into the kernel. This is what enables kernel-level syscall monitoring.
+>
+> **Second**, we have **auditd** configured as a fallback. Even though eBPF is available on this system, the agent can automatically switch to auditd if needed, ensuring reliability.
+>
+> **Third**, we have **Python 3.10** with all the required machine learning libraries - scikit-learn, pandas, numpy - for the anomaly detection models.
+>
+> **Fourth**, the system has **Docker** installed for container security monitoring capabilities, though we'll focus on host-level detection in today's demo.
+>
+> **Finally**, the ML models have been pre-trained on the ADFA-LD dataset - that's 5,205 real syscall sequences from normal and attack scenarios. The models are stored in the user cache directory and loaded automatically when the agent starts.
+>
+> All of this is running on a production-grade cloud VM, which demonstrates that this system can be deployed in real-world environments. The agent is currently monitoring the system in real-time, and we're ready to demonstrate live attack detection.
+>
+> Now let's see it in action."
+
+---
+
 ## 💻 LIVE DEMONSTRATION (5-6 minutes)
 
 ### Slide 6: Demo Time
 
 > "Now let me show you the system in action. I'll demonstrate live detection of a port scanning attack.
 >
-> **[Share screen showing HTML PROJECT_REPORT.html open in browser]**
+> **[Switch to dashboard view - show web dashboard at http://[VM_IP]:5001]**
 >
-> Before we jump into the live demo, I want to briefly orient you to the project documentation you see on screen. This is the comprehensive project report that details the entire architecture, implementation, and test results. We'll reference specific sections as we go through the presentation.
+> As I mentioned, the agent is already running on our Google Cloud VM, monitoring the system in real-time. You can see the web dashboard here, which displays:
 >
-> **[Scroll to show Table of Contents briefly]**
+> **[Point to dashboard elements]**
 >
-> You can see it covers everything from system architecture to performance evaluation. I'll be jumping between this report and the live system during our demo.
+> - **Total processes** being monitored
+> - **Total syscalls** captured
+> - **High-risk processes** detected
+> - **Anomalies** identified by the ML models
+> - **Attack counts** for port scans and C2 beaconing
+> - A **live process table** showing risk scores, anomaly scores, and recent syscalls for each process
 >
-> **[Switch to terminal, make it full screen or split screen with report]**
+> The dashboard updates in real-time as the agent processes syscalls from the kernel. Right now, you can see normal system activity - the agent has completed its warm-up period, so any detections you see are real threats.
 >
-> Now for the live demo. I'll start the security agent. The command is:
+> **[Switch to terminal or keep dashboard visible]**
 >
-> `sudo python3 core/simple_agent.py --collector ebpf --dashboard`
->
-> Note that the system has a built-in fallback mechanism - if eBPF isn't available, it automatically switches to auditd. This collector factory pattern ensures the agent works on any Linux system.
+> Now I'll simulate an attack to show you how the system detects malicious behavior in real-time.
 >
 > **[Run command, wait for dashboard to appear]**
 >
