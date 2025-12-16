@@ -1183,15 +1183,27 @@
                     if (state.processes && Array.isArray(state.processes)) {
                         state.processes.forEach(proc => {
                             const pid = String(proc.pid);
+                            
+                            // FILTER: Skip processes with zero activity (stale processes from previous runs)
+                            // Only show processes that have syscalls OR have risk/anomaly scores
+                            const riskScore = proc.risk_score || 0;
+                            const anomalyScore = proc.anomaly_score || 0;
+                            const totalSyscalls = proc.total_syscalls || proc.syscall_count || 0;
+                            
+                            // Skip inactive processes with no activity (prevents showing stale data on fresh start)
+                            if (totalSyscalls === 0 && riskScore === 0 && anomalyScore === 0) {
+                                return; // Skip this process
+                            }
+                            
                             const existingProc = processes.get(pid) || { pid, name: 'unknown', risk: 0, anomaly: 0, syscalls: 0 };
                             
                             // Update with state data
                     if (proc.name && !proc.name.startsWith('pid_') && proc.name !== 'unknown') {
                         existingProc.name = proc.name;
                     }
-                    existingProc.risk = proc.risk_score || 0;
-                    existingProc.anomaly = proc.anomaly_score || 0;
-                    existingProc.syscalls = proc.total_syscalls || proc.syscall_count || 0;
+                    existingProc.risk = riskScore;
+                    existingProc.anomaly = anomalyScore;
+                    existingProc.syscalls = totalSyscalls;
                     existingProc.recentSyscalls = proc.recent_syscalls_str || (proc.recent_syscalls ? proc.recent_syscalls.join(', ') : '');
                     existingProc.lastSeen = Date.now();
                             
