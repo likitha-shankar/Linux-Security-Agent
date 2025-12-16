@@ -956,14 +956,19 @@ class SimpleSecurityAgent:
                                             logger.debug(f"🔍 Generated port (PID history): {dest_port}")
                                 
                                 # CRITICAL FIX: Only vary ports if it's a rapid connection (port scanning)
-                                # For spaced connections (C2), keep same port
-                                if is_rapid_connection:
-                                    # Rapid connection = port scanning, vary ports
+                                # For spaced connections (C2), keep same port (already set above if time_since_last < 30.0)
+                                if is_rapid_connection and dest_port == 0:
+                                    # Rapid connection = port scanning, vary ports (only if dest_port wasn't set for C2 above)
                                     port_seed = f"{process_name}_{dest_ip}_{connection_count}_{int(current_time * 1000)}"
                                     port_hash = int(hashlib.md5(port_seed.encode()).hexdigest()[:8], 16)
                                     dest_port = 8000 + (port_hash % 2000)  # Wider range (2000 ports) for port scans
                                     logger.warning(f"🔍 VARYING PORT for scan detection: {dest_port} (process={process_name}, conn={connection_count}, rapid=True)")
-                                # If not rapid and dest_port still 0, we already set it above for C2 pattern
+                                elif dest_port == 0:
+                                    # No history found and not rapid - generate initial port
+                                    port_seed = f"{process_name}_{dest_ip}"
+                                    port_hash = int(hashlib.md5(port_seed.encode()).hexdigest()[:8], 16)
+                                    dest_port = 8000 + (port_hash % 200)
+                                    logger.debug(f"🔍 Generated initial port (no history): {dest_port}")
                                 elif dest_port == 0:
                                     # First connection, no history - generate initial port
                                     port_seed = f"{process_name}_{dest_ip}"
