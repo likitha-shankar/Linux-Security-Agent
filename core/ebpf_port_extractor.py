@@ -49,6 +49,7 @@ class EBPFPortExtractor:
     
     def _load_ebpf_program(self):
         """Load minimal eBPF program to extract ports from connect syscalls"""
+        # Try tracepoint first (more reliable), fallback to kprobe
         ebpf_code = """
 #include <uapi/linux/ptrace.h>
 #include <net/sock.h>
@@ -67,16 +68,8 @@ struct port_event {
 // Map to store recent ports (pid -> port_event)
 BPF_HASH(port_map, u32, struct port_event);
 
-// Kprobe for connect syscall - use custom name to avoid BCC auto-attach conflicts
-int trace_connect(struct pt_regs *ctx) {
-    u64 id = bpf_get_current_pid_tgid();
-    u32 pid = id >> 32;
-    
-    // Get syscall arguments: sockfd (arg1), addr (arg2), addrlen (arg3)
-    int sockfd = (int)PT_REGS_PARM1(ctx);
-    struct sockaddr *addr = (struct sockaddr *)PT_REGS_PARM2(ctx);
-    int addrlen = (int)PT_REGS_PARM3(ctx);
-    
+// Helper function to extract port from sockaddr
+static int extract_port_info(u32 pid, struct sockaddr *addr, int addrlen) {
     if (addrlen < 2 || addr == 0) {
         return 0;  // Invalid arguments
     }
@@ -98,18 +91,33 @@ int trace_connect(struct pt_regs *ctx) {
             event.dest_ip = bpf_ntohl(sa.sin_addr.s_addr);
             event.dest_port = bpf_ntohs(sa.sin_port);
             port_map.update(&pid, &event);
+            return 1;  // Success
         }
     } else if (family == AF_INET6 && addrlen >= sizeof(struct sockaddr_in6)) {
         // IPv6
         struct sockaddr_in6 sa6;
         if (bpf_probe_read_user(&sa6, sizeof(sa6), addr) == 0) {
             event.dest_port = bpf_ntohs(sa6.sin6_port);
-            // For IPv6, we'll use 0.0.0.0 as placeholder
-            event.dest_ip = 0;
+            event.dest_ip = 0;  // IPv6 placeholder
             port_map.update(&pid, &event);
+            return 1;  // Success
         }
     }
     
+    return 0;
+}
+
+// Kprobe for connect syscall
+int trace_connect(struct pt_regs *ctx) {
+    u64 id = bpf_get_current_pid_tgid();
+    u32 pid = id >> 32;
+    
+    // Get syscall arguments: sockfd (arg1), addr (arg2), addrlen (arg3)
+    int sockfd = (int)PT_REGS_PARM1(ctx);
+    struct sockaddr *addr = (struct sockaddr *)PT_REGS_PARM2(ctx);
+    int addrlen = (int)PT_REGS_PARM3(ctx);
+    
+    extract_port_info(pid, addr, addrlen);
     return 0;
 }
 """
@@ -123,32 +131,41 @@ int trace_connect(struct pt_regs *ctx) {
             
             try:
                 self.bpf = BPF(text=ebpf_code)
-                # Try different syscall names (kernel version dependent)
-                # Based on /proc/kallsyms, we saw: __x64_sys_connect, __sys_connect
+                # Try tracepoint first (more reliable), then kprobe
                 attached = False
                 attach_errors = []
                 
-                # Try in order of likelihood
-                event_names = ["__x64_sys_connect", "__sys_connect", "sys_connect", "__se_sys_connect", "__do_sys_connect"]
+                # Method 1: Try tracepoint (syscalls:sys_enter_connect)
+                try:
+                    self.bpf.attach_tracepoint(tp="syscalls:sys_enter_connect", fn_name="trace_connect")
+                    logger.warning("✅ Attached tracepoint syscalls:sys_enter_connect")
+                    attached = True
+                except Exception as e:
+                    attach_errors.append(f"tracepoint: {e}")
+                    logger.debug(f"Tracepoint not available: {e}")
                 
-                for event_name in event_names:
-                    try:
-                        self.bpf.attach_kprobe(event=event_name, fn_name="trace_connect")
-                        logger.warning(f"✅ Attached kprobe to {event_name} -> trace_connect")
-                        attached = True
-                        break
-                    except Exception as e:
-                        attach_error = str(e)
-                        attach_errors.append(f"{event_name}: {attach_error}")
-                        logger.debug(f"Failed to attach to {event_name}: {attach_error}")
-                        continue
+                # Method 2: Try kprobe if tracepoint failed
+                if not attached:
+                    event_names = ["__x64_sys_connect", "__sys_connect", "sys_connect"]
+                    for event_name in event_names:
+                        try:
+                            self.bpf.attach_kprobe(event=event_name, fn_name="trace_connect")
+                            logger.warning(f"✅ Attached kprobe to {event_name}")
+                            attached = True
+                            break
+                        except Exception as e:
+                            attach_error = str(e)
+                            attach_errors.append(f"{event_name}: {attach_error}")
+                            continue
                 
                 if not attached:
-                    error_msg = f"Could not attach kprobe to any connect syscall. Tried: {', '.join(event_names)}. Errors: {'; '.join(attach_errors)}"
+                    error_msg = f"Could not attach to connect syscall. Errors: {'; '.join(attach_errors)}"
                     logger.error(error_msg)
-                    # Don't raise - set bpf to None so we can fall back gracefully
                     self.bpf = None
                     return
+                
+                # Verify it's working with a test
+                logger.warning("eBPF port extractor ready - will capture ports on next connect() calls")
             finally:
                 sys.stderr.close()
                 sys.stderr = old_stderr
@@ -180,7 +197,10 @@ int trace_connect(struct pt_regs *ctx) {
         try:
             # Get port from eBPF map
             port_map = self.bpf.get_table("port_map")
-            event = port_map.get(pid)
+            
+            # Try to get by PID
+            pid_key = port_map.Key(pid)
+            event = port_map[pid_key]
             
             if event:
                 # Convert IP from uint32 to dotted quad
@@ -195,8 +215,26 @@ int trace_connect(struct pt_regs *ctx) {
                 if port > 0:
                     result = (ip, port)
                     self.port_cache[pid] = result
-                    logger.debug(f"✅ eBPF extracted port for PID {pid}: {ip}:{port}")
+                    logger.warning(f"✅ eBPF extracted REAL port for PID {pid}: {ip}:{port}")
                     return result
+            else:
+                # Try iterating to find the PID (fallback)
+                for k, v in port_map.items():
+                    if k.value == pid:
+                        ip_int = v.dest_ip
+                        if ip_int > 0:
+                            ip = f"{(ip_int >> 24) & 0xFF}.{(ip_int >> 16) & 0xFF}.{(ip_int >> 8) & 0xFF}.{ip_int & 0xFF}"
+                        else:
+                            ip = "0.0.0.0"
+                        port = v.dest_port
+                        if port > 0:
+                            result = (ip, port)
+                            self.port_cache[pid] = result
+                            logger.warning(f"✅ eBPF extracted REAL port for PID {pid} (via iteration): {ip}:{port}")
+                            return result
+        except KeyError:
+            # PID not in map - that's okay, connection might not have happened yet
+            pass
         except Exception as e:
             logger.debug(f"Error reading eBPF port map for PID {pid}: {e}")
         
