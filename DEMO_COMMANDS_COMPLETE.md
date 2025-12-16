@@ -90,14 +90,18 @@ cat /tmp/security_agent_state.json | jq '.processes[] | {pid, name, risk_score, 
 ## Step 3: Port Attack Test
 
 ```bash
+# IMPORTANT: Make sure you're in the root directory (not in web/ subdirectory)
 cd ~/Linux-Security-Agent
 
 # Get latest log file
 LATEST_LOG=$(ls -t logs/security_agent_*.log 2>/dev/null | head -1)
 
-# Run port scan attack
+# Run port scan attack (must be run from root directory)
 echo "=== Running port scan attack ==="
 python3 -c "from scripts.simulate_attacks import simulate_network_scanning; simulate_network_scanning()"
+
+# Alternative: Run the script directly
+# python3 scripts/simulate_attacks.py
 
 # Wait 20 seconds for detection
 sleep 20
@@ -122,6 +126,7 @@ curl -s http://localhost:5001/api/agent/state | jq '.stats'
 ## Step 4: High Risk Score Test
 
 ```bash
+# IMPORTANT: Make sure you're in the root directory
 cd ~/Linux-Security-Agent
 
 # Get latest log file
@@ -263,6 +268,7 @@ sleep 5
 
 # === 4. PORT SCAN ATTACK ===
 echo "=== Port scan attack ==="
+cd ~/Linux-Security-Agent  # Ensure we're in root directory
 python3 -c "from scripts.simulate_attacks import simulate_network_scanning; simulate_network_scanning()"
 sleep 20
 echo "Port scan detections:"
@@ -272,6 +278,7 @@ cat /tmp/security_agent_state.json | jq '.stats'
 
 # === 5. HIGH-RISK ATTACK ===
 echo "=== High-risk attack ==="
+cd ~/Linux-Security-Agent  # Ensure we're in root directory
 python3 -c "from scripts.simulate_attacks import simulate_privilege_escalation; simulate_privilege_escalation()"
 sleep 15
 echo "High-risk detections:"
