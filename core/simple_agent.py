@@ -884,12 +884,11 @@ class SimpleSecurityAgent:
                         else:
                             logger.debug(f"Connection event for PID {pid}: syscall={syscall} (no event_info available)")
                         
-                        # For socket/connect syscalls, try to extract real port from syscall arguments
-                        # If not available, use simulated port for pattern detection
-                        if dest_port == 0 and syscall_normalized in ['socket', 'connect']:
-                            # Try to get real port from event_info if available
+                        # NEW: Try to get real port from /proc/net/tcp if using eBPF collector
+                        # This gives us REAL ports for C2 detection!
+                        if dest_port == 0 and syscall_normalized in ['socket', 'connect', 'sendto']:
+                            # Try to get real port from event_info first
                             if event_info and isinstance(event_info, dict):
-                                # Check for common port fields in event_info
                                 real_port = event_info.get('port') or event_info.get('dest_port') or event_info.get('dport')
                                 if real_port:
                                     try:
@@ -897,6 +896,26 @@ class SimpleSecurityAgent:
                                         logger.info(f"Using real port from event_info for PID {pid}: {dest_port}")
                                     except (ValueError, TypeError):
                                         pass
+                            
+                            # If still no port, try port extractor (reads /proc/net/tcp)
+                            if dest_port == 0:
+                                try:
+                                    # Lazy import to avoid circular dependencies
+                                    if not hasattr(self, '_port_extractor'):
+                                        from core.port_extractor import PortExtractor
+                                        self._port_extractor = PortExtractor()
+                                    
+                                    # Small delay to let connection establish (for connect syscalls)
+                                    if syscall_normalized == 'connect':
+                                        import time
+                                        time.sleep(0.05)  # 50ms delay for connection to establish
+                                    
+                                    result = self._port_extractor.get_destination(pid)
+                                    if result:
+                                        dest_ip, dest_port = result
+                                        logger.warning(f"✅ Got REAL port from /proc/net/tcp for PID {pid}: {dest_ip}:{dest_port}")
+                                except Exception as e:
+                                    logger.debug(f"Port extractor failed for PID {pid}: {e}")
                             
                             # CRITICAL FIX: Always generate simulated port if real port not available
                             # This ensures port scanning detection works even without real port extraction
