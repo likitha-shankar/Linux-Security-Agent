@@ -955,29 +955,37 @@ class SimpleSecurityAgent:
                                 # PRIORITY 2: Check PID history (fallback)
                                 elif self.connection_analyzer and pid in self.connection_analyzer.connection_history:
                                     prev_connections = list(self.connection_analyzer.connection_history[pid])
-                                    if len(prev_connections) >= 2:
-                                        last_interval = time.time() - prev_connections[-1]['time']
+                                    if len(prev_connections) >= 1:
+                                        last_interval = current_time - prev_connections[-1]['time']
                                         if last_interval >= 2.0:  # Spaced out = potential C2
                                             dest_port = prev_connections[-1]['port']
                                             logger.debug(f"🔍 Using same port for C2 pattern (PID): {dest_port} (interval: {last_interval:.1f}s)")
                                         else:
-                                            # Rapid connections = port scanning, vary ports
-                                            port_seed = f"{pid}_{dest_ip}_{connection_count}"
+                                            # Rapid connections = port scanning, ALWAYS vary ports
+                                            port_seed = f"{pid}_{dest_ip}_{connection_count}_{int(current_time * 1000)}"
                                             port_hash = int(hashlib.md5(port_seed.encode()).hexdigest()[:8], 16)
-                                            dest_port = 8000 + (port_hash % 200)
-                                            logger.debug(f"🔍 Varying port for scan pattern: {dest_port} (connection #{connection_count})")
+                                            dest_port = 8000 + (port_hash % 2000)  # Wider range
+                                            logger.info(f"🔍 Varying port for scan pattern (PID): {dest_port} (connection #{connection_count}, interval={last_interval:.3f}s)")
                                     else:
-                                        # First few connections - use consistent port
-                                        port_seed = f"{process_name}_{dest_ip}"  # Use process name for consistency
+                                        # First connection - use consistent port
+                                        port_seed = f"{process_name}_{dest_ip}"
                                         port_hash = int(hashlib.md5(port_seed.encode()).hexdigest()[:8], 16)
                                         dest_port = 8000 + (port_hash % 200)
                                         logger.debug(f"🔍 Generated consistent port for {process_name}->{dest_ip}: {dest_port}")
                                 else:
-                                    # No history - use consistent port based on process name + IP
-                                    port_seed = f"{process_name}_{dest_ip}"  # Same seed = same port
-                                    port_hash = int(hashlib.md5(port_seed.encode()).hexdigest()[:8], 16)
-                                    dest_port = 8000 + (port_hash % 200)
-                                    logger.debug(f"🔍 Generated initial port for {process_name}->{dest_ip}: {dest_port}")
+                                    # No history - for multiple connections, vary ports
+                                    if connection_count > 1:
+                                        # Multiple connections = likely port scan, vary ports
+                                        port_seed = f"{process_name}_{dest_ip}_{connection_count}_{int(current_time * 1000)}"
+                                        port_hash = int(hashlib.md5(port_seed.encode()).hexdigest()[:8], 16)
+                                        dest_port = 8000 + (port_hash % 2000)
+                                        logger.info(f"🔍 Varying port (no history, multiple connections): {dest_port} (connection #{connection_count})")
+                                    else:
+                                        # First connection - use consistent port
+                                        port_seed = f"{process_name}_{dest_ip}"
+                                        port_hash = int(hashlib.md5(port_seed.encode()).hexdigest()[:8], 16)
+                                        dest_port = 8000 + (port_hash % 200)
+                                        logger.debug(f"🔍 Generated initial port for {process_name}->{dest_ip}: {dest_port}")
                         
                         # CRITICAL: Only analyze if we have a valid port (not 0)
                         if dest_port > 0:
