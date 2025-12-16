@@ -955,14 +955,23 @@ class SimpleSecurityAgent:
                                     process_name = process_name[1:-1]
                                 
                                 connection_count = proc.get('connection_count', 0)
-                                proc['connection_count'] = connection_count + 1
                                 current_time = time.time()
                                 
-                                # ALWAYS generate base port deterministically from process_name + dest_ip
+                                # CRITICAL: Clean process name BEFORE calculating base port
+                                # This ensures same process always gets same base port
+                                clean_name_for_port = process_name
+                                if process_name.startswith('(') and process_name.endswith(')'):
+                                    clean_name_for_port = process_name[1:-1]
+                                
+                                # ALWAYS generate base port deterministically from CLEANED process_name + dest_ip
                                 # This ensures C2 connections ALWAYS use the same port (critical!)
-                                port_seed = f"{process_name}_{dest_ip}"
+                                port_seed = f"{clean_name_for_port}_{dest_ip}"
                                 port_hash = int(hashlib.md5(port_seed.encode()).hexdigest()[:8], 16)
                                 base_port = 8000 + (port_hash % 200)
+                                
+                                # NOW increment connection count
+                                proc['connection_count'] = connection_count + 1
+                                connection_count = proc['connection_count']  # Use incremented value
                                 
                                 # Check if this is a rapid connection (port scanning) vs spaced (C2)
                                 is_rapid = False
