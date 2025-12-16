@@ -1522,10 +1522,25 @@ class SimpleSecurityAgent:
                 # IMPORTANT: If we have detections in history but count is 0, log a warning
                 if len(self.recent_c2_detections) > 0 and raw_c2_count == 0:
                     logger.warning(f"⚠️ export_state: Has {len(self.recent_c2_detections)} C2 detections in history but count is 0 (may have expired beyond 5min window)")
+                    # Log details about the detections
+                    if len(self.recent_c2_detections) > 0:
+                        oldest_c2 = min(self.recent_c2_detections)
+                        newest_c2 = max(self.recent_c2_detections)
+                        age_oldest = current_time - oldest_c2
+                        age_newest = current_time - newest_c2
+                        logger.warning(f"   C2 detection ages: oldest={age_oldest:.1f}s, newest={age_newest:.1f}s (window=300s)")
                 if len(self.recent_scan_detections) > 0 and raw_port_scan_count == 0:
                     logger.warning(f"⚠️ export_state: Has {len(self.recent_scan_detections)} port scan detections in history but count is 0 (may have expired beyond 5min window)")
+                    # Log details about the detections
+                    if len(self.recent_scan_detections) > 0:
+                        oldest_scan = min(self.recent_scan_detections)
+                        newest_scan = max(self.recent_scan_detections)
+                        age_oldest = current_time - oldest_scan
+                        age_newest = current_time - newest_scan
+                        logger.warning(f"   Port scan detection ages: oldest={age_oldest:.1f}s, newest={age_newest:.1f}s (window=300s)")
                 
-                logger.debug(f"🔍 DEBUG export_state: Warm-up ended (time_since_startup={time_since_startup:.1f}s), raw_c2={raw_c2_count}, raw_port_scan={raw_port_scan_count}, total_c2_detections={len(self.recent_c2_detections)}, total_scan_detections={len(self.recent_scan_detections)}")
+                # Always log detection counts for debugging
+                logger.info(f"🔍 DEBUG export_state: Warm-up ended (time_since_startup={time_since_startup:.1f}s), raw_c2={raw_c2_count}, raw_port_scan={raw_port_scan_count}, total_c2_detections={len(self.recent_c2_detections)}, total_scan_detections={len(self.recent_scan_detections)}")
             
             state_result = {
                 'timestamp': current_time,
