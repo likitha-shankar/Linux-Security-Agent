@@ -903,26 +903,46 @@ class SimpleSecurityAgent:
                                 import hashlib
                                 
                                 # FIXED: Port simulation strategy for C2 beaconing detection
-                                # For C2 beaconing: Need SAME port for multiple connections (regular intervals)
-                                # For port scanning: Need DIFFERENT ports for multiple connections (5+ unique ports)
+                                # For C2 beaconing: Need SAME port for same process+IP (consistent)
+                                # For port scanning: Need DIFFERENT ports (varying)
                                 
-                                # Strategy: Check connection history to determine pattern
-                                # If connections are spaced out (potential C2), use same port
-                                # If connections are rapid (potential port scan), vary ports
+                                process_name = proc.get('name', 'unknown')
                                 connection_count = proc.get('connection_count', 0)
                                 proc['connection_count'] = connection_count + 1
                                 
-                                # Check if this might be C2 beaconing (spaced out connections)
-                                # If we have previous connections and they're spaced out, use same port
-                                if self.connection_analyzer and pid in self.connection_analyzer.connection_history:
+                                # PRIORITY 1: Check process name + IP history (for C2 detection across PID changes)
+                                if self.connection_analyzer and process_name in self.connection_analyzer.connection_history_by_name:
+                                    name_connections = self.connection_analyzer.connection_history_by_name[process_name]
+                                    if dest_ip in name_connections and len(name_connections[dest_ip]) > 0:
+                                        last_conn = name_connections[dest_ip][-1]
+                                        last_port = last_conn.get('port', 0)
+                                        last_time = last_conn.get('time', 0)
+                                        time_since_last = time.time() - last_time
+                                        
+                                        # If recent connection to same IP, use same port (C2 pattern)
+                                        if time_since_last < 15.0 and last_port > 0:
+                                            dest_port = last_port
+                                            logger.debug(f"🔍 Using same port for C2 pattern: {dest_port} (process={process_name}, IP={dest_ip}, interval={time_since_last:.1f}s)")
+                                        else:
+                                            # Too old - generate consistent port based on process+IP
+                                            port_seed = f"{process_name}_{dest_ip}"
+                                            port_hash = int(hashlib.md5(port_seed.encode()).hexdigest()[:8], 16)
+                                            dest_port = 8000 + (port_hash % 200)
+                                            logger.debug(f"🔍 Generated consistent port for {process_name}->{dest_ip}: {dest_port}")
+                                    else:
+                                        # No history for this IP - generate consistent port
+                                        port_seed = f"{process_name}_{dest_ip}"
+                                        port_hash = int(hashlib.md5(port_seed.encode()).hexdigest()[:8], 16)
+                                        dest_port = 8000 + (port_hash % 200)
+                                        logger.debug(f"🔍 Generated initial port for {process_name}->{dest_ip}: {dest_port}")
+                                # PRIORITY 2: Check PID history (fallback)
+                                elif self.connection_analyzer and pid in self.connection_analyzer.connection_history:
                                     prev_connections = list(self.connection_analyzer.connection_history[pid])
                                     if len(prev_connections) >= 2:
-                                        # Check if intervals are regular (C2 pattern)
                                         last_interval = time.time() - prev_connections[-1]['time']
                                         if last_interval >= 2.0:  # Spaced out = potential C2
-                                            # Use same port as last connection for C2 detection
                                             dest_port = prev_connections[-1]['port']
-                                            logger.debug(f"🔍 Using same port for C2 pattern: {dest_port} (interval: {last_interval:.1f}s)")
+                                            logger.debug(f"🔍 Using same port for C2 pattern (PID): {dest_port} (interval: {last_interval:.1f}s)")
                                         else:
                                             # Rapid connections = port scanning, vary ports
                                             port_seed = f"{pid}_{dest_ip}_{connection_count}"
@@ -930,17 +950,17 @@ class SimpleSecurityAgent:
                                             dest_port = 8000 + (port_hash % 200)
                                             logger.debug(f"🔍 Varying port for scan pattern: {dest_port} (connection #{connection_count})")
                                     else:
-                                        # First few connections - use consistent port (allows C2 detection)
-                                        port_seed = f"{pid}_{dest_ip}"  # Same seed = same port
+                                        # First few connections - use consistent port
+                                        port_seed = f"{process_name}_{dest_ip}"  # Use process name for consistency
                                         port_hash = int(hashlib.md5(port_seed.encode()).hexdigest()[:8], 16)
                                         dest_port = 8000 + (port_hash % 200)
-                                        logger.debug(f"🔍 Generated consistent port for PID {pid}: {dest_port}")
+                                        logger.debug(f"🔍 Generated consistent port for {process_name}->{dest_ip}: {dest_port}")
                                 else:
-                                    # No history yet - use consistent port (allows C2 detection)
-                                    port_seed = f"{pid}_{dest_ip}"  # Same seed = same port
+                                    # No history - use consistent port based on process name + IP
+                                    port_seed = f"{process_name}_{dest_ip}"  # Same seed = same port
                                     port_hash = int(hashlib.md5(port_seed.encode()).hexdigest()[:8], 16)
                                     dest_port = 8000 + (port_hash % 200)
-                                    logger.debug(f"🔍 Generated initial port for PID {pid}: {dest_port}")
+                                    logger.debug(f"🔍 Generated initial port for {process_name}->{dest_ip}: {dest_port}")
                         
                         # CRITICAL: Only analyze if we have a valid port (not 0)
                         if dest_port > 0:
