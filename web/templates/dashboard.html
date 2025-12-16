@@ -1021,12 +1021,16 @@
                     return response.json();
                 })
                 .catch(error => {
-                    // Agent not running or error - silently skip update
+                    // Agent not running or error - log for debugging
+                    console.debug('[Dashboard] Agent state sync failed:', error);
                     return null;
                 })
                 .then(state => {
                     if (!state || state.error) {
                         // State not available or stale, but continue with log-based updates
+                        if (state && state.error) {
+                            console.debug(`[Dashboard] State error: ${state.error}`);
+                        }
                         return;
                     }
                     
@@ -1069,9 +1073,17 @@
                         updateHighRiskFromState(state);
                         updateAttackListFromState(state);
                         
-                        // Debug logging to help diagnose display issues
-                        if (stats.highRisk > 0 || stats.attacks > 0) {
-                            console.log(`[Dashboard] Updated stats: highRisk=${stats.highRisk}, attacks=${stats.attacks}, c2=${stateC2Beacons}, portScans=${statePortScans}`);
+                        // Track previous values to detect changes
+                        const oldAttacks = window._lastAttackCount || 0;
+                        window._lastAttackCount = stats.attacks;
+                        
+                        // Log when values change (especially attacks)
+                        if (stats.attacks !== oldAttacks) {
+                            console.log(`[Dashboard] ⚠️ ATTACK COUNT CHANGED: ${oldAttacks} → ${stats.attacks} (Port Scans: ${statePortScans}, C2: ${stateC2Beacons})`);
+                        }
+                        // Always log current state every 10 polls (every 20 seconds) for debugging
+                        if (Math.random() < 0.1) {
+                            console.log(`[Dashboard] Current stats: processes=${stats.processes}, highRisk=${stats.highRisk}, anomalies=${stats.anomalies}, attacks=${stats.attacks} (portScans=${statePortScans}, c2=${stateC2Beacons})`);
                         }
                         
                         // Also update cumulative count for reference
