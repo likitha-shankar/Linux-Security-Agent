@@ -905,15 +905,18 @@ class SimpleSecurityAgent:
                                         from core.port_extractor import PortExtractor
                                         self._port_extractor = PortExtractor()
                                     
-                                    # Small delay to let connection establish (for connect syscalls)
+                                    # For connect syscalls, wait a bit longer for connection to establish
+                                    # For socket/sendto, check immediately
                                     if syscall_normalized == 'connect':
                                         import time
-                                        time.sleep(0.05)  # 50ms delay for connection to establish
+                                        time.sleep(0.1)  # 100ms delay for connection to establish
                                     
                                     result = self._port_extractor.get_destination(pid)
                                     if result:
                                         dest_ip, dest_port = result
                                         logger.warning(f"✅ Got REAL port from /proc/net/tcp for PID {pid}: {dest_ip}:{dest_port}")
+                                    else:
+                                        logger.debug(f"Port extractor found no port for PID {pid} (connection may not be established yet)")
                                 except Exception as e:
                                     logger.debug(f"Port extractor failed for PID {pid}: {e}")
                             
