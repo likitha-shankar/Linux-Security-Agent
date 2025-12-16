@@ -1101,7 +1101,8 @@ class SimpleSecurityAgent:
                                 try:
                                     state_before = self.export_state(skip_lock=True)
                                     logger.info(f"🔍 DEBUG: State BEFORE write - c2_beacons={state_before.get('stats', {}).get('c2_beacons', 0)}, port_scans={state_before.get('stats', {}).get('port_scans', 0)}")
-                                    self._write_state_file()
+                                    # IMPORTANT: we're already under processes_lock, avoid deadlock
+                                    self._write_state_file(skip_lock=True)
                                     # Verify the write by reading back
                                     state_after = self.export_state(skip_lock=True)
                                     actual_port_scans = state_after.get('stats', {}).get('port_scans', 0)
@@ -1557,52 +1558,42 @@ class SimpleSecurityAgent:
         return self._info_panel_cache
     
     def export_state(self, skip_lock: bool = False) -> Dict[str, Any]:
-        """Export current agent state for web dashboard
-        
-        Args:
-            skip_lock: If True, assume lock is already held (for use within locked context)
-        """
-        current_time = time.time()
+        """Export current agent state for web dashboard."""
         if skip_lock:
-            # Lock already held, proceed directly
-            pass
+            lock_acquired = False
         else:
-            # Acquire lock
             self.processes_lock.acquire()
-        
-            # Export all processes with their current state
+            lock_acquired = True
+
+        try:
+            current_time = time.time()
+
+            # Export processes
             processes_data = []
             for pid, proc in self.processes.items():
-                # Filter out excluded processes
                 proc_name = proc.get('name', 'unknown')
-                if proc_name.lower() not in [p.lower() for p in self.excluded_process_names]:
-                    # Get recent syscalls for display (last 10, formatted as string)
-                    recent_syscalls_list = list(proc.get('syscalls', []))[-10:]
-                    recent_syscalls_str = ', '.join(recent_syscalls_list) if recent_syscalls_list else ''
-                    
-                    processes_data.append({
-                        'pid': pid,
-                        'name': proc_name,
-                        'risk_score': proc.get('risk_score', 0.0),
-                        'anomaly_score': proc.get('anomaly_score', 0.0),
-                        'total_syscalls': proc.get('total_syscalls', len(proc.get('syscalls', []))),
-                        'syscall_count': len(proc.get('syscalls', [])),
-                        'recent_syscalls': recent_syscalls_list,  # Last 10 as list
-                        'recent_syscalls_str': recent_syscalls_str,  # Last 10 as formatted string
-                        'last_update': proc.get('last_update', 0),
-                        'time_since_update': current_time - proc.get('last_update', 0)
-                    })
-            
-            # Check if we're still in warm-up period
+                if proc_name.lower() in [p.lower() for p in self.excluded_process_names]:
+                    continue
+                recent_syscalls_list = list(proc.get('syscalls', []))[-10:]
+                recent_syscalls_str = ', '.join(recent_syscalls_list) if recent_syscalls_list else ''
+                processes_data.append({
+                    'pid': pid,
+                    'name': proc_name,
+                    'risk_score': proc.get('risk_score', 0.0),
+                    'anomaly_score': proc.get('anomaly_score', 0.0),
+                    'total_syscalls': proc.get('total_syscalls', len(proc.get('syscalls', []))),
+                    'syscall_count': len(proc.get('syscalls', [])),
+                    'recent_syscalls': recent_syscalls_list,
+                    'recent_syscalls_str': recent_syscalls_str,
+                    'last_update': proc.get('last_update', 0),
+                    'time_since_update': current_time - proc.get('last_update', 0)
+                })
+
             time_since_startup = current_time - self.startup_time
             in_warmup = time_since_startup < self.warmup_period_seconds
-            
-            # During warm-up, suppress high-risk and anomaly counts (but still show processes and syscalls)
+
             if in_warmup:
-                high_risk_count = 0
-                anomalies_count = 0
-                c2_beacons_count = 0
-                port_scans_count = 0
+                high_risk_count = anomalies_count = c2_beacons_count = port_scans_count = 0
                 logger.debug(f"🔍 DEBUG export_state: In warm-up (time_since_startup={time_since_startup:.1f}s < {self.warmup_period_seconds}s), suppressing counts")
             else:
                 high_risk_count = sum(1 for p in processes_data if p['risk_score'] >= self.config.get('risk_threshold', 30.0))
@@ -1611,30 +1602,14 @@ class SimpleSecurityAgent:
                 raw_port_scan_count = self._count_recent_detections(self.recent_scan_detections)
                 c2_beacons_count = raw_c2_count
                 port_scans_count = raw_port_scan_count
-                
-                # IMPORTANT: If we have detections in history but count is 0, log a warning
+
                 if len(self.recent_c2_detections) > 0 and raw_c2_count == 0:
-                    logger.warning(f"⚠️ export_state: Has {len(self.recent_c2_detections)} C2 detections in history but count is 0 (may have expired beyond 5min window)")
-                    # Log details about the detections
-                    if len(self.recent_c2_detections) > 0:
-                        oldest_c2 = min(self.recent_c2_detections)
-                        newest_c2 = max(self.recent_c2_detections)
-                        age_oldest = current_time - oldest_c2
-                        age_newest = current_time - newest_c2
-                        logger.warning(f"   C2 detection ages: oldest={age_oldest:.1f}s, newest={age_newest:.1f}s (window=300s)")
+                    logger.warning(f"⚠️ export_state: Has {len(self.recent_c2_detections)} C2 detections in history but count is 0")
                 if len(self.recent_scan_detections) > 0 and raw_port_scan_count == 0:
-                    logger.warning(f"⚠️ export_state: Has {len(self.recent_scan_detections)} port scan detections in history but count is 0 (may have expired beyond 5min window)")
-                    # Log details about the detections
-                    if len(self.recent_scan_detections) > 0:
-                        oldest_scan = min(self.recent_scan_detections)
-                        newest_scan = max(self.recent_scan_detections)
-                        age_oldest = current_time - oldest_scan
-                        age_newest = current_time - newest_scan
-                        logger.warning(f"   Port scan detection ages: oldest={age_oldest:.1f}s, newest={age_newest:.1f}s (window=300s)")
-                
-                # Always log detection counts for debugging
+                    logger.warning(f"⚠️ export_state: Has {len(self.recent_scan_detections)} port scan detections in history but count is 0")
+
                 logger.info(f"🔍 DEBUG export_state: Warm-up ended (time_since_startup={time_since_startup:.1f}s), raw_c2={raw_c2_count}, raw_port_scan={raw_port_scan_count}, total_c2_detections={len(self.recent_c2_detections)}, total_scan_detections={len(self.recent_scan_detections)}")
-            
+
             state_result = {
                 'timestamp': current_time,
                 'stats': {
@@ -1644,31 +1619,16 @@ class SimpleSecurityAgent:
                     'total_syscalls': self.stats['total_syscalls'],
                     'c2_beacons': c2_beacons_count,
                     'port_scans': port_scans_count,
-                    'risk_threshold': self.config.get('risk_threshold', 30.0)  # Include threshold for dashboard
+                    'risk_threshold': self.config.get('risk_threshold', 30.0)
                 },
-                'processes': sorted(processes_data, key=lambda x: x['risk_score'], reverse=True)[:50]  # Top 50
+                'processes': sorted(processes_data, key=lambda x: x['risk_score'], reverse=True)[:50]
             }
-            
-            # Log state export summary for debugging
+
             if high_risk_count > 0 or c2_beacons_count > 0 or port_scans_count > 0:
                 logger.info(f"📊 State export summary: processes={len(processes_data)}, high_risk={high_risk_count}, anomalies={anomalies_count}, c2_beacons={c2_beacons_count}, port_scans={port_scans_count}, syscalls={self.stats['total_syscalls']}")
-            
-            # Debug: Log attack counts (helps verify state file updates)
-            if c2_beacons_count > 0 or port_scans_count > 0:
-                logger.info(f"📊 State export: c2_beacons={c2_beacons_count}, port_scans={port_scans_count}, total_attacks={c2_beacons_count + port_scans_count}")
-            elif len(self.recent_c2_detections) > 0 or len(self.recent_scan_detections) > 0:
-                # Log if we have detections but counts are 0 (might be expired or warm-up issue)
-                time_since_startup = current_time - self.startup_time
-                in_warmup = time_since_startup < self.warmup_period_seconds
-                logger.warning(f"⚠️ State export: Has {len(self.recent_c2_detections)} C2 detections and {len(self.recent_scan_detections)} scan detections, but counts are 0!")
-                logger.warning(f"   Warm-up status: in_warmup={in_warmup}, time_since_startup={time_since_startup:.1f}s, warmup_period={self.warmup_period_seconds}s")
-                # If we have detections but warm-up is suppressing them, that's a problem!
-                if in_warmup and (len(self.recent_c2_detections) > 0 or len(self.recent_scan_detections) > 0):
-                    logger.error(f"❌ BUG: Attacks detected but warm-up is suppressing them! This should not happen - attacks should only be detected AFTER warm-up ends!")
-            
             return state_result
         finally:
-            if not skip_lock:
+            if lock_acquired:
                 self.processes_lock.release()
     
     def _write_state_file(self, skip_lock: bool = False):
