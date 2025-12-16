@@ -955,8 +955,9 @@ class SimpleSecurityAgent:
                                             logger.debug(f"🔍 Generated port (PID history): {dest_port}")
                                 
                                 # CRITICAL FIX: For port scan detection, we MUST vary ports
-                                # Strategy: If connection_count > 1 OR rapid connection, ALWAYS vary ports
-                                if connection_count > 1 or is_rapid_connection:
+                                # Strategy: After increment, connection_count >= 1 means 2nd+ connection
+                                # OR if rapid connection, ALWAYS vary ports
+                                if connection_count >= 1 or is_rapid_connection:
                                     # Vary ports using connection count + timestamp for uniqueness
                                     port_seed = f"{process_name}_{dest_ip}_{connection_count}_{int(current_time * 1000)}"
                                     port_hash = int(hashlib.md5(port_seed.encode()).hexdigest()[:8], 16)
@@ -968,8 +969,6 @@ class SimpleSecurityAgent:
                                     port_hash = int(hashlib.md5(port_seed.encode()).hexdigest()[:8], 16)
                                     dest_port = 8000 + (port_hash % 200)
                                     logger.debug(f"🔍 Generated initial port: {dest_port}")
-                                # PRIORITY 2: Check PID history (fallback)
-                                elif self.connection_analyzer and pid in self.connection_analyzer.connection_history:
                                     prev_connections = list(self.connection_analyzer.connection_history[pid])
                                     if len(prev_connections) >= 1:
                                         last_interval = current_time - prev_connections[-1]['time']
