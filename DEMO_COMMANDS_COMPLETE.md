@@ -93,22 +93,32 @@ cat /tmp/security_agent_state.json | jq '.processes[] | {pid, name, risk_score, 
 # IMPORTANT: Make sure you're in the root directory (not in web/ subdirectory)
 cd ~/Linux-Security-Agent
 
+# IMPORTANT: Make sure agent has been running for >30 seconds (warm-up period)
+echo "Checking agent uptime..."
+ps -p $(pgrep -f simple_agent.py) -o etime
+
 # Get latest log file
 LATEST_LOG=$(ls -t logs/security_agent_*.log 2>/dev/null | head -1)
+echo "Log file: $LATEST_LOG"
+
+# Run diagnostic first (optional)
+python3 scripts/diagnose_port_scan.py
 
 # Run port scan attack (must be run from root directory)
 echo "=== Running port scan attack ==="
 python3 -c "from scripts.simulate_attacks import simulate_network_scanning; simulate_network_scanning()"
 
-# Alternative: Run the script directly
-# python3 scripts/simulate_attacks.py
-
-# Wait 20 seconds for detection
-sleep 20
+# Wait 30 seconds for detection (agent needs time to process)
+echo "⏳ Waiting 30 seconds for detection..."
+sleep 30
 
 # Check detection in logs
 echo "=== Port scan detections in log ==="
 sudo grep -i "PORT_SCANNING\|Port scan detected" "$LATEST_LOG" | tail -10
+
+# Check for connection analyses
+echo "=== Connection analyses in log ==="
+sudo grep -i "Analyzing connection pattern\|VARYING PORT" "$LATEST_LOG" | tail -10
 
 # Check state file
 echo "=== State file after attack ==="
@@ -119,6 +129,11 @@ echo "=== Dashboard API after attack ==="
 curl -s http://localhost:5001/api/agent/state | jq '.stats'
 
 # Should show port_scans > 0
+# If still 0, check logs for:
+# - "NETWORK SYSCALL DETECTED" (should see connect syscalls)
+# - "Analyzing connection pattern" (should see connection analyses)
+# - "VARYING PORT" (should see ports being varied)
+# - "Warm-up period" (should be ended)
 ```
 
 ---
