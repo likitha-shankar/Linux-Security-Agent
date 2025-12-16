@@ -1097,20 +1097,20 @@ class SimpleSecurityAgent:
                                 logger.warning(f"   Port scan detected (recent count: {count}, total detections in history: {len(self.recent_scan_detections)})")
                                 
                                 # Force immediate state file update so dashboard shows attack quickly
-                                # NOTE: We're already inside processes_lock (from _handle_event), so don't acquire it again
+                                # NOTE: We're already inside processes_lock (from _handle_event), so pass skip_lock=True
                                 try:
-                                    state_before = self.export_state()
+                                    state_before = self.export_state(skip_lock=True)
                                     logger.info(f"🔍 DEBUG: State BEFORE write - c2_beacons={state_before.get('stats', {}).get('c2_beacons', 0)}, port_scans={state_before.get('stats', {}).get('port_scans', 0)}")
                                     self._write_state_file()
                                     # Verify the write by reading back
-                                    state_after = self.export_state()
+                                    state_after = self.export_state(skip_lock=True)
                                     actual_port_scans = state_after.get('stats', {}).get('port_scans', 0)
                                     logger.info(f"🔍 DEBUG: State AFTER write - c2_beacons={state_after.get('stats', {}).get('c2_beacons', 0)}, port_scans={actual_port_scans}")
                                     if actual_port_scans != count:
                                         logger.error(f"❌ STATE FILE MISMATCH: Expected port_scans={count}, got {actual_port_scans}. Retrying write...")
                                         # Retry once more
                                         self._write_state_file()
-                                        state_retry = self.export_state()
+                                        state_retry = self.export_state(skip_lock=True)
                                         retry_port_scans = state_retry.get('stats', {}).get('port_scans', 0)
                                         logger.info(f"🔍 DEBUG: After retry - port_scans={retry_port_scans}")
                                     else:
@@ -1668,6 +1668,9 @@ class SimpleSecurityAgent:
                     logger.error(f"❌ BUG: Attacks detected but warm-up is suppressing them! This should not happen - attacks should only be detected AFTER warm-up ends!")
             
             return state_result
+        finally:
+            if not skip_lock:
+                self.processes_lock.release()
     
     def _write_state_file(self):
         """Write agent state to JSON file for web dashboard"""
