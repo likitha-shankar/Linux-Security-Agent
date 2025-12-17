@@ -1,0 +1,11 @@
+psutil
+scikit-learn
+numpy
+pandas
+colorama
+rich
+click
+requests
+coverage
+pytest
+pytest-cov

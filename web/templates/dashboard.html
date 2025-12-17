@@ -1,0 +1,2390 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Linux Security Agent - Dashboard</title>
+    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: linear-gradient(135deg, #e8f0f8 0%, #d4e1f0 50%, #f0f5fa 100%);
+            background-attachment: fixed;
+            color: #2d3748;
+            min-height: 100vh;
+            overflow-x: hidden;
+            line-height: 1.6;
+        }
+        
+        .header {
+            background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 30%, #ec4899 60%, #f59e0b 100%);
+            background-size: 300% 300%;
+            animation: gradientShift 6s ease infinite;
+            padding: 28px 40px;
+            box-shadow: 0 10px 40px rgba(79, 70, 229, 0.5), 0 6px 20px rgba(0, 0, 0, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.3);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            backdrop-filter: blur(20px);
+            border-bottom: 3px solid rgba(255, 255, 255, 0.3);
+        }
+        
+        @keyframes gradientShift {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+        
+        .header h1 {
+            color: white;
+            font-size: 1.5em;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        
+        .header h1 i {
+            font-size: 1.2em;
+        }
+        
+        .status-badge {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            background: rgba(255, 255, 255, 0.3);
+            backdrop-filter: blur(15px);
+            padding: 12px 22px;
+            border-radius: 30px;
+            border: 1px solid rgba(255, 255, 255, 0.4);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+            transition: all 0.3s ease;
+        }
+        
+        .status-badge:hover {
+            background: rgba(255, 255, 255, 0.4);
+            transform: scale(1.05);
+        }
+        
+        .status-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: #ff4444;
+            box-shadow: 0 0 8px rgba(255, 68, 68, 0.6);
+            animation: pulse 2s infinite;
+        }
+        
+        .status-dot.active {
+            background: #4caf50;
+            box-shadow: 0 0 8px rgba(76, 175, 80, 0.6);
+        }
+        
+        .status-badge span {
+            color: white;
+            font-weight: 500;
+            font-size: 0.9em;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.7; }
+        }
+        
+        .container {
+            max-width: 1600px;
+            margin: 0 auto;
+            padding: 24px;
+        }
+        
+        .stats-row {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-bottom: 24px;
+        }
+        
+        .stat-card {
+            background: linear-gradient(135deg, #ffffff 0%, #f8fafc 50%, #f1f5f9 100%);
+            border-radius: 24px;
+            padding: 36px;
+            box-shadow: 0 12px 24px rgba(0, 0, 0, 0.12), 0 6px 12px rgba(0, 0, 0, 0.08), inset 0 2px 4px rgba(255, 255, 255, 0.9), inset 0 -2px 4px rgba(0, 0, 0, 0.05);
+            border: 3px solid rgba(226, 232, 240, 0.8);
+            transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .stat-card::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 3px;
+            background: linear-gradient(90deg, transparent, rgba(102, 126, 234, 0.3), transparent);
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+        
+        .stat-card:hover {
+            transform: translateY(-6px) scale(1.02);
+            box-shadow: 0 16px 32px rgba(102, 126, 234, 0.2), 0 8px 16px rgba(0, 0, 0, 0.12);
+            border-color: rgba(102, 126, 234, 0.5);
+        }
+        
+        .stat-card:hover::after {
+            opacity: 1;
+        }
+        
+        .stat-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 6px;
+            height: 100%;
+            background: linear-gradient(180deg, #4f46e5 0%, #7c3aed 50%, #ec4899 100%);
+            box-shadow: 3px 0 12px rgba(79, 70, 229, 0.5), 0 0 20px rgba(124, 58, 237, 0.3);
+        }
+        
+        .stat-card.high-risk::before {
+            background: #dc3545;
+        }
+        
+        .stat-card.anomaly::before {
+            background: #ffc107;
+        }
+        
+        .stat-card.attack::before {
+            background: #dc3545;
+        }
+        
+        .stat-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 12px;
+        }
+        
+        .stat-icon {
+            width: 72px;
+            height: 72px;
+            border-radius: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 2em;
+            background: linear-gradient(135deg, #eef2ff 0%, #e0e7ff 30%, #ddd6fe 70%, #f3e8ff 100%);
+            color: #4f46e5;
+            box-shadow: 0 8px 16px rgba(79, 70, 229, 0.3), 0 4px 8px rgba(124, 58, 237, 0.2), inset 0 2px 4px rgba(255, 255, 255, 0.9), inset 0 -2px 4px rgba(79, 70, 229, 0.1);
+            transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+            position: relative;
+            border: 2px solid rgba(79, 70, 229, 0.2);
+        }
+        
+        .stat-icon::before {
+            content: '';
+            position: absolute;
+            inset: -2px;
+            border-radius: 20px;
+            background: linear-gradient(135deg, rgba(102, 126, 234, 0.3), rgba(118, 75, 162, 0.3));
+            opacity: 0;
+            transition: opacity 0.3s;
+            z-index: -1;
+        }
+        
+        .stat-card:hover .stat-icon {
+            transform: scale(1.15) rotate(8deg);
+            box-shadow: 0 10px 20px rgba(102, 126, 234, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.9);
+        }
+        
+        .stat-card:hover .stat-icon::before {
+            opacity: 1;
+        }
+        
+        .stat-card.high-risk .stat-icon {
+            background: #fee;
+            color: #dc3545;
+        }
+        
+        .stat-card.anomaly .stat-icon {
+            background: #fffbf0;
+            color: #ffc107;
+        }
+        
+        .stat-card.attack .stat-icon {
+            background: #fee;
+            color: #dc3545;
+            animation: pulse 2s infinite;
+        }
+        
+        .stat-value {
+            font-size: 3.2em;
+            font-weight: 900;
+            background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 25%, #ec4899 50%, #f59e0b 75%, #4f46e5 100%);
+            background-size: 300% 300%;
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin-bottom: 10px;
+            line-height: 1;
+            letter-spacing: -1.5px;
+            filter: drop-shadow(0 2px 4px rgba(79, 70, 229, 0.3));
+            animation: textShimmer 4s ease-in-out infinite;
+        }
+        
+        @keyframes textShimmer {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+        
+        .stat-label {
+            font-size: 0.875em;
+            color: #718096;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            font-weight: 500;
+        }
+        
+        .stat-subtitle {
+            font-size: 0.75em;
+            color: #a0aec0;
+            margin-top: 4px;
+        }
+        
+        .main-grid {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 24px;
+        }
+        
+        @media (min-width: 1400px) {
+            .main-grid {
+                grid-template-columns: 1fr 350px;
+            }
+        }
+        
+        .card {
+            background: linear-gradient(135deg, #ffffff 0%, #f8fafc 50%, #f1f5f9 100%);
+            border-radius: 24px;
+            padding: 36px;
+            box-shadow: 0 12px 28px rgba(0, 0, 0, 0.12), 0 6px 16px rgba(0, 0, 0, 0.1), inset 0 2px 4px rgba(255, 255, 255, 0.9);
+            border: 3px solid rgba(226, 232, 240, 0.8);
+            transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        
+        .card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 16px 40px rgba(79, 70, 229, 0.2), 0 8px 20px rgba(0, 0, 0, 0.15);
+            border-color: rgba(79, 70, 229, 0.5);
+        }
+        
+        .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 24px;
+            padding-bottom: 18px;
+            border-bottom: 2px solid #f7fafc;
+            background: linear-gradient(to right, transparent, rgba(102, 126, 234, 0.05), transparent);
+            padding-top: 4px;
+            margin-top: -4px;
+        }
+        
+        .card-header h2 {
+            color: #2d3748;
+            font-size: 1.25em;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .card-header h2 i {
+            color: #667eea;
+        }
+        
+        .log-section {
+            display: flex;
+            flex-direction: column;
+            min-height: 600px;
+        }
+        
+        .log-controls {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        
+        .btn {
+            padding: 10px 18px;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 0.875em;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            background: white;
+            color: #4a5568;
+            font-weight: 600;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+        }
+        
+        .btn:hover {
+            background: linear-gradient(135deg, #f7fafc 0%, #edf2f7 100%);
+            border-color: #cbd5e0;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+        }
+        
+        .btn-success {
+            background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+            color: white;
+            border-color: #28a745;
+        }
+        
+        .btn-success:hover {
+            background: linear-gradient(135deg, #218838 0%, #1aa179 100%);
+            box-shadow: 0 4px 12px rgba(40, 167, 69, 0.3);
+        }
+        
+        .btn-danger {
+            background: linear-gradient(135deg, #dc3545 0%, #c82333 100%);
+            color: white;
+            border-color: #dc3545;
+        }
+        
+        .btn-danger:hover {
+            background: linear-gradient(135deg, #c82333 0%, #bd2130 100%);
+            box-shadow: 0 4px 12px rgba(220, 53, 69, 0.3);
+        }
+        
+        .btn.active {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-color: #667eea;
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+        }
+        
+        .btn.active:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 16px rgba(102, 126, 234, 0.5);
+        }
+        
+        select.btn {
+            cursor: pointer;
+            appearance: none;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%234a5568' d='M6 9L1 4h10z'/%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 8px center;
+            padding-right: 30px;
+        }
+        
+        select.btn:hover {
+            background-color: #f7fafc;
+        }
+        
+        .terminal {
+            flex: 1;
+            background: linear-gradient(135deg, #1a202c 0%, #0f1419 100%);
+            padding: 24px;
+            overflow-y: auto;
+            font-family: 'SF Mono', 'Monaco', 'Cascadia Code', 'Courier New', monospace;
+            font-size: 0.875em;
+            line-height: 1.6;
+            border-radius: 12px;
+            border: 1px solid rgba(226, 232, 240, 0.1);
+            margin-top: 16px;
+            box-shadow: inset 0 2px 8px rgba(0, 0, 0, 0.3), 0 4px 12px rgba(0, 0, 0, 0.2);
+        }
+        
+        .log-line {
+            margin-bottom: 8px;
+            padding: 10px 12px;
+            border-radius: 6px;
+            word-wrap: break-word;
+            border-left: 3px solid transparent;
+            background: rgba(255, 255, 255, 0.02);
+            transition: background 0.2s;
+        }
+        
+        .log-line:hover {
+            background: rgba(255, 255, 255, 0.05);
+        }
+        
+        .log-line.info {
+            color: #a0aec0;
+            border-left-color: #4299e1;
+        }
+        
+        .log-line.warning {
+            color: #f6ad55;
+            background: rgba(246, 173, 85, 0.1);
+            border-left-color: #f6ad55;
+        }
+        
+        .log-line.error {
+            color: #fc8181;
+            background: rgba(252, 129, 129, 0.1);
+            border-left-color: #fc8181;
+        }
+        
+        .log-line.attack {
+            color: #f56565;
+            background: rgba(245, 101, 101, 0.15);
+            border-left-color: #f56565;
+            font-weight: 600;
+            animation: slideIn 0.3s;
+        }
+        
+        .log-line.anomaly {
+            color: #f6ad55;
+            background: rgba(246, 173, 85, 0.12);
+            border-left-color: #f6ad55;
+            font-weight: 600;
+        }
+        
+        .log-line.score {
+            color: #90cdf4;
+            border-left-color: #4299e1;
+        }
+        
+        @keyframes slideIn {
+            from {
+                transform: translateX(-10px);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+        
+        .timestamp {
+            color: #718096;
+            font-size: 0.85em;
+            margin-right: 12px;
+            font-weight: 500;
+        }
+        
+        .chart-container {
+            height: 240px;
+            margin-top: 16px;
+            background: linear-gradient(135deg, rgba(255, 255, 255, 0.5) 0%, rgba(247, 250, 252, 0.5) 100%);
+            border-radius: 12px;
+            padding: 16px;
+            box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.05);
+        }
+        
+        .process-list {
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        
+        .process-item {
+            padding: 18px;
+            margin-bottom: 14px;
+            background: linear-gradient(135deg, #f7fafc 0%, #ffffff 100%);
+            border-radius: 12px;
+            border-left: 5px solid #667eea;
+            border: 1px solid rgba(226, 232, 240, 0.8);
+            border-left-width: 5px;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+        }
+        
+        .process-item:hover {
+            background: linear-gradient(135deg, #edf2f7 0%, #f7fafc 100%);
+            transform: translateX(4px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+            border-left-width: 6px;
+        }
+        
+        .process-item.high-risk {
+            border-left-color: #dc3545;
+            background: #fff5f5;
+        }
+        
+        .process-item.anomaly {
+            border-left-color: #ffc107;
+            background: #fffbf0;
+        }
+        
+        .process-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+        
+        .process-name {
+            font-weight: 600;
+            color: #2d3748;
+            font-size: 0.95em;
+        }
+        
+        .process-scores {
+            display: flex;
+            gap: 16px;
+            font-size: 0.875em;
+        }
+        
+        .score {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        
+        .score-label {
+            color: #718096;
+            font-size: 0.85em;
+        }
+        
+        .score-value {
+            font-weight: 600;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 0.9em;
+        }
+        
+        .score-value.risk-high {
+            color: #dc3545;
+            background: #fee;
+        }
+        
+        .score-value.risk-medium {
+            color: #ffc107;
+            background: #fffbf0;
+        }
+        
+        .score-value.risk-low {
+            color: #28a745;
+            background: #f0fff4;
+        }
+        
+        .process-pid {
+            font-size: 0.8em;
+            color: #a0aec0;
+            margin-top: 6px;
+        }
+        
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: #a0aec0;
+        }
+        
+        .empty-state-icon {
+            font-size: 3em;
+            margin-bottom: 12px;
+            opacity: 0.5;
+        }
+        
+        .empty-state-text {
+            font-size: 0.9em;
+        }
+        
+        .alert-banner {
+            background: linear-gradient(135deg, #dc3545 0%, #c82333 100%);
+            color: white;
+            padding: 16px 24px;
+            text-align: center;
+            font-weight: 600;
+            animation: slideDown 0.3s;
+            display: none;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            position: sticky;
+            top: 0;
+            z-index: 1000;
+        }
+        
+        @keyframes slideDown {
+            from {
+                transform: translateY(-100%);
+            }
+            to {
+                transform: translateY(0);
+            }
+        }
+        
+        .info-box {
+            background: #e6f3ff;
+            border-left: 4px solid #4299e1;
+            padding: 16px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+        
+        .info-box code {
+            background: white;
+            padding: 6px 12px;
+            border-radius: 4px;
+            font-family: 'SF Mono', monospace;
+            font-size: 0.9em;
+            color: #2d3748;
+            display: inline-block;
+            margin: 8px 0;
+            border: 1px solid #cbd5e0;
+        }
+        
+        .info-box strong {
+            color: #2d3748;
+            display: block;
+            margin-bottom: 8px;
+        }
+        
+        .info-box span {
+            color: #4a5568;
+            font-size: 0.9em;
+            display: block;
+            margin-top: 8px;
+        }
+    </style>
+</head>
+<body>
+    <div class="alert-banner" id="alertBanner"></div>
+    
+    <div class="header">
+        <h1>
+            <i class="fas fa-shield-alt"></i>
+            <span>Linux Security Agent - Live Dashboard</span>
+        </h1>
+        <div style="display: flex; align-items: center; gap: 16px;">
+            <div class="status-badge">
+                <div class="status-dot" id="statusDot"></div>
+                <span id="statusText">Checking...</span>
+            </div>
+            <button id="startAgentBtn" class="btn btn-success" style="display: none;" onclick="startAgent()">
+                <i class="fas fa-play"></i> Start Agent
+            </button>
+            <button id="stopAgentBtn" class="btn btn-danger" style="display: none;" onclick="stopAgent()">
+                <i class="fas fa-stop"></i> Stop Agent
+            </button>
+        </div>
+    </div>
+    
+    <div class="container">
+        <!-- Quick Stats Row -->
+        <div class="stats-row">
+            <div class="stat-card">
+                <div class="stat-header">
+                    <div>
+                        <div class="stat-value" id="statProcesses">0</div>
+                        <div class="stat-label">Processes</div>
+                    </div>
+                    <div class="stat-icon">
+                        <i class="fas fa-microchip"></i>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="stat-card high-risk">
+                <div class="stat-header">
+                    <div>
+                        <div class="stat-value" id="statHighRisk">0</div>
+                        <div class="stat-label">High Risk</div>
+                    </div>
+                    <div class="stat-icon">
+                        <i class="fas fa-exclamation-triangle"></i>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="stat-card anomaly">
+                <div class="stat-header">
+                    <div>
+                        <div class="stat-value" id="statAnomalies">0</div>
+                        <div class="stat-label">Anomalies</div>
+                    </div>
+                    <div class="stat-icon">
+                        <i class="fas fa-exclamation-circle"></i>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="stat-card attack">
+                <div class="stat-header">
+                    <div>
+                        <div class="stat-value" id="statAttacks">0</div>
+                        <div class="stat-label">Attacks</div>
+                    </div>
+                    <div class="stat-icon">
+                        <i class="fas fa-bug"></i>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="stat-card">
+                <div class="stat-header">
+                    <div>
+                        <div class="stat-value" id="statSyscalls">0</div>
+                        <div class="stat-label">Total Syscalls</div>
+                    </div>
+                    <div class="stat-icon">
+                        <i class="fas fa-chart-line"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Main Content Grid -->
+        <div class="main-grid">
+            <!-- Left: Main Content -->
+            <div style="display: flex; flex-direction: column; gap: 24px;">
+                <!-- Activity Chart -->
+                <div class="card">
+                    <div class="card-header">
+                        <h2><i class="fas fa-chart-area"></i> Activity Timeline</h2>
+                    </div>
+                    <div class="chart-container">
+                        <canvas id="activityChart"></canvas>
+                    </div>
+                </div>
+                
+                <!-- Two Column Grid for Detections -->
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px;">
+                    <!-- Recent High-Risk Detections -->
+                    <div class="card">
+                        <div class="card-header">
+                            <h2><i class="fas fa-exclamation-triangle"></i> Recent High-Risk</h2>
+                            <button class="btn" onclick="clearHighRiskList()" style="font-size: 0.75em; padding: 4px 8px;">
+                                <i class="fas fa-trash"></i> Clear
+                            </button>
+                        </div>
+                        <div class="process-list" id="highRiskList" style="max-height: 300px;">
+                            <div class="empty-state">
+                                <div class="empty-state-icon">🛡️</div>
+                                <div class="empty-state-text">No high-risk processes yet</div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Recent Attacks -->
+                    <div class="card">
+                        <div class="card-header">
+                            <h2><i class="fas fa-bug"></i> Recent Attacks</h2>
+                            <button class="btn" onclick="clearAttackList()" style="font-size: 0.75em; padding: 4px 8px;">
+                                <i class="fas fa-trash"></i> Clear
+                            </button>
+                        </div>
+                        <div class="process-list" id="attackList" style="max-height: 300px;">
+                            <div class="empty-state">
+                                <div class="empty-state-icon">✅</div>
+                                <div class="empty-state-text">No attacks detected yet</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- All Processes -->
+                <div class="card">
+                    <div class="card-header">
+                        <h2><i class="fas fa-list"></i> All Processes</h2>
+                    </div>
+                    <div class="process-list" id="processList" style="max-height: 300px;">
+                        <div class="empty-state">
+                            <div class="empty-state-icon">📭</div>
+                            <div class="empty-state-text">No processes detected yet</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Right: Sidebar (empty for now, or can add other widgets) -->
+            <div style="display: flex; flex-direction: column; gap: 24px;">
+                <!-- Can add additional widgets here if needed -->
+            </div>
+        </div>
+        
+        <!-- Logs Section at Bottom (Full Width) -->
+        <div class="card log-section" style="margin-top: 24px;">
+            <div class="card-header">
+                <h2><i class="fas fa-terminal"></i> Live Logs</h2>
+                <div class="log-controls">
+                    <select id="logFileSelector" class="btn" style="padding: 6px 12px; margin-right: 8px;" onchange="loadLogFile()">
+                        <option value="live">📡 Live (Current Run)</option>
+                    </select>
+                    <button class="btn" onclick="clearLogs()">
+                        <i class="fas fa-trash"></i> Clear
+                    </button>
+                    <button class="btn" onclick="toggleAutoScroll()" id="autoScrollBtn">
+                        <i class="fas fa-arrow-down"></i> Auto-scroll: ON
+                    </button>
+                </div>
+            </div>
+            <div class="terminal" id="terminal">
+                <div class="log-line info">
+                    <span class="timestamp">[Ready]</span>
+                    <span>📋 Dashboard Ready</span>
+                </div>
+                <div class="info-box" style="margin-top: 16px;">
+                    <strong>To start monitoring:</strong><br>
+                    Run this command in your VM terminal:<br>
+                    <code>sudo python3 core/simple_agent.py --collector ebpf --threshold 20</code><br>
+                    <span>The dashboard will automatically detect when the agent starts and show live logs.</span>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        const socket = io();
+        const terminal = document.getElementById('terminal');
+        const statusDot = document.getElementById('statusDot');
+        const statusText = document.getElementById('statusText');
+        const alertBanner = document.getElementById('alertBanner');
+        
+        let stats = {
+            processes: 0,
+            highRisk: 0,
+            anomalies: 0,
+            attacks: 0,
+            syscalls: 0
+        };
+        
+        let processes = new Map(); // pid -> {name, risk, anomaly, syscalls, lastSeen}
+        let autoScroll = true;
+        let currentLogMode = 'live'; // 'live' or 'file'
+        let logFileWatcher = null;
+        // Track unique anomaly detections to avoid double counting
+        let anomalyDetections = new Set(); // Store "PID:timestamp" to track unique detections
+        let highRiskDetections = new Set(); // Store "PID:timestamp" to track unique high risk detections
+        // Store detailed detection information
+        let highRiskList = []; // Array of {pid, name, risk, anomaly, syscalls, timestamp, details}
+        // Log-based attack entries (from WebSocket logs)
+        let attackList = []; // Array of {type, pid, name, details, timestamp, source}
+        // State-based summary attack entries (derived from agent state)
+        let stateAttackList = []; // Array of {type, pid, name, details, timestamp, source: 'state'}
+        // Track total syscalls (cumulative across all processes in this session)
+        let cumulativeSyscallsCount = 0;
+        // Track recent attacks (for current count - last 5 minutes)
+        let recentAttacks = []; // Array of {timestamp, ...}
+        const ATTACK_WINDOW_MS = 5 * 60 * 1000; // 5 minutes
+        const PROCESS_TIMEOUT_MS = 60 * 1000; // Process considered inactive after 60 seconds
+        // Track previous agent status to detect when it starts
+        let previousAgentStatus = false; // false = stopped, true = running
+        let activityData = {
+            labels: [],      // X-axis: Time (e.g., "10:30:45 PM")
+            anomalies: [],   // Y-axis: Cumulative count of anomalies detected
+            attacks: [],     // Y-axis: Cumulative count of attacks detected
+            highRisk: []     // Y-axis: Cumulative count of high-risk processes
+            // Removed 'normal' - it was confusing (calculated value, not direct count)
+        };
+        
+        // Initialize chart with light theme
+        let activityChart = null;
+        try {
+            const canvas = document.getElementById('activityChart');
+            if (canvas) {
+                const ctx = canvas.getContext('2d');
+                activityChart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: activityData.labels,
+                datasets: [
+                    // Removed 'Normal' line - it was confusing (calculated as total - others)
+                    // Keeping only security-relevant metrics: Anomalies, Attacks, High Risk
+                    {
+                        label: 'Anomalies',
+                        data: activityData.anomalies,
+                        borderColor: '#ffc107',
+                        backgroundColor: 'rgba(255, 193, 7, 0.1)',
+                        tension: 0.4,
+                        borderWidth: 2
+                    },
+                    {
+                        label: 'Attacks',
+                        data: activityData.attacks,
+                        borderColor: '#dc3545',
+                        backgroundColor: 'rgba(220, 53, 69, 0.1)',
+                        tension: 0.4,
+                        borderWidth: 2
+                    },
+                    {
+                        label: 'High Risk',
+                        data: activityData.highRisk,
+                        borderColor: '#ff9800',
+                        backgroundColor: 'rgba(255, 152, 0, 0.1)',
+                        tension: 0.4,
+                        borderWidth: 2
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        labels: { 
+                            color: '#4a5568', 
+                            font: { size: 11, family: "'Segoe UI', sans-serif" },
+                            usePointStyle: true,
+                            padding: 12
+                        },
+                        position: 'bottom'
+                    }
+                },
+                scales: {
+                    x: { 
+                        ticks: { color: '#718096', font: { size: 10 }, maxRotation: 45, minRotation: 0 }, 
+                        grid: { color: '#e2e8f0', drawBorder: false } 
+                    },
+                    y: { 
+                        ticks: { color: '#718096', font: { size: 10 } }, 
+                        grid: { color: '#e2e8f0', drawBorder: false },
+                        beginAtZero: true,
+                        suggestedMax: undefined // Auto-scale based on data
+                    }
+                }
+            }
+        });
+            } else {
+                console.error('Activity chart canvas element not found');
+            }
+        } catch (error) {
+            console.error('Error initializing activity chart:', error);
+        }
+        
+        // Socket.IO event handlers
+        socket.on('connect', () => {
+            addLog('Connected to dashboard', 'info');
+            checkStatus();
+        });
+        
+        socket.on('disconnect', () => {
+            addLog('Disconnected from dashboard', 'warning');
+        });
+        
+        socket.on('log', (data) => {
+            // Only process live logs if in live mode
+            if (currentLogMode === 'live') {
+                // Skip displaying SCORE UPDATE logs in terminal (reduce spam)
+                // But still process them for statistics
+                if (data.type !== 'score' || data.message.includes('Risk=') && data.message.includes('Anomaly=')) {
+                    // Only show score updates if they're significant (high risk/anomaly)
+                    const riskMatch = data.message.match(/Risk=(\d+\.?\d*)/);
+                    const anomalyMatch = data.message.match(/Anomaly=(\d+\.?\d*)/);
+                    if (riskMatch && parseFloat(riskMatch[1]) > 30) {
+                        addLog(data.message, data.type);
+                    } else if (anomalyMatch && parseFloat(anomalyMatch[1]) > 40) {
+                        addLog(data.message, data.type);
+                    } else if (data.type !== 'score') {
+                        addLog(data.message, data.type);
+                    }
+                    // Always process for stats (even if not displayed)
+                }
+                updateStats(data);
+                updateProcessList(data);
+            }
+        });
+        
+        socket.on('alert', (data) => {
+            showAlert(data);
+            updateStats({ type: data.type });
+        });
+        
+        // Sync with agent state API (for real-time synchronization with terminal dashboard)
+        function syncAgentState() {
+            // FIRST: Check if agent is running before updating anything
+            fetch('/api/status')
+                .then(response => response.json())
+                .then(agentStatus => {
+                    const isRunning = agentStatus.running || false;
+                    
+                    // If agent is NOT running, don't update chart or stats
+                    if (!isRunning) {
+                        // Agent stopped - don't add new data points to chart
+                        // Keep existing data but don't update
+                        return Promise.reject('Agent not running');
+                    }
+                    
+                    // Agent is running - proceed with state sync
+                    return fetch('/api/agent/state');
+                })
+                .then(response => {
+                    if (!response) return Promise.reject('No response'); // Agent not running, skip
+                    return response.json();
+                })
+                .catch(error => {
+                    // Agent not running or error - log for debugging
+                    console.debug('[Dashboard] Agent state sync failed:', error);
+                    return null;
+                })
+                .then(state => {
+                    if (!state || state.error) {
+                        // State not available or stale, but continue with log-based updates
+                        if (state && state.error) {
+                            console.debug(`[Dashboard] State error: ${state.error}`);
+                        }
+                        return;
+                    }
+                    
+                    // Double-check agent is still running (might have stopped between checks)
+                    return fetch('/api/status')
+                        .then(response => response.json())
+                        .then(status => {
+                            if (!status.running) {
+                                return null; // Agent stopped, don't update
+                            }
+                            return state; // Agent still running, proceed
+                        });
+                })
+                .then(state => {
+                    if (!state) {
+                        // Agent not running, skip all updates
+                        return;
+                    }
+                    
+                    // Update stats from agent state (PRIORITY: Use API data directly)
+                    if (state.stats) {
+                        // Use API data directly
+                        stats.processes = state.stats.total_processes || 0;
+                        stats.highRisk = state.stats.high_risk || 0;
+                        stats.anomalies = state.stats.anomalies || 0;
+                        stats.syscalls = state.stats.total_syscalls || 0;
+                        // Derive attacks directly from state stats (port scans + C2 beacons)
+                        const statePortScans = state.stats.port_scans || 0;
+                        const stateC2Beacons = state.stats.c2_beacons || 0;
+                        stats.attacks = statePortScans + stateC2Beacons;
+                        
+                        // Update UI immediately with API data
+                        document.getElementById('statProcesses').textContent = stats.processes;
+                        document.getElementById('statHighRisk').textContent = stats.highRisk;
+                        document.getElementById('statAnomalies').textContent = stats.anomalies;
+                        document.getElementById('statSyscalls').textContent = stats.syscalls.toLocaleString();
+                        document.getElementById('statAttacks').textContent = stats.attacks;
+                        
+                        // Force update of high risk and attack lists from state
+                        updateHighRiskFromState(state);
+                        updateAttackListFromState(state);
+                        
+                        // Track previous values to detect changes
+                        const oldAttacks = window._lastAttackCount || 0;
+                        window._lastAttackCount = stats.attacks;
+                        
+                        // Log when values change (especially attacks)
+                        if (stats.attacks !== oldAttacks) {
+                            console.log(`[Dashboard] ⚠️ ATTACK COUNT CHANGED: ${oldAttacks} → ${stats.attacks} (Port Scans: ${statePortScans}, C2: ${stateC2Beacons})`);
+                        }
+                        // Always log current state every 10 polls (every 20 seconds) for debugging
+                        if (Math.random() < 0.1) {
+                            console.log(`[Dashboard] Current stats: processes=${stats.processes}, highRisk=${stats.highRisk}, anomalies=${stats.anomalies}, attacks=${stats.attacks} (portScans=${statePortScans}, c2=${stateC2Beacons})`);
+                        }
+                        
+                        // Also update cumulative count for reference
+                        if (stats.syscalls > cumulativeSyscallsCount) {
+                            cumulativeSyscallsCount = stats.syscalls;
+                        }
+                        
+                        // Update chart with current stats (for timeline visualization)
+                        const now = new Date().toLocaleTimeString();
+                        if (activityData.labels.length === 0 || activityData.labels[activityData.labels.length - 1] !== now) {
+                            activityData.labels.push(now);
+                            activityData.anomalies.push(state.stats.anomalies || 0);
+                            activityData.attacks.push(statePortScans + stateC2Beacons);
+                            activityData.highRisk.push(state.stats.high_risk || 0);
+                            
+                            if (activityData.labels.length > 30) {
+                                activityData.labels.shift();
+                                activityData.anomalies.shift();
+                                activityData.attacks.shift();
+                                activityData.highRisk.shift();
+                            }
+                            
+                            if (!activityChart) {
+                                try {
+                                    const canvas = document.getElementById('activityChart');
+                                    if (canvas) {
+                                        const ctx = canvas.getContext('2d');
+                                        activityChart = new Chart(ctx, {
+                                            type: 'line',
+                                            data: {
+                                                labels: activityData.labels,
+                                                datasets: [
+                                                    {
+                                                        label: 'Anomalies',
+                                                        data: activityData.anomalies,
+                                                        borderColor: '#ffc107',
+                                                        backgroundColor: 'rgba(255, 193, 7, 0.1)',
+                                                        tension: 0.4,
+                                                        borderWidth: 2
+                                                    },
+                                                    {
+                                                        label: 'Attacks',
+                                                        data: activityData.attacks,
+                                                        borderColor: '#dc3545',
+                                                        backgroundColor: 'rgba(220, 53, 69, 0.1)',
+                                                        tension: 0.4,
+                                                        borderWidth: 2
+                                                    },
+                                                    {
+                                                        label: 'High Risk',
+                                                        data: activityData.highRisk,
+                                                        borderColor: '#ff9800',
+                                                        backgroundColor: 'rgba(255, 152, 0, 0.1)',
+                                                        tension: 0.4,
+                                                        borderWidth: 2
+                                                    }
+                                                ]
+                                            },
+                                            options: {
+                                                responsive: true,
+                                                maintainAspectRatio: false,
+                                                scales: {
+                                                    y: {
+                                                        beginAtZero: true,
+                    ticks: { stepSize: 1 }
+                                                    }
+                                                },
+                                                plugins: {
+                                                    legend: {
+                                                        display: true,
+                                                        position: 'bottom'
+                                                    }
+                                                }
+                                            }
+                                        });
+                                    }
+                                } catch (e) {
+                                    console.error('Chart initialization error:', e);
+                                }
+                            }
+                            
+                            if (activityChart) {
+                                try {
+                                    activityChart.data.labels = activityData.labels;
+                                    activityChart.data.datasets[0].data = activityData.anomalies;
+                                    activityChart.data.datasets[1].data = activityData.attacks;
+                                    activityChart.data.datasets[2].data = activityData.highRisk;
+                                    activityChart.update('none');
+                                } catch (e) {
+                                    console.error('Chart update error:', e);
+                                }
+                            }
+                        }
+                    }
+                    
+                    // Update processes from agent state (synchronized with terminal dashboard)
+                    if (state.processes && Array.isArray(state.processes)) {
+                        state.processes.forEach(proc => {
+                            const pid = String(proc.pid);
+                            
+                            // FILTER: Skip processes with zero activity (stale processes from previous runs)
+                            // Only show processes that have syscalls OR have risk/anomaly scores
+                            const riskScore = proc.risk_score || 0;
+                            const anomalyScore = proc.anomaly_score || 0;
+                            const totalSyscalls = proc.total_syscalls || proc.syscall_count || 0;
+                            
+                            // Skip inactive processes with no activity (prevents showing stale data on fresh start)
+                            if (totalSyscalls === 0 && riskScore === 0 && anomalyScore === 0) {
+                                return; // Skip this process
+                            }
+                            
+                            const existingProc = processes.get(pid) || { pid, name: 'unknown', risk: 0, anomaly: 0, syscalls: 0 };
+                            
+                            // Update with state data
+                    if (proc.name && !proc.name.startsWith('pid_') && proc.name !== 'unknown') {
+                        existingProc.name = proc.name;
+                    }
+                    existingProc.risk = riskScore;
+                    existingProc.anomaly = anomalyScore;
+                    existingProc.syscalls = totalSyscalls;
+                    existingProc.recentSyscalls = proc.recent_syscalls_str || (proc.recent_syscalls ? proc.recent_syscalls.join(', ') : '');
+                    existingProc.lastSeen = Date.now();
+                            
+                            processes.set(pid, existingProc);
+                        });
+                        
+                        // Remove processes that are no longer in agent state (after timeout)
+                        const now = Date.now();
+                        processes.forEach((proc, pid) => {
+                            const inState = state.processes.some(p => String(p.pid) === pid);
+                            if (!inState && (now - proc.lastSeen) > PROCESS_TIMEOUT_MS) {
+                                processes.delete(pid);
+                            }
+                        });
+                        
+                        // Re-render lists from state (top stats already set directly from state.stats)
+                        renderProcessList();
+                        updateHighRiskFromState(state);
+                        updateAttackListFromState(state);
+                    }
+                })
+                .catch(error => {
+                    // Silently fail - log-based updates will continue
+                    console.debug('Agent state sync failed:', error);
+                });
+        }
+        
+        // Clear old data on page load (prevent showing stale data from old logs)
+        highRiskList = [];
+        attackList = [];
+        processes.clear();
+        cumulativeSyscallsCount = 0;  // Reset cumulative count
+        
+        // RESET chart data on page load
+        activityData.labels = [];
+        // Removed normal - not needed
+        activityData.anomalies = [];
+        activityData.attacks = [];
+        activityData.highRisk = [];
+        
+        renderHighRiskList();
+        renderAttackList();
+        
+        // Log reset for debugging
+        console.log('[Dashboard] Dashboard values reset - starting fresh monitoring session');
+        
+        // CRITICAL: Initialize chart immediately on page load
+        try {
+            const canvas = document.getElementById('activityChart');
+            if (canvas && typeof Chart !== 'undefined') {
+                const ctx = canvas.getContext('2d');
+                activityChart = new Chart(ctx, {
+                    type: 'line',
+                    data: {
+                        labels: activityData.labels,
+                        datasets: [
+                            {
+                                label: 'Anomalies',
+                                data: activityData.anomalies,
+                                borderColor: '#ffc107',
+                                backgroundColor: 'rgba(255, 193, 7, 0.1)',
+                                tension: 0.4,
+                                borderWidth: 2
+                            },
+                            {
+                                label: 'Attacks',
+                                data: activityData.attacks,
+                                borderColor: '#dc3545',
+                                backgroundColor: 'rgba(220, 53, 69, 0.1)',
+                                tension: 0.4,
+                                borderWidth: 2
+                            },
+                            {
+                                label: 'High Risk',
+                                data: activityData.highRisk,
+                                borderColor: '#ff9800',
+                                backgroundColor: 'rgba(255, 152, 0, 0.1)',
+                                tension: 0.4,
+                                borderWidth: 2
+                            }
+                        ]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        scales: {
+                            y: {
+                                beginAtZero: true,
+                                ticks: {
+                                    stepSize: 1
+                                }
+                            }
+                        },
+                        plugins: {
+                            legend: {
+                                display: true,
+                                position: 'bottom'
+                            }
+                        }
+                    }
+                });
+                console.log('✅ Activity chart initialized');
+            }
+        } catch (e) {
+            console.error('❌ Chart initialization error:', e);
+        }
+        
+        // Poll agent state every 2 seconds (same as terminal dashboard update rate)
+        setInterval(syncAgentState, 2000);
+        syncAgentState(); // Initial sync immediately
+        
+        function addLog(message, type = 'info') {
+            const line = document.createElement('div');
+            line.className = `log-line ${type}`;
+            
+            const timestamp = new Date().toLocaleTimeString();
+            const timeSpan = document.createElement('span');
+            timeSpan.className = 'timestamp';
+            timeSpan.textContent = `[${timestamp}]`;
+            
+            const messageSpan = document.createElement('span');
+            messageSpan.textContent = escapeHtml(message);
+            
+            line.appendChild(timeSpan);
+            line.appendChild(messageSpan);
+            
+            terminal.appendChild(line);
+            
+            if (autoScroll) {
+                terminal.scrollTop = terminal.scrollHeight;
+            }
+            
+            // Keep terminal size manageable
+            if (terminal.children.length > 500) {
+                terminal.removeChild(terminal.firstChild);
+            }
+        }
+        
+        // Calculate current counts from processes Map
+        function calculateCurrentStats() {
+            const now = Date.now();
+            const riskThreshold = 30.0;
+            const anomalyThreshold = 60.0;
+            
+            // Count active processes (seen in last 60 seconds)
+            let activeProcesses = 0;
+            let currentHighRisk = 0;
+            let currentAnomalies = 0;
+            let totalSyscalls = 0;
+            
+            processes.forEach((proc, pid) => {
+                // Check if process is still active (seen recently)
+                const lastSeen = proc.lastSeen || 0;
+                if (now - lastSeen < PROCESS_TIMEOUT_MS) {
+                    activeProcesses++;
+                    
+                    // Count high risk processes
+                    if (proc.risk >= riskThreshold) {
+                        currentHighRisk++;
+                    }
+                    
+                    // Count anomaly processes
+                    if (proc.anomaly >= anomalyThreshold) {
+                        currentAnomalies++;
+                    }
+                    
+                    // Sum syscalls from active processes
+                    if (proc.syscalls) {
+                        totalSyscalls += proc.syscalls;
+                    }
+                }
+            });
+            
+            // Count recent attacks (last 5 minutes)
+            // Handle both number timestamps and string timestamps
+            const recentAttackCount = recentAttacks.filter(attack => {
+                if (!attack.timestamp) return false;
+                // If timestamp is a number (milliseconds), use it directly
+                if (typeof attack.timestamp === 'number') {
+                    return (now - attack.timestamp) < ATTACK_WINDOW_MS;
+                }
+                // If timestamp is a string, assume it's recent (within window)
+                // This handles log-based attacks with string timestamps
+                return true;
+            }).length;
+            
+            // For Total Syscalls: Use cumulative count (all processes ever seen in this session)
+            // This gives a better picture of total activity, not just current active processes
+            // If cumulative is 0 (just started), fall back to current active processes sum
+            const displaySyscalls = cumulativeSyscallsCount > 0 ? cumulativeSyscallsCount : totalSyscalls;
+
+            // IMPORTANT:
+            // The top summary cards (Processes / High Risk / Anomalies / Attacks / Total Syscalls)
+            // are now driven EXCLUSIVELY by the /api/agent/state endpoint (see syncAgentState),
+            // using the agent's state file as the single source of truth.
+            //
+            // We keep this function only for internal log-driven bookkeeping, but we no longer
+            // overwrite the summary cards from here, otherwise the log-derived counts can
+            // diverge from the state-file-derived counts and cause mismatches.
+            //
+            // If we ever want to fall back to log-only mode (no API), we can re‑enable
+            // these updates behind a feature flag.
+        }
+        
+        function updateStats(data) {
+            if (!data) return;
+            
+            if (data.message) {
+                const msg = data.message;
+                const now = Date.now();
+                
+                // Parse syscalls from SCORE UPDATE
+                if (msg.includes('SCORE UPDATE')) {
+                    const pidMatch = msg.match(/PID=(\d+)/);
+                    const syscallMatch = msg.match(/Syscalls=(\d+)/);
+                    const totalSyscallsMatch = msg.match(/TotalSyscalls=(\d+)/);
+                    const processMatch = msg.match(/Process[=:]([^\s,]+)/);
+                    const riskMatch = msg.match(/Risk[=:](\d+\.?\d*)/);
+                    const anomalyMatch = msg.match(/Anomaly[=:](\d+\.?\d*)/);
+                    
+                    if (pidMatch) {
+                        const pid = pidMatch[1];
+                        const proc = processes.get(pid) || { pid, name: 'unknown', risk: 0, anomaly: 0, syscalls: 0 };
+                        
+                        // Update process name if available
+                        if (processMatch && !processMatch[1].startsWith('pid_')) {
+                            proc.name = processMatch[1];
+                        }
+                        
+                        // Update risk and anomaly scores
+                        if (riskMatch) {
+                            proc.risk = parseFloat(riskMatch[1]);
+                        }
+                        if (anomalyMatch) {
+                            proc.anomaly = parseFloat(anomalyMatch[1]);
+                        }
+                        
+                        // Use TotalSyscalls for total count (preferred), fallback to Syscalls
+                        const oldSyscalls = proc.syscalls || 0;
+                        if (totalSyscallsMatch) {
+                            const newSyscalls = parseInt(totalSyscallsMatch[1]);
+                            proc.syscalls = newSyscalls;
+                            // Track cumulative total (only count increase, not absolute value)
+                            // This prevents double-counting when same process sends multiple updates
+                            if (newSyscalls > oldSyscalls) {
+                                cumulativeSyscallsCount += (newSyscalls - oldSyscalls);
+                            }
+                        } else if (syscallMatch) {
+                            // If we only have recent syscalls, add to existing total
+                            const recentSyscalls = parseInt(syscallMatch[1]);
+                            proc.syscalls = Math.max(proc.syscalls || 0, recentSyscalls);
+                            // For cumulative, we can't track increment from Syscalls field alone
+                            // So we'll use the current active processes sum instead
+                        }
+                        proc.lastSeen = now;
+                        processes.set(pid, proc);
+                    }
+                    
+                    // Recalculate stats
+                    calculateCurrentStats();
+                }
+                
+                // Parse HIGH RISK DETECTED - add to high-risk list
+                if ((msg.includes('HIGH RISK DETECTED') || msg.includes('🔴 HIGH RISK')) && !msg.includes('SCORE UPDATE')) {
+                    const pidMatch = msg.match(/PID=(\d+)/);
+                    if (pidMatch) {
+                        const pid = pidMatch[1];
+                        const timestamp = Math.floor(Date.now() / 1000);
+                        const detectionKey = `highrisk:${pid}:${timestamp}`;
+                        
+                        if (!highRiskDetections.has(detectionKey)) {
+                            highRiskDetections.add(detectionKey);
+                            updateChart('highRisk');
+                            
+                            // Extract details for high-risk list
+                            const processMatch = msg.match(/Process[=:]([^\s,]+)/);
+                            const riskMatch = msg.match(/Risk[=:](\d+\.?\d*)/);
+                            const anomalyMatch = msg.match(/Anomaly[=:](\d+\.?\d*)/);
+                            const syscallMatch = msg.match(/Total Syscalls: (\d+)/);
+                            const recentSyscallsMatch = msg.match(/Recent syscalls: ([^\n]+)/);
+                            
+                            // Get better process name (avoid pid_XXXXX)
+                            // First, check if we already have a good name in the processes Map
+                            let processName = 'unknown';
+                            const existingProc = processes.get(pid);
+                            if (existingProc && existingProc.name && !existingProc.name.startsWith('pid_') && existingProc.name !== 'unknown') {
+                                processName = existingProc.name;
+                            } else if (processMatch) {
+                                const foundName = processMatch[1];
+                                if (!foundName.startsWith('pid_')) {
+                                    processName = foundName;
+                                } else {
+                                    // Try to extract from other parts of the log message
+                                    const commMatch = msg.match(/comm[=:]([^\s,]+)/) || msg.match(/comm="([^"]+)"/);
+                                    const exeMatch = msg.match(/exe[=:]([^\s,]+)/) || msg.match(/exe="([^"]+)"/);
+                                    if (commMatch && !commMatch[1].startsWith('pid_')) {
+                                        processName = commMatch[1];
+                                    } else if (exeMatch) {
+                                        const exePath = exeMatch[1];
+                                        processName = exePath.split('/').pop() || exePath;
+                                    } else {
+                                        // Fallback: use PID format but we'll display it better in renderHighRiskList
+                                        processName = foundName;
+                                    }
+                                }
+                            }
+                            
+                            const highRiskEntry = {
+                                pid: pid,
+                                name: processName,
+                                risk: riskMatch ? parseFloat(riskMatch[1]) : 0,
+                                anomaly: anomalyMatch ? parseFloat(anomalyMatch[1]) : 0,
+                                syscalls: syscallMatch ? parseInt(syscallMatch[1]) : 0,
+                                recentSyscalls: recentSyscallsMatch ? recentSyscallsMatch[1].substring(0, 100) : '',
+                                timestamp: new Date().toLocaleTimeString(),
+                                details: msg.substring(0, 200)
+                            };
+                            
+                            highRiskList.unshift(highRiskEntry);
+                            if (highRiskList.length > 20) highRiskList.pop();
+                            renderHighRiskList();
+                            
+                            // Update process risk score and name (use best available name)
+                            const proc = processes.get(pid) || { pid, name: processName, risk: 0, anomaly: 0, syscalls: 0 };
+                            proc.risk = highRiskEntry.risk;
+                            proc.anomaly = highRiskEntry.anomaly;
+                            // Update name if we have a better one
+                            if (processName && !processName.startsWith('pid_') && processName !== 'unknown') {
+                                proc.name = processName;
+                            }
+                            proc.lastSeen = now;
+                            processes.set(pid, proc);
+                            
+                            // Recalculate stats
+                            calculateCurrentStats();
+                        }
+                    }
+                }
+                
+                // Parse ATTACK DETECTED
+                if (msg.includes('ATTACK') || msg.includes('PORT_SCANNING') || msg.includes('C2_BEACONING') || 
+                    msg.includes('CONNECTION PATTERN DETECTED')) {
+                    const pidMatch = msg.match(/PID=(\d+)/);
+                    const processMatch = msg.match(/Process[=:]([^\s,]+)/);
+                    
+                    let attackType = 'Unknown';
+                    if (msg.includes('PORT_SCANNING') || msg.includes('Port scanning')) {
+                        attackType = 'Port Scanning';
+                    } else if (msg.includes('C2_BEACONING') || msg.includes('C2 beaconing')) {
+                        attackType = 'C2 Beaconing';
+                    } else if (msg.includes('CONNECTION PATTERN')) {
+                        attackType = 'Suspicious Connection';
+                    }
+                    
+                    // Get better process name
+                    let attackProcessName = 'unknown';
+                    if (processMatch) {
+                        const foundName = processMatch[1];
+                        if (!foundName.startsWith('pid_')) {
+                            attackProcessName = foundName;
+                        } else {
+                            const commMatch = msg.match(/comm[=:]([^\s,]+)/) || msg.match(/comm="([^"]+)"/);
+                            const exeMatch = msg.match(/exe[=:]([^\s,]+)/) || msg.match(/exe="([^"]+)"/);
+                            if (commMatch && !commMatch[1].startsWith('pid_')) {
+                                attackProcessName = commMatch[1];
+                            } else if (exeMatch) {
+                                const exePath = exeMatch[1];
+                                attackProcessName = exePath.split('/').pop() || exePath;
+                            } else {
+                                attackProcessName = foundName;
+                            }
+                        }
+                    }
+                    
+                    const attackEntry = {
+                        type: attackType,
+                        pid: pidMatch ? pidMatch[1] : 'N/A',
+                        name: attackProcessName,
+                        details: msg.substring(0, 150),
+                        timestamp: new Date().toLocaleTimeString(),
+                        source: 'log'
+                    };
+                    
+                    // Add to recent attacks (for current count)
+                    recentAttacks.push({
+                        timestamp: now,
+                        ...attackEntry
+                    });
+                    // Remove old attacks
+                    recentAttacks = recentAttacks.filter(attack => now - attack.timestamp < ATTACK_WINDOW_MS);
+                    
+                    attackList.unshift(attackEntry);
+                    if (attackList.length > 20) attackList.pop();
+                    renderAttackList();
+                    updateChart('attack');
+                    
+                    // Recalculate stats
+                    calculateCurrentStats();
+                }
+                
+                // Parse ANOMALY DETECTED
+                if ((msg.includes('ANOMALY DETECTED') || msg.includes('⚠️  ANOMALY DETECTED')) && 
+                    !msg.includes('SCORE UPDATE') && 
+                    !msg.includes('AnomalyScore=') && 
+                    !msg.includes('Anomaly:')) {
+                    const pidMatch = msg.match(/PID=(\d+)/);
+                    if (pidMatch) {
+                        const pid = pidMatch[1];
+                        const timestamp = Math.floor(Date.now() / 1000);
+                        const detectionKey = `anomaly:${pid}:${timestamp}`;
+                        
+                        if (!anomalyDetections.has(detectionKey)) {
+                            anomalyDetections.add(detectionKey);
+                            updateChart('anomaly');
+                            
+                            // Update process anomaly score
+                            const anomalyMatch = msg.match(/AnomalyScore[=:](\d+\.?\d*)/);
+                            if (anomalyMatch) {
+                                const proc = processes.get(pid) || { pid, name: 'unknown', risk: 0, anomaly: 0, syscalls: 0 };
+                                proc.anomaly = parseFloat(anomalyMatch[1]);
+                                proc.lastSeen = now;
+                                processes.set(pid, proc);
+                                
+                                // Recalculate stats
+                                calculateCurrentStats();
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        
+        // Track cumulative counts for chart
+        let chartCounts = {
+            // Removed normal - not needed for security monitoring
+            anomalies: 0,  // Total anomalies detected since start
+            attacks: 0,     // Total attacks detected since start
+            highRisk: 0     // Total high-risk processes detected since start
+        };
+        
+        function updateChart(type) {
+            try {
+            const now = new Date().toLocaleTimeString();
+            
+            // Increment cumulative counts
+            if (type === 'anomaly') {
+                chartCounts.anomalies++;
+            } else if (type === 'attack') {
+                chartCounts.attacks++;
+            } else if (type === 'highRisk') {
+                chartCounts.highRisk++;
+            }
+            // Removed 'normal' type - not tracking normal events
+            
+            // Add data point with cumulative counts
+            activityData.labels.push(now);  // X-axis: Time
+            activityData.anomalies.push(chartCounts.anomalies);  // Y-axis: Count
+            activityData.attacks.push(chartCounts.attacks);      // Y-axis: Count
+            activityData.highRisk.push(chartCounts.highRisk);    // Y-axis: Count
+            
+            // Keep last 30 data points (more history)
+            if (activityData.labels.length > 30) {
+                activityData.labels.shift();
+                // Removed normal shift
+                activityData.anomalies.shift();
+                activityData.attacks.shift();
+                activityData.highRisk.shift();
+            }
+            
+                // Update chart with animation (only if chart exists)
+                if (typeof activityChart !== 'undefined' && activityChart) {
+            activityChart.update('active');
+                } else {
+                    console.warn('Activity chart not initialized yet');
+                }
+            } catch (error) {
+                console.error('Error updating activity chart:', error);
+            }
+        }
+        
+        function updateProcessList(data) {
+            if (!data || !data.message) return;
+            
+            const msg = data.message;
+            const pidMatch = msg.match(/PID=(\d+)/);
+            
+            if (!pidMatch) return;
+            
+            const pid = pidMatch[1];
+            const process = processes.get(pid) || { pid, name: 'unknown', risk: 0, anomaly: 0 };
+            
+            // Parse process name (multiple patterns - prioritize real names over pid_XXXXX)
+            let processMatch = msg.match(/Process[=:]([^\s,]+)/) || 
+                              msg.match(/Process=([^\s,]+)/) ||
+                              msg.match(/Process:([^\s,]+)/);
+            
+            // If we got a process name, check if it's actually a name or just pid_XXXXX
+            if (processMatch) {
+                const foundName = processMatch[1];
+                // Only update if it's not a pid_XXXXX pattern, or if we don't have a name yet
+                if (!foundName.startsWith('pid_') || process.name === 'unknown' || process.name.startsWith('pid_')) {
+                    // If it's pid_XXXXX, try to find a better name in the log
+                    if (foundName.startsWith('pid_')) {
+                        // Look for comm= or exe= patterns in the log
+                        const commMatch = msg.match(/comm[=:]([^\s,]+)/) || msg.match(/comm="([^"]+)"/);
+                        const exeMatch = msg.match(/exe[=:]([^\s,]+)/) || msg.match(/exe="([^"]+)"/);
+                        
+                        if (commMatch && !commMatch[1].startsWith('pid_')) {
+                            process.name = commMatch[1];
+                        } else if (exeMatch) {
+                            // Extract basename from exe path
+                            const exePath = exeMatch[1];
+                            const basename = exePath.split('/').pop() || exePath;
+                            if (!basename.startsWith('pid_')) {
+                                process.name = basename;
+                            } else {
+                                process.name = foundName; // Fallback to pid_XXXXX
+                            }
+                        } else {
+                            process.name = foundName; // Keep what we found
+                        }
+                    } else {
+                        process.name = foundName; // Real process name found
+                    }
+                }
+            } else {
+                // Try to find comm= or exe= patterns even if Process= is not found
+                const commMatch = msg.match(/comm[=:]([^\s,]+)/) || msg.match(/comm="([^"]+)"/);
+                const exeMatch = msg.match(/exe[=:]([^\s,]+)/) || msg.match(/exe="([^"]+)"/);
+                
+                if (commMatch && !commMatch[1].startsWith('pid_')) {
+                    process.name = commMatch[1];
+                } else if (exeMatch) {
+                    const exePath = exeMatch[1];
+                    const basename = exePath.split('/').pop() || exePath;
+                    if (!basename.startsWith('pid_')) {
+                        process.name = basename;
+                    }
+                }
+            }
+            
+            // Parse risk score (multiple patterns)
+            const riskMatch = msg.match(/Risk[=:](\d+\.?\d*)/) || 
+                            msg.match(/Risk=(\d+\.?\d*)/);
+            if (riskMatch) {
+                process.risk = parseFloat(riskMatch[1]);
+            }
+            
+            // Parse anomaly score (multiple patterns)
+            const anomalyMatch = msg.match(/Anomaly[=:](\d+\.?\d*)/) || 
+                               msg.match(/AnomalyScore[=:](\d+\.?\d*)/) ||
+                               msg.match(/Anomaly=(\d+\.?\d*)/);
+            if (anomalyMatch) {
+                process.anomaly = parseFloat(anomalyMatch[1]);
+            }
+            
+            // Parse syscall count
+            const syscallMatch = msg.match(/Syscalls=(\d+)/) || msg.match(/TotalSyscalls=(\d+)/);
+            if (syscallMatch) {
+                process.syscalls = parseInt(syscallMatch[1]);
+            }
+            
+            // Update last seen timestamp
+            process.lastSeen = Date.now();
+            
+            processes.set(pid, process);
+            renderProcessList();
+            
+            // Recalculate current stats after updating process
+            calculateCurrentStats();
+        }
+        
+        function renderHighRiskList() {
+            const highRiskListEl = document.getElementById('highRiskList');
+            
+            if (highRiskList.length === 0) {
+                highRiskListEl.innerHTML = '<div class="empty-state"><div class="empty-state-icon">🛡️</div><div class="empty-state-text">No high-risk processes yet</div></div>';
+                return;
+            }
+            
+            highRiskListEl.innerHTML = highRiskList.slice(0, 10).map(entry => {
+                // Determine display name - prefer real name, fallback to PID
+                let displayName = entry.name;
+                let showPid = false;
+                if (!entry.name || entry.name === 'unknown' || entry.name.startsWith('pid_')) {
+                    // Try to get better name from processes Map
+                    const proc = processes.get(entry.pid);
+                    if (proc && proc.name && !proc.name.startsWith('pid_') && proc.name !== 'unknown') {
+                        displayName = proc.name;
+                        showPid = true;
+                    } else {
+                        displayName = `PID ${entry.pid}`;
+                        showPid = false; // PID is already in the name
+                    }
+                } else {
+                    showPid = true; // Show PID separately if name is good
+                }
+                
+                return `
+                    <div class="process-item high-risk">
+                        <div class="process-header">
+                            <div>
+                                <div class="process-name" style="font-weight: 600; color: #dc3545;">${escapeHtml(displayName)}</div>
+                                ${showPid ? `<div class="process-pid" style="margin-top: 4px;">PID: ${entry.pid} | ${entry.timestamp}</div>` : `<div class="process-pid" style="margin-top: 4px;">${entry.timestamp}</div>`}
+                            </div>
+                            <div class="process-scores">
+                                <div class="score">
+                                    <span class="score-label">Risk:</span>
+                                    <span class="score-value risk-high">${entry.risk.toFixed(1)}</span>
+                                </div>
+                                <div class="score">
+                                    <span class="score-label">Anomaly:</span>
+                                    <span class="score-value risk-medium">${entry.anomaly.toFixed(1)}</span>
+                                </div>
+                            </div>
+                        </div>
+                        ${entry.recentSyscalls ? `<div style="font-size: 0.8em; color: #718096; margin-top: 6px; font-family: monospace;">Recent: ${escapeHtml(entry.recentSyscalls)}</div>` : ''}
+                        ${entry.syscalls > 0 ? `<div style="font-size: 0.75em; color: #a0aec0; margin-top: 4px;">Total: ${entry.syscalls} syscalls</div>` : ''}
+                    </div>
+                `;
+            }).join('');
+        }
+        
+        function renderAttackList() {
+            const attackListEl = document.getElementById('attackList');
+            
+            // Merge state-based and log-based attacks (state first, then logs)
+            const combined = [...stateAttackList, ...attackList];
+            
+            if (combined.length === 0) {
+                attackListEl.innerHTML = '<div class="empty-state"><div class="empty-state-icon">✅</div><div class="empty-state-text">No attacks detected yet</div></div>';
+                return;
+            }
+            
+            attackListEl.innerHTML = combined.slice(0, 10).map(entry => {
+                // Use timeString if available, otherwise convert timestamp to string
+                const displayTime = entry.timeString || (entry.timestamp && typeof entry.timestamp === 'number' 
+                    ? new Date(entry.timestamp).toLocaleTimeString() 
+                    : (entry.timestamp || '—'));
+                return `
+                    <div class="process-item attack">
+                        <div class="process-header">
+                            <div>
+                                <div class="process-name" style="color: #dc3545; font-weight: 600;">${escapeHtml(entry.type)}</div>
+                                <div class="process-pid" style="margin-top: 4px;">PID: ${entry.pid} | Process: ${escapeHtml(entry.name)} | ${displayTime}</div>
+                            </div>
+                        </div>
+                        <div style="font-size: 0.8em; color: #718096; margin-top: 6px; font-family: monospace; word-break: break-word;">${escapeHtml(entry.details)}</div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        // NEW: Build high-risk list directly from current agent state as a fallback
+        function updateHighRiskFromState(state) {
+            try {
+                if (!state || !state.processes || !Array.isArray(state.processes)) {
+                    return;
+                }
+
+                const threshold = (state.stats && state.stats.risk_threshold) || 30.0;
+                const now = new Date().toLocaleTimeString();
+                const entries = [];
+
+                state.processes.forEach(proc => {
+                    const risk = proc.risk_score || 0;
+                    if (risk >= threshold) {
+                        entries.push({
+                            pid: String(proc.pid),
+                            name: proc.name && !proc.name.startsWith('pid_') ? proc.name : `PID ${proc.pid}`,
+                            risk: risk,
+                            anomaly: proc.anomaly_score || 0,
+                            syscalls: proc.total_syscalls || proc.syscall_count || 0,
+                            recentSyscalls: proc.recent_syscalls_str || (proc.recent_syscalls ? proc.recent_syscalls.join(', ') : ''),
+                            timestamp: now,
+                            details: ''
+                        });
+                    }
+                });
+
+                // Sort by risk descending and keep top 10
+                entries.sort((a, b) => b.risk - a.risk);
+                highRiskList = entries.slice(0, 10);
+                renderHighRiskList();
+            } catch (e) {
+                console.error('Error updating high-risk list from state:', e);
+            }
+        }
+
+        // NEW: Build a simple attack list from state stats as a fallback
+        function updateAttackListFromState(state) {
+            try {
+                if (!state || !state.stats) {
+                    return;
+                }
+
+                const now = new Date();
+                const nowTimeString = now.toLocaleTimeString();
+                const portScans = state.stats.port_scans || 0;
+                const c2Beacons = state.stats.c2_beacons || 0;
+                const newAttacks = [];
+
+                // Clear old state-based attacks from recentAttacks first
+                recentAttacks = recentAttacks.filter(attack => attack.source !== 'state');
+
+                if (portScans > 0) {
+                    const attackEntry = {
+                        type: 'Port Scanning',
+                        pid: '—',
+                        name: 'Multiple processes',
+                        details: `Detected ${portScans} port-scanning patterns in the last 5 minutes`,
+                        timestamp: now.getTime(), // Use timestamp for filtering
+                        timeString: nowTimeString,
+                        source: 'state'
+                    };
+                    newAttacks.push(attackEntry);
+                    // Add to recentAttacks so count updates correctly
+                    recentAttacks.push(attackEntry);
+                }
+
+                if (c2Beacons > 0) {
+                    const attackEntry = {
+                        type: 'C2 Beaconing',
+                        pid: '—',
+                        name: 'Multiple processes',
+                        details: `Detected ${c2Beacons} C2 beaconing patterns in the last 5 minutes`,
+                        timestamp: now.getTime(), // Use timestamp for filtering
+                        timeString: nowTimeString,
+                        source: 'state'
+                    };
+                    newAttacks.push(attackEntry);
+                    // Add to recentAttacks so count updates correctly
+                    recentAttacks.push(attackEntry);
+                }
+
+                // Always rebuild stateAttackList from current state (no stale entries)
+                stateAttackList = newAttacks;
+
+                // Clean up old attacks from recentAttacks (older than 5 minutes)
+                const ATTACK_WINDOW_MS = 5 * 60 * 1000;
+                recentAttacks = recentAttacks.filter(attack => 
+                    (now.getTime() - attack.timestamp) < ATTACK_WINDOW_MS
+                );
+
+                renderAttackList();
+                
+                // Recalculate stats to update attack count
+                calculateCurrentStats();
+            } catch (e) {
+                console.error('Error updating attack list from state:', e);
+            }
+        }
+        
+        function renderProcessList() {
+            const processList = document.getElementById('processList');
+            const sorted = Array.from(processes.values())
+                .sort((a, b) => (b.risk + b.anomaly) - (a.risk + a.anomaly))
+                .slice(0, 15);
+            
+            if (sorted.length === 0) {
+                processList.innerHTML = '<div class="empty-state"><div class="empty-state-icon">📭</div><div class="empty-state-text">No processes detected yet</div></div>';
+                return;
+            }
+            
+            processList.innerHTML = sorted.map(p => {
+                const riskClass = p.risk >= 50 ? 'high-risk' : p.risk >= 30 ? 'anomaly' : '';
+                const riskColor = p.risk >= 50 ? 'risk-high' : p.risk >= 30 ? 'risk-medium' : 'risk-low';
+                
+                // If no real name, just show PID (ignore name issue)
+                let displayName = `PID ${p.pid}`;
+                if (p.name && !p.name.startsWith('pid_') && p.name !== 'unknown') {
+                    displayName = p.name;
+                }
+                
+                // Get recent syscalls for display
+                const recentSyscalls = p.recentSyscalls || '';
+                const syscallDisplay = recentSyscalls ? 
+                    `<div style="font-size: 0.75em; color: #718096; margin-top: 6px; font-family: monospace; word-break: break-word;">Recent: ${escapeHtml(recentSyscalls.substring(0, 100))}${recentSyscalls.length > 100 ? '...' : ''}</div>` : 
+                    '';
+                
+                return `
+                    <div class="process-item ${riskClass}">
+                        <div class="process-header">
+                            <div style="flex: 1;">
+                                <div class="process-name" style="font-weight: 600; font-size: 0.95em;">${escapeHtml(displayName)}</div>
+                                <div class="process-pid" style="margin-top: 4px; font-size: 0.8em; color: #718096;">PID: ${p.pid}${p.name && !p.name.startsWith('pid_') ? ` | ${escapeHtml(p.name)}` : ''}</div>
+                            </div>
+                            <div class="process-scores">
+                                <div class="score">
+                                    <span class="score-label">Risk:</span>
+                                    <span class="score-value ${riskColor}">${p.risk.toFixed(1)}</span>
+                                </div>
+                                <div class="score">
+                                    <span class="score-label">Anomaly:</span>
+                                    <span class="score-value ${p.anomaly >= 30 ? 'risk-medium' : 'risk-low'}">${p.anomaly.toFixed(1)}</span>
+                                </div>
+                            </div>
+                        </div>
+                        ${syscallDisplay}
+                        ${p.syscalls > 0 ? `<div style="font-size: 0.75em; color: #a0aec0; margin-top: 4px;">Total: ${p.syscalls.toLocaleString()} syscalls</div>` : ''}
+                    </div>
+                `;
+            }).join('');
+        }
+        
+        function clearHighRiskList() {
+            highRiskList = [];
+            renderHighRiskList();
+        }
+        
+        function clearAttackList() {
+            attackList = [];
+            stateAttackList = [];
+            renderAttackList();
+        }
+        
+        function showAlert(data) {
+            alertBanner.textContent = `🚨 ${data.type.toUpperCase()}: ${data.message.substring(0, 150)}`;
+            alertBanner.style.display = 'block';
+            
+            setTimeout(() => {
+                alertBanner.style.display = 'none';
+            }, 8000);
+        }
+        
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+        
+        function clearLogs() {
+            // Only clear the log display, keep stats and other sections
+            terminal.innerHTML = '<div class="log-line info"><span class="timestamp">[Cleared]</span><span>Log display cleared - stats and processes remain</span></div>';
+            // Note: This only clears the visual log display, not the stats or process lists
+        }
+        
+        function toggleAutoScroll() {
+            autoScroll = !autoScroll;
+            const btn = document.getElementById('autoScrollBtn');
+            btn.textContent = `Auto-scroll: ${autoScroll ? 'ON' : 'OFF'}`;
+            btn.innerHTML = `<i class="fas fa-arrow-down"></i> Auto-scroll: ${autoScroll ? 'ON' : 'OFF'}`;
+            if (autoScroll) {
+                btn.classList.add('active');
+            } else {
+                btn.classList.remove('active');
+            }
+        }
+        
+        async function checkStatus() {
+            try {
+                const response = await fetch('/api/status');
+                const data = await response.json();
+                
+                const currentStatus = data.running;
+                
+                // Detect when agent transitions between states
+                if (currentStatus && !previousAgentStatus) {
+                    // Agent just started - reset all values
+                    console.log('Agent started - resetting dashboard values');
+                    resetDashboardValues();
+                } else if (!currentStatus && previousAgentStatus) {
+                    // Agent just stopped - clear live data but keep UI chrome
+                    console.log('Agent stopped - clearing dashboard values');
+                    resetDashboardValues();
+                }
+                
+                previousAgentStatus = currentStatus;
+                
+                if (data.running) {
+                    statusDot.classList.add('active');
+                    statusText.textContent = 'Agent Running';
+                    document.getElementById('startAgentBtn').style.display = 'none';
+                    document.getElementById('stopAgentBtn').style.display = 'inline-block';
+                } else {
+                    statusDot.classList.remove('active');
+                    statusText.textContent = 'Agent Stopped';
+                    document.getElementById('startAgentBtn').style.display = 'inline-block';
+                    document.getElementById('stopAgentBtn').style.display = 'none';
+                }
+            } catch (error) {
+                console.error('Error checking status:', error);
+            }
+        }
+        
+        // Reset only the values/stats (not the entire dashboard UI)
+        function resetDashboardValues() {
+            // Clear all state
+            processes.clear();
+            highRiskList = [];
+            attackList = [];
+            stateAttackList = [];
+            recentAttacks = [];
+            anomalyDetections.clear();
+            highRiskDetections.clear();
+            cumulativeSyscallsCount = 0;
+            
+            // Reset chart counts
+            chartCounts.anomalies = 0;
+            chartCounts.attacks = 0;
+            chartCounts.highRisk = 0;
+            
+            // Reset stats
+            stats.processes = 0;
+            stats.highRisk = 0;
+            stats.anomalies = 0;
+            stats.attacks = 0;
+            stats.syscalls = 0;
+            
+            // Update UI
+            document.getElementById('statProcesses').textContent = '0';
+            document.getElementById('statHighRisk').textContent = '0';
+            document.getElementById('statAnomalies').textContent = '0';
+            document.getElementById('statAttacks').textContent = '0';
+            document.getElementById('statSyscalls').textContent = '0';
+            
+            // Clear lists
+            document.getElementById('highRiskList').innerHTML = '<div class="empty-state"><div class="empty-state-icon">🛡️</div><div class="empty-state-text">No high-risk processes yet</div></div>';
+            document.getElementById('attackList').innerHTML = '<div class="empty-state"><div class="empty-state-icon">✅</div><div class="empty-state-text">No attacks detected yet</div></div>';
+            document.getElementById('processList').innerHTML = '<div class="empty-state"><div class="empty-state-icon">📭</div><div class="empty-state-text">No processes detected yet</div></div>';
+            
+            // Reset chart
+            activityData.labels = [];
+            activityData.anomalies = [];
+            activityData.attacks = [];
+            activityData.highRisk = [];
+            chartCounts.anomalies = 0;
+            chartCounts.attacks = 0;
+            chartCounts.highRisk = 0;
+            // Update chart if it exists
+            if (activityChart) {
+                try {
+                    activityChart.data.labels = [];
+                    // Removed normal line (was dataset 0)
+                    activityChart.data.datasets[0].data = [];  // Anomalies
+                    activityChart.data.datasets[1].data = [];  // Attacks
+                    activityChart.data.datasets[2].data = [];  // High Risk
+            activityChart.update('none');
+                } catch (e) {
+                    console.error('Chart reset error:', e);
+                }
+            }
+            
+            // Add log message
+            addLog('🔄 Dashboard values reset - starting fresh monitoring session', 'info');
+        }
+        
+        async function startAgent() {
+            const btn = document.getElementById('startAgentBtn');
+            const originalText = btn.innerHTML;
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Starting...';
+            
+            try {
+                const response = await fetch('/api/agent/start', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    // Reset values when agent starts via web
+                    resetDashboardValues();
+                    addLog(`✅ Agent started successfully (PID: ${data.pid})`, 'info');
+                    // Update status after a moment
+                    setTimeout(checkStatus, 2000);
+                } else {
+                    addLog(`❌ Failed to start agent: ${data.error}`, 'error');
+                    alert(`Failed to start agent:\n${data.error}\n\nMake sure:\n- You have sudo permissions\n- eBPF is supported on this system`);
+                }
+            } catch (error) {
+                addLog(`❌ Error starting agent: ${error.message}`, 'error');
+                alert(`Error starting agent: ${error.message}`);
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = originalText;
+            }
+        }
+        
+        async function stopAgent() {
+            const btn = document.getElementById('stopAgentBtn');
+            const originalText = btn.innerHTML;
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Stopping...';
+            
+            if (!confirm('Are you sure you want to stop the agent?')) {
+                btn.disabled = false;
+                btn.innerHTML = originalText;
+                return;
+            }
+            
+            try {
+                const response = await fetch('/api/agent/stop', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                const data = await response.json();
+                
+                // Handle both success and "already stopped" cases
+                if (response.ok) {
+                    // Success - agent stopped or was already stopped
+                    addLog(data.message || 'Agent stopped successfully', 'info');
+                    // Update status after a moment
+                    setTimeout(checkStatus, 1000);
+                } else {
+                    // Error response - but don't show alert if agent is already stopped
+                    if (data.error && !data.error.includes('already stopped')) {
+                        addLog(`❌ Failed to stop agent: ${data.error}`, 'error');
+                        alert(`Failed to stop agent: ${data.error}`);
+                    } else {
+                        // Agent already stopped - this is fine
+                        addLog(data.message || 'Agent is already stopped', 'info');
+                        setTimeout(checkStatus, 1000);
+                    }
+                }
+            } catch (error) {
+                addLog(`❌ Error stopping agent: ${error.message}`, 'error');
+                alert(`Error stopping agent: ${error.message}`);
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = originalText;
+            }
+        }
+        
+        // Load available log files
+        async function loadLogFiles() {
+            try {
+                const response = await fetch('/api/logs/list');
+                const data = await response.json();
+                
+                const selector = document.getElementById('logFileSelector');
+                // Keep "Live" option, add file options
+                const liveOption = selector.options[0];
+                selector.innerHTML = '';
+                selector.appendChild(liveOption);
+                
+                if (data.logs && data.logs.length > 0) {
+                    // Only show last 10 historical logs (current/live is already in selector)
+                    const logsToShow = data.logs.slice(0, 10);
+                    logsToShow.forEach(log => {
+                        const option = document.createElement('option');
+                        option.value = log.filename;
+                        option.textContent = `📄 ${log.filename.replace('security_agent_', '').replace('.log', '')} (${log.modified_readable})`;
+                        selector.appendChild(option);
+                    });
+                }
+            } catch (error) {
+                console.error('Error loading log files:', error);
+            }
+        }
+        
+        // Load a specific log file
+        async function loadLogFile() {
+            const selector = document.getElementById('logFileSelector');
+            const selectedFile = selector.value;
+            
+            if (selectedFile === 'live') {
+                currentLogMode = 'live';
+                terminal.innerHTML = '<div class="log-line info"><span class="timestamp">[Live]</span><span>📡 Live monitoring active</span></div>';
+                // Restart live monitoring if needed
+                return;
+            }
+            
+            currentLogMode = 'file';
+            autoScroll = false;
+            document.getElementById('autoScrollBtn').textContent = 'Auto-scroll: OFF';
+            document.getElementById('autoScrollBtn').innerHTML = '<i class="fas fa-arrow-down"></i> Auto-scroll: OFF';
+            
+            try {
+                const response = await fetch(`/api/logs/view?file=${encodeURIComponent(selectedFile)}`);
+                const data = await response.json();
+                
+                if (data.error) {
+                    addLog(`Error loading log: ${data.error}`, 'error');
+                    return;
+                }
+                
+                terminal.innerHTML = '';
+                const lines = data.content.split('\n');
+                lines.forEach(line => {
+                    if (line.trim()) {
+                        let type = 'info';
+                        if (line.includes('ERROR') || line.includes('❌')) type = 'error';
+                        else if (line.includes('WARNING') || line.includes('⚠️') || line.includes('HIGH RISK') || line.includes('ANOMALY')) type = 'warning';
+                        else if (line.includes('ATTACK') || line.includes('🔴')) type = 'attack';
+                        
+                        addLog(line, type);
+                    }
+                });
+                
+                addLog(`\n📄 Loaded log file: ${data.filename} (${data.total_lines} lines)`, 'info');
+                terminal.scrollTop = terminal.scrollHeight; // Scroll to bottom
+            } catch (error) {
+                addLog(`Error loading log file: ${error.message}`, 'error');
+            }
+        }
+        
+        // Reset dashboard on page load/refresh
+        function resetDashboard() {
+            // Clear all state
+            processes.clear();
+            highRiskList = [];
+            attackList = [];
+            stateAttackList = [];
+            recentAttacks = [];
+            anomalyDetections.clear();
+            highRiskDetections.clear();
+            cumulativeSyscallsCount = 0;
+            
+            // Reset chart counts
+            chartCounts.anomalies = 0;
+            chartCounts.attacks = 0;
+            chartCounts.highRisk = 0;
+            
+            // Reset stats
+            stats.processes = 0;
+            stats.highRisk = 0;
+            stats.anomalies = 0;
+            stats.attacks = 0;
+            stats.syscalls = 0;
+            
+            // Update UI
+            document.getElementById('statProcesses').textContent = '0';
+            document.getElementById('statHighRisk').textContent = '0';
+            document.getElementById('statAnomalies').textContent = '0';
+            document.getElementById('statAttacks').textContent = '0';
+            document.getElementById('statSyscalls').textContent = '0';
+            
+            // Clear lists
+            document.getElementById('highRiskList').innerHTML = '<div class="empty-state"><div class="empty-state-icon">🛡️</div><div class="empty-state-text">No high-risk processes yet</div></div>';
+            document.getElementById('attackList').innerHTML = '<div class="empty-state"><div class="empty-state-icon">✅</div><div class="empty-state-text">No attacks detected yet</div></div>';
+            document.getElementById('processList').innerHTML = '<div class="empty-state"><div class="empty-state-icon">📭</div><div class="empty-state-text">No processes detected yet</div></div>';
+            
+            // Clear terminal (keep initial message)
+            const terminal = document.getElementById('terminal');
+            terminal.innerHTML = `
+                <div class="log-line info">
+                    <span class="timestamp">[Ready]</span>
+                    <span>📋 Dashboard Ready - Waiting for agent logs...</span>
+                </div>
+            `;
+            
+            // Reset chart
+            activityData.labels = [];
+            activityData.anomalies = [];
+            activityData.attacks = [];
+            activityData.highRisk = [];
+            chartCounts.anomalies = 0;
+            chartCounts.attacks = 0;
+            chartCounts.highRisk = 0;
+            activityChart.update('none');
+        }
+        
+        // Reset on page load
+        resetDashboard();
+        
+        checkStatus();
+        setInterval(checkStatus, 5000);
+        loadLogFiles(); // Load available log files on page load
+        setInterval(loadLogFiles, 30000); // Refresh log list every 30 seconds
+        
+        // Periodically recalculate current stats and clean up inactive processes
+        setInterval(() => {
+            const now = Date.now();
+            // Remove processes that haven't been seen in last 60 seconds
+            processes.forEach((proc, pid) => {
+                if (proc.lastSeen && (now - proc.lastSeen > PROCESS_TIMEOUT_MS)) {
+                    processes.delete(pid);
+                }
+            });
+            // Clean up old attacks
+            recentAttacks = recentAttacks.filter(attack => now - attack.timestamp < ATTACK_WINDOW_MS);
+            // Recalculate stats
+            calculateCurrentStats();
+        }, 10000); // Every 10 seconds
+    </script>
+</body>
+</html>

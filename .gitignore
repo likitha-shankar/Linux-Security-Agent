@@ -1,0 +1,74 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# Virtual Environments
+venv/
+venv_new/
+env/
+ENV/
+.venv
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+
+# Build
+build/
+dist/
+*.egg-info/
+
+# Logs
+*.log
+!logs/security_agent.log  # Keep agent log file for submission
+pip-log.txt
+
+# Model files (large binary files)
+*.pkl
+*.h5
+*.model
+
+# Temporary files
+*.tmp
+*.bak
+*.cache
+
+# OS
+Thumbs.db
+.DS_Store
+
+# Project specific
+.cache/
+*.pyc
+
+# Database files
+*.db
+*.sqlite
+*.sqlite3
+
+# Web dashboard database
+web/dashboard.db
+
+# Local presentation/demo notes (keep out of git)
+## Manual verification steps.md
+DEMO_COMMANDS.md
+DEMO_GUIDE.md
+PRESENTATION_GUIDE.md
+FINAL_TEST_SUMMARY.md
+PRESENTATION_SCRIPT.md
+
+# Evaluation reports (generated files)
+ml_evaluation_report.json
