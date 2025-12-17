@@ -5,18 +5,6 @@
 
 Real-time system call monitoring and threat detection agent for Linux. Uses eBPF to capture syscalls from the kernel and ML to detect anomalies. This project was developed as part of a Master's degree program to explore kernel-level security monitoring and machine learning-based threat detection.
 
-**Status:** Functional Prototype - Research/Academic Project  
-**Classification:** Not Production Ready
-
-**Recent updates (Dec 2025):**
-- ✅ Port scanning detection fixed and verified (574 detections in latest run)
-- ✅ C2 beaconing logic fixed (regular interval detection; needs more tuning for production)
-- ✅ Auditd network syscall rules documented (`START_COMPLETE_DEMO.sh` configures automatically)
-- ✅ ML models trained on ADFA-LD (5,205 samples) and saved to `~/.cache/security_agent/`
-- ✅ Comprehensive demo/test scripts: `START_COMPLETE_DEMO.sh`, `scripts/simulate_attacks.py`
-- ✅ Detailed demo docs: `DEMO_GUIDE.md`, `DEMO_COMMANDS.md`, `PRESENTATION_GUIDE.md`
-- ✅ Updated dashboards and anomaly logging
-
 ## Features
 
 - Real-time syscall monitoring via eBPF on Linux
@@ -245,8 +233,6 @@ The system includes:
 - Real-time dashboard with process monitoring
 - Attack simulation scripts for testing
 
-See [PROJECT_STATUS.md](PROJECT_STATUS.md) for detailed status and [docs/GAP_ANALYSIS.md](docs/GAP_ANALYSIS.md) for known limitations.
-
 ## Requirements
 
 ### Linux (Required)
@@ -325,13 +311,6 @@ Linux-Security-Agent/
 - **Process Monitoring**: 15+ concurrent processes tested (verified), 1000+ designed capacity
 - **ML Detection**: 50-D feature extraction, 3-model ensemble (F1=0.84)
 
-📊 **Comprehensive Benchmarks**: [docs/PERFORMANCE_BENCHMARKS.md](docs/PERFORMANCE_BENCHMARKS.md)  
-🤖 **ML Evaluation Metrics**: [docs/ML_EVALUATION_METRICS.md](docs/ML_EVALUATION_METRICS.md)  
-🏭 **Production Readiness**: [docs/PRODUCTION_READINESS.md](docs/PRODUCTION_READINESS.md)  
-🔍 **Gap Analysis**: [docs/GAP_ANALYSIS.md](docs/GAP_ANALYSIS.md)
-
-See full documentation for detailed metrics, validation results, and production roadmap.
-
 ## 🚀 Getting Started
 
 1. **Install**: `pip install -r requirements.txt`
@@ -348,9 +327,6 @@ For detailed docs, see `docs/HOW_TO_RUN.md`, `docs/USAGE.md`, and `docs/CLOUD_DE
 - ML anomaly detection concepts
 - Container security awareness
 - Research paper implementations
-
-**Not suitable for production use without significant additional work.**  
-See [PROJECT_STATUS.md](PROJECT_STATUS.md) and [docs/GAP_ANALYSIS.md](docs/GAP_ANALYSIS.md) for details.
 
 **Suggested repo topics:** linux-security, ebpf, anomaly-detection, container-security, machine-learning, research, prototype, academic-project
 
